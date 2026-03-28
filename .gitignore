@@ -1,0 +1,8 @@
+# ignore video and output files
+data/
+output/
+
+# ignore python junk
+__pycache__/
+*.pyc
+.DS_Store
