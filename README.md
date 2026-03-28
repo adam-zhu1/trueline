@@ -1,60 +1,81 @@
 # PinPoint 🎳
 
-A computer vision and machine learning tool that gives bowlers real-time performance data and actionable recommendations.
+A computer vision pipeline for extracting bowling performance metrics from phone video (ball speed, rev rate, board tracking, and breakpoint detection) with a planned ML recommendation layer.
 
 ---
 
-## The Problem
+## Overview
 
-Every bowler has been there: you throw a shot, it doesn't work, and you're left wondering — was that a bad shot, or should I actually move? Right now, answering that question relies on memory, gut feel, or a coach standing next to you. Most bowlers have neither.
-
-PinPoint aims to change that.
+PinPoint processes raw phone camera footage of a bowling delivery and extracts structured performance data without any specialized hardware. The core challenge is accurate ball tracking across a 60-foot lane, board-level spatial resolution (boards are ~1 inch wide), and rev rate estimation from standard frame rates.
 
 ---
 
-## What PinPoint Does
+## Technical Approach
 
-Using just a phone camera, PinPoint analyzes your throw and provides:
+### Ball Detection & Tracking
+- Frame-by-frame ball localization using **OpenCV** (Hough Circle Transform + contour detection)
+- Kalman filtering for smooth trajectory estimation and handling occlusion frames
+- Perspective correction to account for camera angle and position variance
 
-- **Ball speed** — how fast the ball is traveling down the lane
-- **Rev rate** — revolutions per minute at release
-- **Board tracking** — which board the ball crosses at the foul line and at the breakpoint
-- **Breakpoint detection** — where the ball makes its move toward the pocket
-- **Consistency tracking** — see how repeatable your shot is over time
-- **Recommendations** — data-driven suggestions on whether to move, and where
+### Board Tracking
+- Homographic transformation to map pixel coordinates to real-world lane coordinates
+- Lane line detection to establish board grid (60 boards, each ~1 inch wide)
+- Ball position mapped to board number at key moments: foul line, breakpoint, and entry angle at pins
+
+### Rev Rate Estimation
+- Logo/marking detection on ball surface across frames
+- Angular velocity calculation from rotation tracking
+- Target accuracy: ±50 RPM at standard 240fps slow-motion capture
+
+### Speed Calculation
+- Time-of-flight estimation using known lane length (60 feet)
+- Cross-validated against frame-by-frame displacement in corrected coordinates
+
+### Breakpoint Detection
+- Trajectory analysis to identify inflection point where lateral ball motion changes direction
+- Board number and distance from foul line recorded as output
+
+### Recommendation Engine *(planned)*
+- Statistical model trained on shot outcome data (strike/spare/split) correlated with entry angle, board, and speed
+- Given current lane conditions and recent shot history, output suggested adjustments (board, target, speed)
 
 ---
 
 ## Tech Stack
 
-- **Python** — core language
-- **OpenCV** — ball detection and tracking
-- **Computer Vision / ML** — board tracking, rev rate estimation, breakpoint detection
-- *(Mobile app layer — planned)*
+| Component | Tool |
+|---|---|
+| Language | Python 3.11 |
+| CV Pipeline | OpenCV |
+| Numerical | NumPy, SciPy |
+| ML Layer | PyTorch *(planned)* |
+| Mobile | TBD |
 
 ---
 
 ## Status
 
-🚧 Early stage — currently working on core CV pipeline for ball tracking and board detection.
-
----
-
-## About
-
-Built by a first-year Stat/ML student at Carnegie Mellon University with a background in competitive bowling. This project sits at the intersection of computer vision, sports analytics, and practical usability.
+🚧 Early stage — building and validating core CV pipeline.
 
 ---
 
 ## Roadmap
 
 - [ ] Ball detection and tracking from phone video
+- [ ] Perspective correction and lane homography
 - [ ] Board identification at foul line and breakpoint
-- [ ] Rev rate estimation
+- [ ] Rev rate estimation via rotation tracking
 - [ ] Speed calculation
+- [ ] Breakpoint detection
 - [ ] Consistency metrics across multiple shots
-- [ ] Recommendation engine (where to move)
+- [ ] Recommendation engine (ML model)
 - [ ] Mobile app interface
+
+---
+
+## About
+
+Built by a first-year Stat/ML student at Carnegie Mellon University with a background in competitive bowling.
 
 ---
 
