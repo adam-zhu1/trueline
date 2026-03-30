@@ -6,11 +6,11 @@ Computer vision on phone video: ball speed, board line, breakpoint, rev rate (pl
 
 ## About
 
-PinPoint is a personal project by a first-year **Statistics & Machine Learning** student at **Carnegie Mellon University**, with a background in **competitive high school bowling**. The problem it targets is the one serious bowlers keep running into: after a bad shot, it is hard to tell whether to **move** or to **fix the release**—foul-line board, breakpoint, and shot-to-shot speed blur in memory, so changes stay guesswork.
+I’m a first-year **Statistics & Machine Learning** student at **Carnegie Mellon University** and I bowled competitively in high school. I started PinPoint because of a problem I keep hitting: after a bad shot, it’s genuinely hard to know whether to **move** or to **fix the release**—foul-line board, breakpoint, and shot-to-shot speed blur in memory, so adjustments stay guesswork.
 
-Enterprise lane systems (e.g. **Specto**) cost on the order of **$15k** installed and require lane hardware. Apps such as **LaneTrax** show that a phone can log a shot; PinPoint is aimed at the same **no-extra-hardware** constraint while building toward **metrics on every delivery** and, eventually, **recommendations** from that data—for leagues, high school and college teams, and coaches who want objective feedback without Specto-level pricing.
+Enterprise lane systems (e.g. **Specto**) cost on the order of **$15k** installed and need hardware on the lane. Apps like **LaneTrax** prove a phone can log a shot; what I want PinPoint to become is the same **no-extra-hardware** setup, with **solid metrics on every delivery** and, down the road, **recommendations** from that data—for league bowlers, high school and college teams, and coaches who want objective feedback without Specto-level pricing.
 
-The technical heart of the project is **board-level spatial accuracy from a side-mounted phone camera** over a full lane: boards are on the order of an inch wide across sixty feet, so extracting reliable line and breakpoint from casual video is a genuine CV / ML challenge.
+The piece of this that excites me technically is **board-level accuracy from a side-mounted phone** over a full lane: boards are on the order of an inch wide across sixty feet, so pulling reliable line and breakpoint out of casual video is a real **CV / ML** problem—and the reason the stack looks the way it does.
 
 ---
 
