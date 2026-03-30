@@ -1,300 +1,126 @@
-# Training a bowling-ball detector (YOLO)
+# Training the ball detector (YOLO)
 
-This guide is for **you** (the developer) — not for end users. Players only need to **calibrate** and run; they never see this folder. Your M4 Max is ideal for training with **Apple Metal (MPS)**.
-
----
-
-## What problem this solves
-
-The built-in tracker uses **motion** (background subtraction + circles). It confuses feet, shadows, and reflections with the ball. A **small neural network** learns to answer: “Does this patch look like a bowling ball?” That is **much** more stable across lighting and house conditions.
-
-**Transfer learning**: We start from **YOLOv8n** weights pretrained on COCO (many object categories), then **fine-tune** on *only* your “bowling_ball” class. You are not training from scratch.
+Fine-tune YOLOv8 on your frames; PinPoint loads **`models/ball.pt`** at runtime (`src/yolo_ball.py`). Class **0** = `bowling_ball`. Labels: YOLO `cx cy w h` normalized; empty `.txt` = no ball.
 
 ---
 
-## Concepts (short)
+## Paths (repo root)
 
-| Term | Meaning |
-|------|--------|
-| **Bounding box** | Rectangle `(x1,y1,x2,y2)` around the ball in the image. |
-| **YOLO** | “You Only Look Once” — one forward pass per image, outputs boxes + scores. |
-| **Class** | Here we use **one** class: index `0` = `bowling_ball`. |
-| **Label file** | For each image `foo.jpg`, a text file `foo.txt` with one line per box: `class cx cy w h` with **normalized** center and size in `[0,1]`. |
-| **data.yaml** | Tells Ultralytics where train/val images and labels live, and class names. |
-| **Fine-tune** | Adjust pretrained weights on your dataset; faster and needs less data than training from zero. |
+| Location | Purpose |
+|----------|---------|
+| `dataset/ball_yolo/` | `data.yaml`, `images/{train,val}/`, `labels/{train,val}/` |
+| `runs/detect/ball/weights/best.pt` | Default training output (gitignored) |
+| `models/ball.pt` | Copy `best.pt` here for the app (gitignored) |
 
----
-
-## Dataset layout
-
-The repo includes **`dataset/ball_yolo/`** with `images/train`, `images/val`, `labels/train`, `labels/val`, and **`data.yaml`** — use that, or copy the same layout elsewhere.
-
-```
-dataset/ball_yolo/
-  data.yaml
-  images/train/   # .jpg / .png
-  images/val/
-  labels/train/   # .txt per image, same base name
-  labels/val/
-```
-
-**Val** should be **different videos** than train (generalization test), typically 15–20% of images.
-
-**Empty labels**: If a frame has **no** ball (or you skip it), you can omit the image or use an **empty** `.txt` — YOLO uses those as hard negatives.
-
-**How many images?** Rough guide: **100–300** labeled frames to see a clear improvement; **500+** for something solid. Diversity (centers, oil, day/night) beats sheer count from one session.
+If `runs/detect/ball` already exists, Ultralytics may use **`ball2`**, **`ball3`**, … — copy from the path printed when training finishes.
 
 ---
 
-## Labeling tools
-
-- **[CVAT](https://www.cvat.ai/)** — web UI, export “YOLO 1.1”.
-- **[Label Studio](https://labelstud.io/)** — flexible; export and convert to YOLO format.
-- **Roboflow** — hosted; can export YOLOv8.
-
-Export **YOLO** format: one `.txt` per image, normalized `class cx cy w h`.
-
----
-
-## `data.yaml`
-
-Use **`dataset/ball_yolo/data.yaml`** in this repo (`path: .` is this folder). If Ultralytics complains, change `path` to the **absolute** path of `dataset/ball_yolo/`.
-
-Alternatively copy `training/data.yaml.template` and set `path` yourself.
-
----
-
-## Install training dependencies (once)
-
-From the project root:
+## One-time setup
 
 ```bash
+cd /path/to/pinpoint
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r training/requirements-training.txt
 ```
 
-PyTorch on Mac with MPS is usually installed via `pip install torch` (see [pytorch.org](https://pytorch.org/) if you need a specific build). Ultralytics will use **MPS** automatically when `torch.backends.mps.is_available()` is true.
-
 ---
 
-## Step-by-step: add more data and train the model
+## Every time: add data → train → deploy
 
-Use this for your **first** training run and anytime you want the detector to work better on **new** lanes, angles, or lighting. You keep **one** dataset folder and **one** `ball.pt`; you just **add** images/labels and **train again**.
+Always **`cd`** to repo root and **`source .venv/bin/activate`** first.
 
-### 1. Activate the project environment
-
-From the **repo root** (`pinpoint/`):
-
-```bash
-cd /path/to/pinpoint
-source .venv/bin/activate
-```
-
-Install deps once (see [Install training dependencies](#install-training-dependencies-once) above). Always run `pip` and `python3` **after** `activate` so packages match the interpreter that runs PinPoint.
-
-### 2. Get still frames from new videos
-
-You need **images** on disk before labeling. Two options:
-
-**A. Script in this repo** (OpenCV; good default):
+### 1. Frames
 
 ```bash
 python3 training/extract_frames.py \
-  --input /path/to/video.mp4 \
+  --input "/path/to/video.mp4" \
   --output dataset/ball_yolo/images/train \
   --fps 3 \
-  --prefix myhouse_night_
+  --prefix unique_prefix_
 ```
 
-- **`--prefix`** — Use a **unique prefix per video or session** so new files do not overwrite old ones (`myhouse_night_00000.jpg`, …).
-- **`--fps`** — Lower = fewer frames (less labeling); higher = more diversity.
+Use a **new `--prefix` per video** so files do not collide.
 
-**B. ffmpeg** (if you prefer the command line):
+### 2. Label
+
+Use [CVAT](https://www.cvat.ai/) (or any tool that exports YOLO). One class, tight boxes on the ball. Export YOLO; put each image and its matching **`basename.txt`** in `labels/train/` or `labels/val/`.
+
+- Move **~15–20%** of image+label **pairs** to `images/val/` + `labels/val/` (prefer frames from other videos).
+- Val must include **some** non-empty labels (ball boxes), not only empty negatives.
+
+### 3. Refresh caches (after moving files or changing labels)
+
+```bash
+rm -f dataset/ball_yolo/labels/train.cache dataset/ball_yolo/labels/val.cache
+```
+
+### 4. Train
+
+**You already have `models/ball.pt`:**
+
+```bash
+python3 training/train_ball_detector.py \
+  --data dataset/ball_yolo/data.yaml \
+  --model models/ball.pt \
+  --epochs 80
+```
+
+**First train (no weights yet):** omit `--model` (starts from `yolov8n.pt`).
+
+```bash
+python3 training/train_ball_detector.py \
+  --data dataset/ball_yolo/data.yaml \
+  --epochs 80
+```
+
+Do **not** pass `--project runs/detect` (the script blocks it). Default run directory is **`runs/detect/ball/`**.
+
+### 5. Install weights
+
+Use the path in the **`Done. Typical next step:`** line. Often:
+
+```bash
+mkdir -p models
+cp runs/detect/ball/weights/best.pt models/ball.pt
+```
+
+Optional backup: `cp models/ball.pt models/ball.pt.backup`
+
+### 6. Run
+
+```bash
+python3 src/main.py
+```
+
+Override weights: `export PINPOINT_BALL_MODEL=/path/to/file.pt`
+
+---
+
+## Optional: ffmpeg instead of `extract_frames.py`
 
 ```bash
 mkdir -p dataset/ball_yolo/images/train
-ffmpeg -i /path/to/video.mp4 -vf fps=3 "dataset/ball_yolo/images/train/newclip_%05d.jpg"
+ffmpeg -i /path/to/video.mp4 -vf fps=3 "dataset/ball_yolo/images/train/clip_%05d.jpg"
 ```
-
-Raw frames under `images/train/` are fine to accumulate over time; you do not need a separate folder per training run.
-
-### 3. Label the ball
-
-1. Open **[CVAT](https://www.cvat.ai/)** (or another tool listed in [Labeling tools](#labeling-tools)).
-2. Create a project with **one class**, e.g. `bowling_ball` (YOLO class index **0**).
-3. Upload the new images from `dataset/ball_yolo/images/train` (or a copy).
-4. Draw a **tight box** around the ball on each frame where it is visible.
-5. Export **YOLO 1.1** (or YOLO-compatible `.txt` labels: normalized `class cx cy w h`).
-
-**Frames with no ball** (approach, pins only): either skip them or add the image with an **empty** `.txt` label file (same base name as the image). Those are **hard negatives** and help reduce false positives.
-
-### 4. Put images and labels in the dataset folders
-
-Layout (under `dataset/ball_yolo/`):
-
-| You add | Where |
-|--------|--------|
-| Training images | `images/train/*.jpg` (or `.png`) |
-| Training labels | `labels/train/*.txt` — **same basename** as the image (`foo.jpg` → `foo.txt`) |
-| Validation images | `images/val/` |
-| Validation labels | `labels/val/` — same pairing rule |
-
-**Validation** should include frames from **different videos** than train when possible (about **15–20%** of your total), so metrics reflect generalization.
-
-**Val must include some frames with a ball box** (non-empty `.txt`). If every val image has an **empty** label, validation mAP / precision–recall are not meaningful. Mix a few **positive** (boxed) val frames with some **empty** negatives.
-
-After copying exported files from CVAT, fix any path mismatch: every image in `images/train` should have a matching `labels/train` file (or deliberately omit rare negatives if your tool exported empty labels).
-
-**Example** (video path with spaces — note double quotes):
-
-```bash
-python3 training/extract_frames.py \
-  --input "/path/to/pinpoint/data/My Recording.MP4" \
-  --output dataset/ball_yolo/images/train \
-  --fps 3 \
-  --prefix myclip_
-```
-
-### 5. Train (or retrain)
-
-From repo root, venv on:
-
-```bash
-python3 training/train_ball_detector.py --data dataset/ball_yolo/data.yaml --epochs 80
-```
-
-- By default this repo uses **`--project runs/detect`** and **`--name ball`**, so new runs save under:
-
-  **`runs/detect/ball/weights/best.pt`**
-
-- **Older runs** may show a nested path like **`runs/detect/runs/ball/weights/best.pt`** if `project` was set to `runs` — Ultralytics still put the run under `runs/detect/…`. That is normal for those logs.
-
-- **Always copy from the path printed when training finishes** (`save_dir`, or the `Done. Typical next step:` line with the full `cp … best.pt`). Do not guess if your folder layout looks different.
-
-**Starting from your current app weights** (fine-tune instead of from `yolov8n.pt` only):
-
-```bash
-python3 training/train_ball_detector.py \
-  --data dataset/ball_yolo/data.yaml \
-  --model models/ball.pt \
-  --epochs 80
-```
-
-Use this when you already have a decent `models/ball.pt` and only added **new** hard examples.
-
-### 6. Install the new weights and run PinPoint
-
-Training does **not** update `models/ball.pt` by itself. You must copy `best.pt` after each train (use the **exact** path from the training output).
-
-**Optional backup** (if you might want the previous weights back):
-
-```bash
-cp models/ball.pt models/ball.pt.backup
-```
-
-(skip if `models/ball.pt` does not exist yet)
-
-**Install weights** (replace with your printed path if different):
-
-```bash
-mkdir -p models
-cp runs/detect/ball/weights/best.pt models/ball.pt
-# example legacy path from an older default:
-# cp runs/detect/runs/ball/weights/best.pt models/ball.pt
-```
-
-**Run the app** (repo root, venv activated):
-
-```bash
-python3 src/main.py
-```
-
-PinPoint auto-loads `models/ball.pt` when `torch` + `ultralytics` work. Temporary override:
-
-```bash
-export PINPOINT_BALL_MODEL=/path/to/custom.pt
-```
-
-### 7. Repeat later
-
-When a **new** video misbehaves: extract frames → label → add to `images/train` (and refresh `val`) → train again → copy `best.pt` to `models/ball.pt`. One model file can serve **many** videos; you only retrain to cover **new** visual conditions.
 
 ---
 
-## Quick reference (train → deploy → run)
+## `data.yaml`
 
-```bash
-cd /path/to/pinpoint
-source .venv/bin/activate
-
-# Fine-tune from current app weights (recommended after adding data)
-python3 training/train_ball_detector.py \
-  --data dataset/ball_yolo/data.yaml \
-  --model models/ball.pt \
-  --epochs 80
-
-# Optional: keep old weights
-# cp models/ball.pt models/ball.pt.backup
-
-# Use the path printed at the end of training, e.g.:
-mkdir -p models
-cp runs/detect/ball/weights/best.pt models/ball.pt
-
-python3 src/main.py
-```
-
-Override weights at runtime: `export PINPOINT_BALL_MODEL=/path/to/custom.pt`
-
----
-
-## End-to-end checklist (new data → new `ball.pt`)
-
-| Step | Action |
-|------|--------|
-| 1 | `cd` to repo root, `source .venv/bin/activate` |
-| 2 | `extract_frames.py` → `dataset/ball_yolo/images/train` with a unique `--prefix` |
-| 3 | Label in CVAT → export YOLO → copy images + `.txt` into `images/train` and `labels/train` (matched names) |
-| 4 | Move ~15–20% of **pairs** to `images/val` and `labels/val`; include **some** labeled ball frames in val |
-| 5 | `python3 training/train_ball_detector.py --data dataset/ball_yolo/data.yaml --model models/ball.pt --epochs 80` |
-| 6 | `cp <printed>/best.pt models/ball.pt` |
-| 7 | `python3 src/main.py` |
-
----
-
-## What the code does (inference)
-
-1. `src/yolo_ball.py` loads weights with Ultralytics `YOLO(path)`.
-2. Each frame, `predict()` returns boxes; we **discard** boxes whose **center** is outside the **calibrated lane quadrilateral** (same foul/pin corners as the mask).
-3. Boxes become `(cx, cy, r)` for the existing **Kalman** + `refine_ball_center` path in `ball_tracking.py`.
-
-So calibration still defines **where** the lane is; the network only answers **whether** a ball-like object is there.
+Use **`dataset/ball_yolo/data.yaml`**. If Ultralytics errors on paths, set `path:` to the **absolute** path of `dataset/ball_yolo/`.
 
 ---
 
 ## Troubleshooting
 
-| Symptom | What to try |
-|--------|-------------|
-| YOLO not used / classical mode | Ensure `models/ball.pt` exists; install `training/requirements-training.txt` in the **same** venv you use to run the app; read the startup messages from `ball_tracking.py`. |
-| No detections | Lower `conf` in `load_yolo_ball()` or train longer; add harder negatives. |
-| False positives | Raise `conf`; add more negative frames; label reflections as background (no box). |
-| Jitter | Usually association/Kalman — same as classical mode; detector gives better centers first. |
-| Slow preview | Processing-limited, not a deliberate slowdown; YOLO + high resolution increases per-frame cost. |
-| Val metrics look odd | Ensure val has **non-empty** labels on some images (ball boxes), not only empty `.txt` files. |
-| Slow | Use `yolov8n.pt`; reduce `imgsz`; export ONNX later for a slimmer runtime. |
+| Issue | Try |
+|-------|-----|
+| YOLO not used | `models/ball.pt` present; same venv has `training/requirements-training.txt` installed. |
+| Bad val metrics | Val includes real ball boxes, not only empty `.txt`. |
+| Stale split | Delete `labels/train.cache` and `labels/val.cache`, train again. |
+| Few / noisy detections | More data; tune `conf` in `load_yolo_ball()` in code. |
 
----
-
-## Learning path (if you want depth)
-
-1. Read Ultralytics **Train** docs: [docs.ultralytics.com/modes/train](https://docs.ultralytics.com/modes/train/).
-2. Watch how **mAP** and **loss** change on **val** — overfitting shows val getting worse while train improves.
-3. When comfortable, experiment with **augmentation** (Ultralytics YAML `augment` section) or a slightly larger model (`yolov8s.pt`).
-
----
-
-## Privacy / ethics
-
-Only train on footage you have rights to use. If you ever ship a public app, document that model weights are derived from user-consented data if applicable.
+Ultralytics train docs: [docs.ultralytics.com/modes/train](https://docs.ultralytics.com/modes/train/).
