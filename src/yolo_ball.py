@@ -4,17 +4,17 @@ Optional YOLO-based ball detector (Ultralytics).
 Why this exists
 ---------------
 The classical pipeline (MOG2 + Hough + blobs) answers "what moved?" — not
-"where is the ball?". A small detector trained on *your* lane / lighting learns
-appearance (round, reflective, etc.) and is the usual next step for reliability.
+"where is the ball?". A small detector trained on lane-specific lighting and appearance
+(round, reflective, etc.) is the usual next step for reliability.
 
 How it plugs in
 ---------------
 If a weights file exists at the default path (or PINPOINT_BALL_MODEL), `ball_tracking.track_ball`
 uses this module to produce candidate (x, y, r) each frame and skips background
 subtraction. If the file is missing or Ultralytics is not installed, PinPoint
-falls back to the classical pipeline — so the app still runs for everyone.
+falls back to the classical pipeline — so the app still runs without optional weights.
 
-You train a **single-class** model (class 0 = bowling_ball). Bounding boxes are
+Training uses a **single-class** model (class 0 = bowling_ball). Bounding boxes are
 converted to a center and radius for the existing Kalman + refine_ball_center path.
 """
 

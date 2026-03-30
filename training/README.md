@@ -1,6 +1,6 @@
 # Training the ball detector (YOLO)
 
-Fine-tune YOLOv8 on your frames; PinPoint loads **`models/ball.pt`** at runtime (`src/yolo_ball.py`). Class **0** = `bowling_ball`. Labels: YOLO `cx cy w h` normalized; empty `.txt` = no ball.
+Fine-tune YOLOv8 on labeled frames; PinPoint loads **`models/ball.pt`** at runtime (`src/yolo_ball.py`). Class **0** = `bowling_ball`. Labels: YOLO `cx cy w h` normalized; empty `.txt` = no ball.
 
 ---
 
@@ -10,9 +10,9 @@ Fine-tune YOLOv8 on your frames; PinPoint loads **`models/ball.pt`** at runtime 
 |----------|---------|
 | `dataset/ball_yolo/` | `data.yaml`, `images/{train,val}/`, `labels/{train,val}/` |
 | `runs/detect/ball/weights/best.pt` | Default training output (gitignored) |
-| `models/ball.pt` | Copy `best.pt` here for the app (gitignored) |
+| `models/ball.pt` | Trained weights for the app; install by copying `best.pt` from the run directory (gitignored) |
 
-If `runs/detect/ball` already exists, Ultralytics may use **`ball2`**, **`ball3`**, … — copy from the path printed when training finishes.
+If `runs/detect/ball` already exists, Ultralytics may write **`ball2`**, **`ball3`**, … instead — use the `save_dir` path printed at the end of training.
 
 ---
 
@@ -28,9 +28,9 @@ pip install -r training/requirements-training.txt
 
 ---
 
-## Every time: add data → train → deploy
+## Training workflow (repeat for each new batch of data)
 
-Always **`cd`** to repo root and **`source .venv/bin/activate`** first.
+From the repository root with the virtual environment activated (`source .venv/bin/activate`).
 
 ### 1. Frames
 
@@ -42,14 +42,14 @@ python3 training/extract_frames.py \
   --prefix unique_prefix_
 ```
 
-Use a **new `--prefix` per video** so files do not collide.
+A **distinct `--prefix` per source video** avoids filename collisions in `images/train/`.
 
 ### 2. Label
 
-Use [CVAT](https://www.cvat.ai/) (or any tool that exports YOLO). One class, tight boxes on the ball. Export YOLO; put each image and its matching **`basename.txt`** in `labels/train/` or `labels/val/`.
+[CVAT](https://www.cvat.ai/) or any YOLO-capable exporter: single class, tight boxes on the ball. After export, each image sits under `images/train/` or `images/val/` with a matching **`basename.txt`** in the corresponding `labels/` folder.
 
-- Move **~15–20%** of image+label **pairs** to `images/val/` + `labels/val/` (prefer frames from other videos).
-- Val must include **some** non-empty labels (ball boxes), not only empty negatives.
+- **~15–20%** of image+label **pairs** should live under `images/val/` + `labels/val/` (ideally from different source videos than train).
+- The validation split needs **some** non-empty labels (ball boxes), not only empty negatives.
 
 ### 3. Refresh caches (after moving files or changing labels)
 
@@ -59,7 +59,7 @@ rm -f dataset/ball_yolo/labels/train.cache dataset/ball_yolo/labels/val.cache
 
 ### 4. Train
 
-**You already have `models/ball.pt`:**
+**Fine-tuning** (existing `models/ball.pt`):
 
 ```bash
 python3 training/train_ball_detector.py \
@@ -68,7 +68,7 @@ python3 training/train_ball_detector.py \
   --epochs 80
 ```
 
-**First train (no weights yet):** omit `--model` (starts from `yolov8n.pt`).
+**Initial training** (no `models/ball.pt` yet): omit `--model` (starts from `yolov8n.pt`).
 
 ```bash
 python3 training/train_ball_detector.py \
@@ -76,18 +76,18 @@ python3 training/train_ball_detector.py \
   --epochs 80
 ```
 
-Do **not** pass `--project runs/detect` (the script blocks it). Default run directory is **`runs/detect/ball/`**.
+`--project runs/detect` is invalid (the training script rejects it). Default run directory is **`runs/detect/ball/`**.
 
 ### 5. Install weights
 
-Use the path in the **`Done. Typical next step:`** line. Often:
+The training log ends with **`Done. Typical next step:`** and an exact `cp` path. A typical layout:
 
 ```bash
 mkdir -p models
 cp runs/detect/ball/weights/best.pt models/ball.pt
 ```
 
-Optional backup: `cp models/ball.pt models/ball.pt.backup`
+Optional: back up the previous checkpoint first, e.g. `cp models/ball.pt models/ball.pt.backup`.
 
 ### 6. Run
 
@@ -95,7 +95,7 @@ Optional backup: `cp models/ball.pt models/ball.pt.backup`
 python3 src/main.py
 ```
 
-Override weights: `export PINPOINT_BALL_MODEL=/path/to/file.pt`
+Alternate weights path: `export PINPOINT_BALL_MODEL=/path/to/file.pt`
 
 ---
 
@@ -110,7 +110,7 @@ ffmpeg -i /path/to/video.mp4 -vf fps=3 "dataset/ball_yolo/images/train/clip_%05d
 
 ## `data.yaml`
 
-Use **`dataset/ball_yolo/data.yaml`**. If Ultralytics errors on paths, set `path:` to the **absolute** path of `dataset/ball_yolo/`.
+The dataset descriptor is **`dataset/ball_yolo/data.yaml`**. If Ultralytics fails to resolve paths, set `path:` in that file to the **absolute** path of `dataset/ball_yolo/`.
 
 ---
 

@@ -371,7 +371,7 @@ def lane_axis_feet_from_foul(bx, by, calibration):
 def track_ball(video_path, calibration):
     print("\n=== BALL TRACKING ===")
     print("Press Q to stop playback early.")
-    print("When the video ends, the final frame (path, HUD) stays until you press Q.\n")
+    print("When the video ends, the final frame (path, HUD) stays open until Q is pressed.\n")
 
     # load calibration values
     pixels_per_foot = calibration["pixels_per_foot"]

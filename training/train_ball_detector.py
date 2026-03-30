@@ -4,15 +4,15 @@ Fine-tune a YOLOv8 model on a single-class "bowling_ball" dataset.
 
 How this fits the project
 -------------------------
-End users only calibrate and play video; they do not run this script. After
-training, you copy `best.pt` to `models/ball.pt`. The runtime (`src/yolo_ball.py`)
+End users only calibrate and play video; this script is for training only. After
+training, copy `best.pt` to `models/ball.pt`. The runtime (`src/yolo_ball.py`)
 loads those weights and replaces the MOG2 + Hough candidate generator in `ball_tracking.py`.
 
 What happens inside
 -------------------
 1. Ultralytics loads pretrained weights (default: yolov8n.pt — small and fast).
-2. It reads your `data.yaml` (paths to train/val images and class names).
-3. It minimizes a loss on your bounding boxes over many epochs (gradient descent
+2. It reads `data.yaml` (paths to train/val images and class names).
+3. It minimizes loss on the labeled boxes over many epochs (gradient descent
    on GPU/Metal/CPU).
 4. Checkpoints: default `runs/detect/ball/weights/best.pt` (see `training/README.md`).
 
