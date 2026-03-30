@@ -6,16 +6,17 @@ import json
 LANE_LENGTH_FEET = 60.0
 LANE_WIDTH_INCHES = 41.5
 NUM_BOARDS = 60
-ARROW_DISTANCE_FEET = 15.0
+DOT_DISTANCE_FEET = 6.0
 FOUL_LINE_DISTANCE_FEET = 0.0
 
 def calibrate(video_path, save_path):
     print("\n=== CALIBRATION ===")
-    print("Instructions:")
-    print("  - Place your camera at the SIDE of the lane at foul line height")
-    print("  - Make sure the full lane is visible including foul line and arrows")
-    print("  - Landscape mode only")
-    print("\nPress any key to begin...\n")
+    print("Camera setup (read before you start):")
+    print("  - Stand on the SIDE of the lane (between ball return and lane edge), at the foul line.")
+    print("  - Camera about hip height, landscape orientation.")
+    print("  - Frame the full lane from foul line to pin deck — nothing cropped.")
+    print("\nYou will click 6 points on the first frame: foul line, DOT line (6 ft), pin deck.")
+    print("\nPress Enter to open the calibration frame...\n")
     input()
 
     # grab first frame
@@ -66,7 +67,7 @@ def calibrate(video_path, save_path):
 
     print("Step 1: Click the FOUL LINE where it meets the near edge of the lane")
     points['foul_line_near'] = click_point(
-        "Foul Line (near)", 
+        "Foul Line (near)",
         "STEP 1: Click where the foul line meets the near lane edge",
         (0, 255, 255)
     )
@@ -78,17 +79,17 @@ def calibrate(video_path, save_path):
         (0, 255, 255)
     )
 
-    print("Step 3: Click the ARROWS LINE where it meets the near edge of the lane")
-    points['arrow_line_near'] = click_point(
-        "Arrow Line (near)",
-        "STEP 3: Click where the arrow line meets the near lane edge",
+    print("Step 3: Click the DOT LINE (7 small circles in a row, 6 ft from foul) at the near edge")
+    points['dot_line_near'] = click_point(
+        "Dot Line (near)",
+        "STEP 3: Dot line (6 ft) — near lane edge",
         (0, 165, 255)
     )
 
-    print("Step 4: Click the ARROWS LINE where it meets the far edge of the lane")
-    points['arrow_line_far'] = click_point(
-        "Arrow Line (far)",
-        "STEP 4: Click where the arrow line meets the far lane edge",
+    print("Step 4: Click the DOT LINE at the far edge of the lane")
+    points['dot_line_far'] = click_point(
+        "Dot Line (far)",
+        "STEP 4: Dot line (6 ft) — far lane edge",
         (0, 165, 255)
     )
 
@@ -113,27 +114,26 @@ def calibrate(video_path, save_path):
         print("Calibration cancelled.")
         return None
 
-    # compute pixels per foot using foul line to arrow line distance
+    # compute pixels per foot using foul line to dot line distance (6 ft regulation)
     foul_near = np.array(points['foul_line_near'])
     foul_far = np.array(points['foul_line_far'])
-    arrow_near = np.array(points['arrow_line_near'])
-    arrow_far = np.array(points['arrow_line_far'])
+    dot_near = np.array(points['dot_line_near'])
+    dot_far = np.array(points['dot_line_far'])
     pin_near = np.array(points['pin_line_near'])
     pin_far = np.array(points['pin_line_far'])
 
     # midpoints of each line
     foul_mid = (foul_near + foul_far) / 2
-    arrow_mid = (arrow_near + arrow_far) / 2
+    dot_mid = (dot_near + dot_far) / 2
     pin_mid = (pin_near + pin_far) / 2
 
-    # pixels between foul line and arrows = 15 feet
-    foul_to_arrow_pixels = np.linalg.norm(arrow_mid - foul_mid)
-    pixels_per_foot = foul_to_arrow_pixels / ARROW_DISTANCE_FEET
+    foul_to_dot_pixels = np.linalg.norm(dot_mid - foul_mid)
+    pixels_per_foot = foul_to_dot_pixels / DOT_DISTANCE_FEET
 
-    # lane width in pixels (average of foul and arrow line widths)
+    # lane width in pixels (average of foul and dot line widths)
     foul_width_pixels = np.linalg.norm(foul_far - foul_near)
-    arrow_width_pixels = np.linalg.norm(arrow_far - arrow_near)
-    avg_lane_width_pixels = (foul_width_pixels + arrow_width_pixels) / 2
+    dot_width_pixels = np.linalg.norm(dot_far - dot_near)
+    avg_lane_width_pixels = (foul_width_pixels + dot_width_pixels) / 2
     pixels_per_board = avg_lane_width_pixels / NUM_BOARDS
 
     # get video fps
@@ -147,7 +147,7 @@ def calibrate(video_path, save_path):
         "pixels_per_board": pixels_per_board,
         "fps": fps,
         "foul_line_y": float(foul_mid[1]),
-        "arrow_line_y": float(arrow_mid[1]),
+        "dot_line_y": float(dot_mid[1]),
         "pin_line_y": float(pin_mid[1]),
         "foul_line_near_x": float(foul_near[0]),
         "foul_line_far_x": float(foul_far[0]),

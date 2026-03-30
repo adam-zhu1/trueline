@@ -18,9 +18,9 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 - Perspective correction to account for camera angle and position variance
 
 ### Board Tracking
-- Homographic transformation to map pixel coordinates to real-world lane coordinates
-- Lane line detection to establish board grid (60 boards, each ~1 inch wide)
-- Ball position mapped to board number at key moments: foul line, breakpoint, and entry angle at pins
+- Click-based lane geometry (foul line, 6 ft dot line, pin deck) defines the lane in the frame
+- Board numbers use linear interpolation along each reference line: board 1 at the far edge, board 60 at the near edge
+- Ball board is recorded when the smoothed track crosses the foul line and the dot line (full homography is still future work)
 
 ### Rev Rate Estimation
 - Logo/marking detection on ball surface across frames
@@ -28,12 +28,12 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 - Target accuracy: ±50 RPM at standard 240fps slow-motion capture
 
 ### Speed Calculation
-- Time-of-flight estimation using known lane length (60 feet)
-- Cross-validated against frame-by-frame displacement in corrected coordinates
+- Time from foul line to the **6 ft dot line** (not the 15 ft arrow markers, which are not collinear)
+- `speed_mph` from feet-per-second using the regulation 6 ft segment and video FPS
 
 ### Breakpoint Detection
-- Trajectory analysis to identify inflection point where lateral ball motion changes direction
-- Board number and distance from foul line recorded as output
+- Lateral direction change on a smoothed x-trajectory, confirmed only after the new direction holds for several frames; detection starts after the ball reaches the dot line (reduces noise near the foul line)
+- Down-lane distance is measured by projecting the ball onto the foul-mid → pin-mid axis and scaling with the calibrated foul-to-dot segment (not raw image `y`, which skews distance on a side view)
 
 ### Recommendation Engine *(planned)*
 - Statistical model trained on shot outcome data (strike/spare/split) correlated with entry angle, board, and speed
@@ -57,16 +57,18 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 
 🚧 Early stage — building and validating core CV pipeline.
 
+Calibration JSON uses `dot_line_near` / `dot_line_far` and `dot_line_y` (6 ft dot row). Re-run calibration after any change to dot distance or lane clicks so `pixels_per_foot` matches; older `arrow_line_*` keys also require re-calibration.
+
 ---
 
 ## Roadmap
 
-- [ ] Ball detection and tracking from phone video
+- [x] Ball detection and tracking from phone video *(MOG2 + Hough + Kalman; ongoing tuning)*
 - [ ] Perspective correction and lane homography
-- [ ] Board identification at foul line and breakpoint
+- [x] Board identification at foul line and dot line *(linear interpolation; pins/breakpoint board TBD)*
 - [ ] Rev rate estimation via rotation tracking
-- [ ] Speed calculation
-- [ ] Breakpoint detection
+- [x] Speed calculation *(foul to 6 ft dot line)*
+- [x] Breakpoint detection *(with multi-frame confirmation; feet approximate)*
 - [ ] Consistency metrics across multiple shots
 - [ ] Recommendation engine (ML model)
 - [ ] Mobile app interface
