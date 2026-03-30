@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from calibration import calibrate
-from detect_ball import track_ball
+from ball_tracking import track_ball
 
 # Repo root (parent of src/) so data/ and paths work when you `cd src && python main.py`
 _REPO_ROOT = Path(__file__).resolve().parent.parent

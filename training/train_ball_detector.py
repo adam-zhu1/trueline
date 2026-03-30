@@ -5,8 +5,8 @@ Fine-tune a YOLOv8 model on a single-class "bowling_ball" dataset.
 How this fits the project
 -------------------------
 End users only calibrate and play video; they do not run this script. After
-training, you copy `best.pt` to `models/ball.pt`. The runtime (`ball_detector.py`)
-loads those weights and replaces the MOG2 + Hough candidate generator.
+training, you copy `best.pt` to `models/ball.pt`. The runtime (`src/yolo_ball.py`)
+loads those weights and replaces the MOG2 + Hough candidate generator in `ball_tracking.py`.
 
 What happens inside
 -------------------

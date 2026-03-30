@@ -6,7 +6,7 @@ from calibration import (
     LANE_LENGTH_FEET,
     LANE_WIDTH_INCHES,
 )
-from ball_detector import load_ball_detector
+from yolo_ball import load_yolo_ball, resolved_ball_weights_path
 
 def create_ball_kalman(init_x, init_y):
     """Constant-velocity Kalman filter for (x, y); smooths noisy detections."""
@@ -401,16 +401,35 @@ def track_ball(video_path, calibration):
         "  Each video can differ; YouTube downloads often still carry a single FPS value in the file.\n"
     )
 
-    # Learned detector (optional): if models/ball.pt exists, we skip MOG2 entirely.
-    ball_detector = load_ball_detector()
-    if ball_detector is not None:
+    # Optional YOLO: if models/ball.pt exists (or PINPOINT_BALL_MODEL), we skip MOG2 for candidates.
+    weights_look_here = resolved_ball_weights_path()
+    yolo_detector, yolo_fail = load_yolo_ball()
+    if yolo_detector is not None:
         print(
-            "  Ball detection: YOLO weights loaded (set PINPOINT_BALL_MODEL to override path).\n"
+            f"  Ball detection: YOLO ({yolo_detector.weights_path}) — PINPOINT_BALL_MODEL overrides default.\n"
         )
     else:
-        print(
-            "  Ball detection: classical MOG2 + Hough (train YOLO — see training/README.md).\n"
-        )
+        print("  Ball detection: classical MOG2 + Hough.")
+        if yolo_fail == "no_weights":
+            print(
+                f"    (YOLO skipped: no file at {weights_look_here})\n"
+                "    Put trained weights there:  mkdir -p ../models && cp runs/.../best.pt ../models/ball.pt\n"
+                "    Or: export PINPOINT_BALL_MODEL=/path/to/best.pt\n"
+                "    Needs: pip install -r ../training/requirements-training.txt\n"
+            )
+        elif yolo_fail == "import_torch":
+            print(
+                "    (YOLO skipped: ultralytics/torch not installed)\n"
+                "    Run: pip install -r ../training/requirements-training.txt\n"
+            )
+        elif yolo_fail:
+            print(f"    (YOLO skipped: could not load weights — {yolo_fail})\n")
+
+    detector_overlay_label = (
+        f"YOLO: {yolo_detector.weights_path.name}"
+        if yolo_detector is not None
+        else "MOG2 + Hough"
+    )
 
     bg_subtractor = cv2.createBackgroundSubtractorMOG2(
         history=400,
@@ -474,6 +493,7 @@ def track_ball(video_path, calibration):
                 foul_board,
                 dot_board,
                 video_fps=fps,
+                detector_label=detector_overlay_label,
             )
             last_display = frame.copy()
             cv2.imshow("PinPoint", frame)
@@ -485,9 +505,9 @@ def track_ball(video_path, calibration):
 
         h, w = frame.shape[:2]
 
-        if ball_detector is not None:
-            # YOLO: appearance-based boxes; lane mask applied inside the detector.
-            candidates = ball_detector.candidates_for_frame(frame, calibration)
+        if yolo_detector is not None:
+            # YOLO: appearance-based boxes; lane mask applied inside yolo_ball.
+            candidates = yolo_detector.candidates_for_frame(frame, calibration)
             motion_centroid = None
         else:
             # Faster model update at clip start so foreground appears sooner (release area).
@@ -645,6 +665,7 @@ def track_ball(video_path, calibration):
             foul_board,
             dot_board,
             video_fps=fps,
+            detector_label=detector_overlay_label,
         )
 
         last_display = frame.copy()
@@ -792,6 +813,32 @@ def draw_lane_foot_markers(
             )
 
 
+def _draw_detector_badge(frame, label: str) -> None:
+    """Top-right corner: which ball-detection backend is active."""
+    fh, fw = frame.shape[0], frame.shape[1]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale = 0.5
+    thickness = 1
+    (tw, th), baseline = cv2.getTextSize(label, font, scale, thickness)
+    pad_x, pad_y = 8, 6
+    x2 = fw - 10
+    x1 = max(0, x2 - tw - 2 * pad_x)
+    y1 = 10
+    y2 = y1 + th + baseline + 2 * pad_y
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (45, 45, 45), -1)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (120, 120, 120), 1)
+    cv2.putText(
+        frame,
+        label,
+        (x1 + pad_x, y2 - pad_y - baseline),
+        font,
+        scale,
+        (235, 235, 235),
+        thickness,
+        cv2.LINE_AA,
+    )
+
+
 def draw_overlay(
     frame,
     calibration,
@@ -803,11 +850,14 @@ def draw_overlay(
     foul_board,
     dot_board,
     video_fps=None,
+    detector_label: str = "MOG2 + Hough",
 ):
     H_lane = _lane_world_to_image_homography(calibration)
     W_ft = float(LANE_WIDTH_INCHES) / 12.0
     d_ft = float(DOT_DISTANCE_FEET)
     L_ft = float(LANE_LENGTH_FEET)
+
+    _draw_detector_badge(frame, detector_label)
 
     draw_lane_foot_markers(frame, H_lane)
 

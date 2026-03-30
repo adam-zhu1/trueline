@@ -9,7 +9,7 @@ appearance (round, reflective, etc.) and is the usual next step for reliability.
 
 How it plugs in
 ---------------
-If a weights file exists at the default path (or PINPOINT_BALL_MODEL), `track_ball`
+If a weights file exists at the default path (or PINPOINT_BALL_MODEL), `ball_tracking.track_ball`
 uses this module to produce candidate (x, y, r) each frame and skips background
 subtraction. If the file is missing or Ultralytics is not installed, PinPoint
 falls back to the classical pipeline — so the app still runs for everyone.
@@ -79,6 +79,10 @@ class BallDetector:
         self.conf = conf
         self.iou = iou
 
+    @property
+    def weights_path(self) -> Path:
+        return self._weights
+
     def candidates_for_frame(
         self,
         frame_bgr: np.ndarray,
@@ -88,7 +92,7 @@ class BallDetector:
         Return a list of (cx, cy, r) in pixel coordinates for detections inside the lane.
 
         Multiple boxes can appear (e.g. reflection); the Kalman association step in
-        detect_ball picks the nearest to the predicted position.
+        ball_tracking picks the nearest to the predicted position.
         """
         # predict: single image, no verbose logs each frame
         results = self.model.predict(
@@ -119,32 +123,36 @@ class BallDetector:
         return out
 
 
-def load_ball_detector(
+def resolved_ball_weights_path(weights_path: Optional[Path] = None) -> Path:
+    """
+    Which weights file we would try to load (may not exist).
+
+    Order: explicit argument, env PINPOINT_BALL_MODEL, then models/ball.pt.
+    """
+    if weights_path is not None:
+        return Path(weights_path)
+    env = os.environ.get("PINPOINT_BALL_MODEL", "").strip()
+    if env:
+        return Path(env)
+    return default_model_path()
+
+
+def load_yolo_ball(
     weights_path: Optional[Path] = None,
     conf: float = 0.35,
-) -> Optional[BallDetector]:
+) -> tuple[Optional[BallDetector], Optional[str]]:
     """
-    Load a trained detector if possible; otherwise return None.
+    Load a trained detector if possible.
 
-    Resolution order:
-      1. weights_path argument
-      2. env PINPOINT_BALL_MODEL
-      3. models/ball.pt under the project root
+    Returns (detector, None) on success, or (None, reason) on failure.
+    reason is one of: "no_weights", "import_torch", or a short error message.
     """
-    env = os.environ.get("PINPOINT_BALL_MODEL", "").strip()
-    path = weights_path
-    if path is None and env:
-        path = Path(env)
-    if path is None:
-        path = default_model_path()
-
+    path = resolved_ball_weights_path(weights_path)
     if not path.is_file():
-        return None
+        return None, "no_weights"
     try:
-        return BallDetector(path, conf=conf)
+        return BallDetector(path, conf=conf), None
     except ImportError:
-        # ultralytics / torch not installed
-        return None
-    except Exception:
-        # corrupt file, wrong format, etc.
-        return None
+        return None, "import_torch"
+    except Exception as e:
+        return None, str(e)
