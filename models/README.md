@@ -1,5 +1,5 @@
 # Trained ball weights (optional)
 
-Place **`ball.pt`** here after training (see `training/README.md`). The app loads this file automatically and uses YOLO instead of classical motion detection.
+After training, copy Ultralytics `best.pt` to **`ball.pt`** in this directory (see **`training/README.md`**). When `ball.pt` is present and dependencies load, the application uses YOLO instead of classical motion detection.
 
-Large binary weights are gitignored (`*.pt`, `*.onnx`).
+Large binaries are gitignored (`*.pt`, `*.onnx`).

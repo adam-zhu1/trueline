@@ -11,11 +11,11 @@ FOUL_LINE_DISTANCE_FEET = 0.0
 
 def calibrate(video_path, save_path):
     print("\n=== CALIBRATION ===")
-    print("Camera setup (read before you start):")
+    print("Camera setup (read before starting):")
     print("  - Stand on the SIDE of the lane (between ball return and lane edge), at the foul line.")
     print("  - Camera about hip height, landscape orientation.")
     print("  - Frame the full lane from foul line to pin deck — nothing cropped.")
-    print("\nYou will click 6 points on the first frame: foul line, DOT line (6 ft), pin deck.")
+    print("\nClick 6 points on the first frame: foul line, DOT line (6 ft), pin deck.")
     print("\nPress Enter to open the calibration frame...\n")
     input()
 

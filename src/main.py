@@ -5,7 +5,7 @@ from pathlib import Path
 from calibration import calibrate
 from ball_tracking import track_ball
 
-# Repo root (parent of src/) so data/ and paths work when you `cd src && python3 main.py`
+# Repo root (parent of src/) so data/ resolves when running `python3 main.py` from `src/`
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _CALIB_PATH = _REPO_ROOT / "data" / "calibration.json"
 
@@ -20,13 +20,13 @@ def _normalize_user_path(raw: str) -> str:
 
 def select_video():
     print("\n=== PinPoint ===")
-    print("Enter the full path to your video file (paste is fine; do not wrap in quotes):")
+    print("Enter the full path to the video file (paste is fine; do not wrap in quotes):")
     path = _normalize_user_path(input("> "))
     if not path:
         print("Empty path.")
         return None
     if not os.path.isfile(path):
-        print("Video file not found. Please check the path and try again.")
+        print("Video file not found. Check the path and try again.")
         return None
     return path
 
@@ -47,7 +47,7 @@ def main():
         )
         print(
             "Use (R) if this clip matches the same camera + lane view as before; "
-            "use (C) if you moved the phone, changed lanes, or zoom/crop looks different."
+            "use (C) after moving the camera, changing lanes, or if zoom/crop looks different."
         )
         print("(R) Use saved   (C) Recalibrate from this video's first frame")
         choice = input("> ").strip().upper()
