@@ -4,7 +4,8 @@ import json
 
 def track_ball(video_path, calibration):
     print("\n=== BALL TRACKING ===")
-    print("Press Q to quit\n")
+    print("Press Q to stop playback early.")
+    print("When the video ends, the last frame (path, HUD) stays until you press Q.\n")
 
     # load calibration values
     fps = calibration['fps']
@@ -39,10 +40,13 @@ def track_ball(video_path, calibration):
     frame_number = 0
 
     kernel = np.ones((5, 5), np.uint8)
+    last_display = None
+    video_ended_naturally = False
 
     while True:
         ret, frame = cap.read()
         if not ret:
+            video_ended_naturally = True
             break
 
         frame_number += 1
@@ -134,12 +138,21 @@ def track_ball(video_path, calibration):
             ball_positions, breakpoint, speed_mph
         )
 
+        last_display = frame.copy()
         cv2.imshow("PinPoint", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
+
+    if video_ended_naturally and last_display is not None:
+        print("\nVideo ended — final frame (path, HUD) stays open. Press Q to exit.")
+        while True:
+            cv2.imshow("PinPoint", last_display)
+            if cv2.waitKey(50) & 0xFF == ord('q'):
+                break
+
     cv2.destroyAllWindows()
     print("\nTracking complete.")
 
