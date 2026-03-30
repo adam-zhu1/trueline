@@ -17,7 +17,7 @@ What happens inside
 4. Checkpoints land under `runs/detect/`; `best.pt` is the best validation score.
 
 Usage (from repo root, venv activated):
-  python training/train_ball_detector.py --data /path/to/data.yaml --epochs 80
+  python3 training/train_ball_detector.py --data /path/to/data.yaml --epochs 80
 """
 
 from __future__ import annotations
@@ -57,8 +57,8 @@ def main() -> None:
     parser.add_argument(
         "--project",
         type=Path,
-        default=Path("runs"),
-        help="Ultralytics project dir (avoid runs/detect — YOLO may nest another runs/detect inside)",
+        default=Path("runs/detect"),
+        help="Parent folder for this run (Ultralytics convention: runs/detect/<name>/)",
     )
     parser.add_argument(
         "--name",

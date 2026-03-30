@@ -22,7 +22,7 @@ ball_yolo/
 | **1** | Drop or extract **images** into `images/train/` (and later `images/val/`). |
 | **2** | Label boxes in CVAT (or similar), **export YOLO**, copy `.txt` files into `labels/train/` and `labels/val/` matching each image name. |
 | **3** | From the PinPoint repo, with venv on: `pip install -r training/requirements-training.txt` |
-| **4** | Train: `python training/train_ball_detector.py --data dataset/ball_yolo/data.yaml --epochs 80` |
+| **4** | Train: `python3 training/train_ball_detector.py --data dataset/ball_yolo/data.yaml --epochs 80` |
 | **5** | `mkdir -p models && cp runs/detect/train/weights/best.pt models/ball.pt` |
 
 ## Rules
