@@ -1,0 +1,4 @@
+# Training only — install on top of ../requirements.txt
+# Install torch first if needed: https://pytorch.org/
+torch>=2.1.0
+ultralytics>=8.1.0

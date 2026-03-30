@@ -13,9 +13,10 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 ## Technical Approach
 
 ### Ball Detection & Tracking
-- Frame-by-frame ball localization using **OpenCV** (Hough Circle Transform + contour detection)
+- **Default:** OpenCV **MOG2** + Hough / blobs + Kalman (no ML install required).
+- **Optional:** Fine-tuned **YOLO** weights at `models/ball.pt` — appearance-based detection, better across lighting; see **`training/README.md`** for dataset layout and training on Apple Silicon (MPS).
 - Kalman filtering for smooth trajectory estimation and handling occlusion frames
-- Perspective correction to account for camera angle and position variance
+- Lane geometry from calibration; detector boxes are filtered to the lane polygon
 
 ### Board Tracking
 - Click-based lane geometry (foul line, 6 ft dot line, pin deck) defines the lane in the frame
@@ -48,7 +49,7 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 | Language | Python 3.11 |
 | CV Pipeline | OpenCV |
 | Numerical | NumPy, SciPy |
-| ML Layer | PyTorch *(planned)* |
+| ML (optional ball detector) | Ultralytics YOLO + PyTorch *(see `training/`)* |
 | Mobile | TBD |
 
 ---
@@ -63,7 +64,7 @@ Calibration JSON uses `dot_line_near` / `dot_line_far` and `dot_line_y` (6 ft do
 
 ## Roadmap
 
-- [x] Ball detection and tracking from phone video *(MOG2 + Hough + Kalman; ongoing tuning)*
+- [x] Ball detection and tracking from phone video *(MOG2 + Hough + Kalman; optional YOLO in `models/ball.pt`)*
 - [ ] Perspective correction and lane homography
 - [x] Board identification at foul line and dot line *(linear interpolation; pins/breakpoint board TBD)*
 - [ ] Rev rate estimation via rotation tracking
@@ -72,6 +73,19 @@ Calibration JSON uses `dot_line_near` / `dot_line_far` and `dot_line_y` (6 ft do
 - [ ] Consistency metrics across multiple shots
 - [ ] Recommendation engine (ML model)
 - [ ] Mobile app interface
+
+---
+
+## Setup
+
+```bash
+cd pinpoint
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cd src && python main.py
+```
+
+Training a ball detector (developer-only): `pip install -r training/requirements-training.txt` and follow **`training/README.md`**.
 
 ---
 

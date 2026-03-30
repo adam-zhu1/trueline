@@ -1,7 +1,12 @@
 import cv2
 import numpy as np
 
-from calibration import DOT_DISTANCE_FEET
+from calibration import (
+    DOT_DISTANCE_FEET,
+    LANE_LENGTH_FEET,
+    LANE_WIDTH_INCHES,
+)
+from ball_detector import load_ball_detector
 
 def create_ball_kalman(init_x, init_y):
     """Constant-velocity Kalman filter for (x, y); smooths noisy detections."""
@@ -396,6 +401,17 @@ def track_ball(video_path, calibration):
         "  Each video can differ; YouTube downloads often still carry a single FPS value in the file.\n"
     )
 
+    # Learned detector (optional): if models/ball.pt exists, we skip MOG2 entirely.
+    ball_detector = load_ball_detector()
+    if ball_detector is not None:
+        print(
+            "  Ball detection: YOLO weights loaded (set PINPOINT_BALL_MODEL to override path).\n"
+        )
+    else:
+        print(
+            "  Ball detection: classical MOG2 + Hough (train YOLO — see training/README.md).\n"
+        )
+
     bg_subtractor = cv2.createBackgroundSubtractorMOG2(
         history=400,
         varThreshold=32,
@@ -467,21 +483,27 @@ def track_ball(video_path, calibration):
 
         frame_number += 1
 
-        # Faster model update at clip start so foreground appears sooner (release area).
-        learn = 0.07 if frame_number <= 55 else -1
-        fg_mask = bg_subtractor.apply(frame, learningRate=learn)
-
         h, w = frame.shape[:2]
-        lane_mask = lane_and_approach_mask(h, w, calibration)
 
-        combined_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=lane_mask)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
-        combined_mask = cv2.dilate(combined_mask, kernel, iterations=1)
+        if ball_detector is not None:
+            # YOLO: appearance-based boxes; lane mask applied inside the detector.
+            candidates = ball_detector.candidates_for_frame(frame, calibration)
+            motion_centroid = None
+        else:
+            # Faster model update at clip start so foreground appears sooner (release area).
+            learn = 0.07 if frame_number <= 55 else -1
+            fg_mask = bg_subtractor.apply(frame, learningRate=learn)
 
-        blurred = cv2.GaussianBlur(combined_mask, (7, 7), 1.5)
-        motion_centroid = fg_centroid(combined_mask)
-        candidates = build_candidates(blurred, combined_mask)
+            lane_mask = lane_and_approach_mask(h, w, calibration)
+
+            combined_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=lane_mask)
+            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+            combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+            combined_mask = cv2.dilate(combined_mask, kernel, iterations=1)
+
+            blurred = cv2.GaussianBlur(combined_mask, (7, 7), 1.5)
+            motion_centroid = fg_centroid(combined_mask)
+            candidates = build_candidates(blurred, combined_mask)
 
         measurement = None
         coast_pred = None
@@ -579,6 +601,7 @@ def track_ball(video_path, calibration):
                         frames_taken = dot_line_frame - foul_line_frame
                         seconds_taken = frames_taken / fps
                         if seconds_taken > 0:
+                            # Regulation 6 ft foul→dots only; not tied to 60 ft overlay extrapolation.
                             speed_fps = DOT_DISTANCE_FEET / seconds_taken
                             speed_mph = speed_fps * 0.681818
                             print(f"  Speed: {speed_mph:.1f} mph")
@@ -670,6 +693,105 @@ def should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
     return crossed
 
 
+def _world_to_image(H, x_ft, y_ft):
+    pts = np.array([[[x_ft, y_ft]]], dtype=np.float32)
+    out = cv2.perspectiveTransform(pts, H)
+    return float(out[0, 0, 0]), float(out[0, 0, 1])
+
+
+def _lane_world_to_image_homography(calibration):
+    """
+    Map regulation lane plane (feet) → image pixels.
+
+    World axes: x across the lane (0 = far / board 1 side, W = near / board 60),
+    y down-lane from the foul line (feet).
+
+    **Fitting uses foul + dot lines only** (four corners at y=0 and y=DOT_DISTANCE_FEET).
+    Those marks are close to the camera and easy to place accurately. The pin deck
+    at 60 ft is **not** used here — extrapolation to y=60 follows the same flat-plane
+    homography (pin clicks remain in JSON for other heuristics like stop-at-deck).
+    """
+    W = float(LANE_WIDTH_INCHES) / 12.0
+    d = float(DOT_DISTANCE_FEET)
+    ff = np.array(calibration["points"]["foul_line_far"], dtype=np.float32)
+    fn = np.array(calibration["points"]["foul_line_near"], dtype=np.float32)
+    df = np.array(calibration["points"]["dot_line_far"], dtype=np.float32)
+    dn = np.array(calibration["points"]["dot_line_near"], dtype=np.float32)
+    world = np.array(
+        [[0.0, 0.0], [W, 0.0], [0.0, d], [W, d]],
+        dtype=np.float32,
+    )
+    img = np.array([ff, fn, df, dn], dtype=np.float32)
+    return cv2.getPerspectiveTransform(world, img)
+
+
+def _lane_row_segment(H, y_ft):
+    """Image endpoints of the transverse line at y_ft (world), x from 0 to W."""
+    W = float(LANE_WIDTH_INCHES) / 12.0
+    x0, y0 = _world_to_image(H, 0.0, y_ft)
+    x1, y1 = _world_to_image(H, W, y_ft)
+    return (int(round(x0)), int(round(y0))), (int(round(x1)), int(round(y1)))
+
+
+def draw_lane_foot_markers(
+    frame,
+    H,
+    tick_color=(88, 88, 88),
+    label_color=(160, 160, 160),
+    tick_inward_ft=0.42,
+    label_every_ft=5,
+    min_tick_px=7.0,
+):
+    """
+    Tick marks every 1 ft on both long lane edges (foul → pins).
+
+    Spacing is **not** linear in image space: flat USBC lane (feet) → pixels via
+    homography **fitted to foul + dot lines** (6 ft baseline), then extrapolated to
+    60 ft. Equal steps in **y** are equal in real distance; ticks point inward in
+    world x (correct angle after projection).
+    """
+    W = float(LANE_WIDTH_INCHES) / 12.0
+    L = float(LANE_LENGTH_FEET)
+    eps = float(tick_inward_ft)
+
+    n_feet = int(round(L))
+    for f in range(n_feet + 1):
+        y = float(f)
+
+        # Long edges: x = 0 (far) and x = W (near); inward is +x / -x respectively.
+        for x_edge, sign in ((0.0, 1.0), (W, -1.0)):
+            xi, yi = _world_to_image(H, x_edge, y)
+            xo, yo = _world_to_image(H, x_edge + sign * eps, y)
+            dx, dy = xo - xi, yo - yi
+            pl = float(np.hypot(dx, dy))
+            if pl < 1e-6:
+                continue
+            if pl < min_tick_px:
+                s = min_tick_px / pl
+                xo, yo = xi + dx * s, yi + dy * s
+            cv2.line(
+                frame,
+                (int(round(xi)), int(round(yi))),
+                (int(round(xo)), int(round(yo))),
+                tick_color,
+                1,
+                cv2.LINE_AA,
+            )
+
+        if label_every_ft > 0 and f > 0 and f % label_every_ft == 0:
+            lx, ly = _world_to_image(H, W, y)
+            cv2.putText(
+                frame,
+                f"{f} ft",
+                (int(round(lx)) + 4, int(round(ly)) - 4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.38,
+                label_color,
+                1,
+                cv2.LINE_AA,
+            )
+
+
 def draw_overlay(
     frame,
     calibration,
@@ -682,32 +804,49 @@ def draw_overlay(
     dot_board,
     video_fps=None,
 ):
-    foul_near = calibration["points"]["foul_line_near"]
-    foul_far = calibration["points"]["foul_line_far"]
-    pin_near = calibration["points"]["pin_line_near"]
-    pin_far = calibration["points"]["pin_line_far"]
-    dot_near = calibration["points"]["dot_line_near"]
-    dot_far = calibration["points"]["dot_line_far"]
+    H_lane = _lane_world_to_image_homography(calibration)
+    W_ft = float(LANE_WIDTH_INCHES) / 12.0
+    d_ft = float(DOT_DISTANCE_FEET)
+    L_ft = float(LANE_LENGTH_FEET)
 
-    cv2.line(frame, tuple(foul_near), tuple(foul_far), (0, 255, 255), 2)
+    draw_lane_foot_markers(frame, H_lane)
+
+    p_foul_a, p_foul_b = _lane_row_segment(H_lane, 0.0)
+    cv2.line(frame, p_foul_a, p_foul_b, (0, 255, 255), 2)
+    lx, ly = _world_to_image(H_lane, W_ft, 0.0)
     cv2.putText(
         frame,
         "Foul Line",
-        (foul_near[0] + 10, foul_near[1]),
+        (int(round(lx)) + 10, int(round(ly))),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
         (0, 255, 255),
         1,
     )
 
-    cv2.line(frame, tuple(dot_near), tuple(dot_far), (0, 165, 255), 2)
+    p_dot_a, p_dot_b = _lane_row_segment(H_lane, d_ft)
+    cv2.line(frame, p_dot_a, p_dot_b, (0, 165, 255), 2)
+    lx, ly = _world_to_image(H_lane, W_ft, d_ft)
     cv2.putText(
         frame,
-        "Dots (6 ft)",
-        (dot_near[0] + 10, dot_near[1]),
+        f"Dots ({int(d_ft)} ft)",
+        (int(round(lx)) + 10, int(round(ly))),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
         (0, 165, 255),
+        1,
+    )
+
+    p_pin_a, p_pin_b = _lane_row_segment(H_lane, L_ft)
+    cv2.line(frame, p_pin_a, p_pin_b, (0, 200, 0), 2)
+    lx, ly = _world_to_image(H_lane, W_ft, L_ft)
+    cv2.putText(
+        frame,
+        f"Pins ({int(L_ft)} ft, model)",
+        (int(round(lx)) + 10, int(round(ly))),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (0, 200, 0),
         1,
     )
 

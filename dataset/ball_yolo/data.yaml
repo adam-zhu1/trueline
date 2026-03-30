@@ -1,0 +1,9 @@
+# PinPoint bowling ball dataset (YOLO)
+# No `path:` key — Ultralytics uses this file's folder as the dataset root
+# (so train/val work no matter which directory you run the trainer from).
+train: images/train
+val: images/val
+
+nc: 1
+names:
+  0: bowling_ball
