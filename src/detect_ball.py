@@ -16,9 +16,9 @@ def create_ball_kalman(init_x, init_y):
         [[1, 0, 0, 0],
          [0, 1, 0, 0]], dtype=np.float32
     )
-    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 5e-3
-    # Higher = smoother track, less snap to noisy Hough centers (reflections / jitter)
-    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 64.0
+    # Balance: trust measurements enough to follow the ball; smooth velocity a bit
+    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 7e-3
+    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 36.0
     kf.errorCovPost = np.eye(4, dtype=np.float32)
     kf.statePost = np.array(
         [[init_x], [init_y], [0.0], [0.0]], dtype=np.float32
@@ -151,13 +151,13 @@ def detect_from_motion_blob(mask):
     best_area = 0.0
     for c in cnts:
         area = float(cv2.contourArea(c))
-        if area < 350.0 or area > 14000.0:
+        if area < 120.0 or area > 20000.0:
             continue
         peri = cv2.arcLength(c, True)
         if peri < 1e-3:
             continue
         circ = 4.0 * np.pi * area / (peri * peri)
-        if circ < 0.48:
+        if circ < 0.30:
             continue
         if area > best_area:
             best_area = area
@@ -166,29 +166,186 @@ def detect_from_motion_blob(mask):
         return None
     (x, y), r = cv2.minEnclosingCircle(best_c)
     ri = int(round(r))
-    if ri < 12 or ri > 75:
+    if ri < 6 or ri > 90:
         return None
     return int(round(x)), int(round(y)), ri
 
 
-def detect_from_hough(blurred_binary):
+def hough_circle_candidates(blurred_binary):
+    """All plausible circles on the motion mask (not just the largest — that often latches onto glare)."""
     circles = cv2.HoughCircles(
         blurred_binary,
         cv2.HOUGH_GRADIENT,
         dp=1,
-        minDist=45,
-        param1=55,
-        param2=22,
-        minRadius=12,
-        maxRadius=78,
+        minDist=28,
+        param1=45,
+        param2=11,
+        minRadius=6,
+        maxRadius=90,
     )
     if circles is None:
+        return []
+    out = []
+    for row in circles[0]:
+        x, y, r = int(round(row[0])), int(round(row[1])), int(round(row[2]))
+        if 6 <= r <= 90:
+            out.append((x, y, r))
+    return out
+
+
+def fg_centroid(mask):
+    """Center of foreground motion in the lane ROI."""
+    M = cv2.moments(mask)
+    if M["m00"] < 35.0:
         return None
-    circles = np.round(circles[0, :]).astype("int")
-    valid = [(x, y, r) for (x, y, r) in circles if 12 <= r <= 72]
-    if not valid:
+    return float(M["m10"] / M["m00"]), float(M["m01"] / M["m00"])
+
+
+def lane_polygon_centroid(calibration):
+    """Fallback reference when motion centroid is weak (center of calibrated trapezoid)."""
+    fn = calibration["points"]["foul_line_near"]
+    ff = calibration["points"]["foul_line_far"]
+    pn = calibration["points"]["pin_line_near"]
+    pf = calibration["points"]["pin_line_far"]
+    pts = np.array([fn, ff, pf, pn], dtype=np.float64)
+    return float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1]))
+
+
+def lane_and_approach_mask(h, w, calibration, approach_extend_px=400):
+    """
+    Lane surface (foul→pins) plus an approach strip *behind* the foul line so the
+    ball is still inside the mask during release (it was only on the lane trapezoid before).
+    """
+    mask = np.zeros((h, w), dtype=np.uint8)
+    fn = calibration["points"]["foul_line_near"]
+    ff = calibration["points"]["foul_line_far"]
+    pn = calibration["points"]["pin_line_near"]
+    pf = calibration["points"]["pin_line_far"]
+    foul_near = np.array(fn, dtype=np.float64)
+    foul_far = np.array(ff, dtype=np.float64)
+    pin_near = np.array(pn, dtype=np.float64)
+    pin_far = np.array(pf, dtype=np.float64)
+    foul_mid = (foul_near + foul_far) / 2.0
+    pin_mid = (pin_near + pin_far) / 2.0
+    to_pins = pin_mid - foul_mid
+    u_len = float(np.linalg.norm(to_pins))
+    if u_len > 1e-6:
+        offset = -(to_pins / u_len) * float(approach_extend_px)
+    else:
+        offset = np.array([0.0, float(approach_extend_px)], dtype=np.float64)
+    back_near = (foul_near + offset).astype(np.int32)
+    back_far = (foul_far + offset).astype(np.int32)
+    lane_quad = np.array(
+        [list(fn), list(ff), list(pf), list(pn)], dtype=np.int32
+    )
+    approach_quad = np.array([back_near, back_far, foul_far, foul_near], dtype=np.int32)
+    cv2.fillPoly(mask, [lane_quad], 255)
+    cv2.fillPoly(mask, [approach_quad], 255)
+    return mask
+
+
+def pick_nearest_candidate(candidates, px, py):
+    if not candidates:
         return None
-    return max(valid, key=lambda c: c[2])
+    return min(candidates, key=lambda c: (c[0] - px) ** 2 + (c[1] - py) ** 2)
+
+
+def build_candidates(blurred, combined_mask):
+    c_list = hough_circle_candidates(blurred)
+    blob = detect_from_motion_blob(combined_mask)
+    if blob is not None:
+        bx, by, br = blob
+        if not any(
+            np.hypot(float(bx - c[0]), float(by - c[1])) < 22.0 for c in c_list
+        ):
+            c_list.append(blob)
+    return c_list
+
+
+def pick_init_measurement(candidates, motion_centroid, lane_centroid):
+    """First lock: motion centroid if strong; else largest ball-sized circle near lane center."""
+    if not candidates:
+        return None
+    if motion_centroid is not None:
+        return pick_nearest_candidate(
+            candidates, motion_centroid[0], motion_centroid[1]
+        )
+    ballish = [c for c in candidates if 10 <= c[2] <= 58]
+    if ballish:
+        near_lane = pick_nearest_candidate(
+            ballish, lane_centroid[0], lane_centroid[1]
+        )
+        if near_lane is not None:
+            return near_lane
+    return pick_nearest_candidate(candidates, lane_centroid[0], lane_centroid[1])
+
+
+def refine_ball_center(frame_bgr, mx, my, mr):
+    """
+    Snap measurement toward the ball’s visual center using grayscale contrast inside
+    the expected disk (Hough/MOG2 centers often sit on the wrong part of the blob).
+    """
+    h, w = frame_bgr.shape[:2]
+    ri = int(np.clip(mr, 10, 92))
+    xi, yi = int(round(mx)), int(round(my))
+    pad = 14
+    x1 = max(0, xi - ri - pad)
+    y1 = max(0, yi - ri - pad)
+    x2 = min(w, xi + ri + pad)
+    y2 = min(h, yi + ri + pad)
+    if x2 <= x1 + 2 or y2 <= y1 + 2:
+        return float(mx), float(my), float(ri)
+
+    roi = frame_bgr[y1:y2, x1:x2]
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    cx_loc = xi - x1
+    cy_loc = yi - y1
+    mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.circle(mask, (cx_loc, cy_loc), ri, 255, -1)
+    sel = gray[mask > 0]
+    if sel.size < 30:
+        return float(mx), float(my), float(ri)
+    med = float(np.median(sel))
+    g = gray.astype(np.float64)
+    # Weight pixels that differ from local median (ball interior + edge vs lane)
+    wg = np.abs(g - med) * (mask.astype(np.float64) / 255.0)
+    s = float(np.sum(wg))
+    if s < 1e-3:
+        return float(mx), float(my), float(ri)
+    idx_y, idx_x = np.indices(wg.shape)
+    rx = float(np.sum(idx_x * wg) / s + x1)
+    ry = float(np.sum(idx_y * wg) / s + y1)
+    if np.hypot(rx - mx, ry - my) > 42.0:
+        return float(mx), float(my), float(ri)
+    return rx, ry, float(ri)
+
+
+def smooth_positions_for_display(positions, window=9):
+    """
+    Moving average on the polyline for drawing only (metrics use raw `positions`).
+
+    np.convolve(..., mode='same') implicitly pads with zeros at the ends, which pulls
+    the first/last points toward (0,0) — top-left of the image — causing bogus long
+    green segments toward the corner. Edge-padding fixes that.
+    """
+    n = len(positions)
+    if n < 3:
+        return positions
+    w = min(window | 1, n)
+    if w % 2 == 0:
+        w -= 1
+    w = max(w, 3)
+    xs = np.array([p[0] for p in positions], dtype=np.float64)
+    ys = np.array([p[1] for p in positions], dtype=np.float64)
+    k = np.ones(w, dtype=np.float64) / float(w)
+    pad = w // 2
+    xs_s = np.convolve(np.pad(xs, (pad, pad), mode="edge"), k, mode="valid")
+    ys_s = np.convolve(np.pad(ys, (pad, pad), mode="edge"), k, mode="valid")
+    return [
+        (int(round(xs_s[i])), int(round(ys_s[i])), positions[i][2])
+        for i in range(n)
+    ]
 
 
 def lane_axis_feet_from_foul(bx, by, calibration):
@@ -212,20 +369,36 @@ def track_ball(video_path, calibration):
     print("When the video ends, the final frame (path, HUD) stays until you press Q.\n")
 
     # load calibration values
-    fps = calibration["fps"]
     pixels_per_foot = calibration["pixels_per_foot"]
     foul_line_y = calibration["foul_line_y"]
     dot_line_y = calibration["dot_line_y"]
+    pin_line_y = calibration["pin_line_y"]
     foul_near_pt = calibration["points"]["foul_line_near"]
     foul_far_pt = calibration["points"]["foul_line_far"]
     dot_near_pt = calibration["points"]["dot_line_near"]
     dot_far_pt = calibration["points"]["dot_line_far"]
 
     cap = cv2.VideoCapture(video_path)
+    vfps = cap.get(cv2.CAP_PROP_FPS)
+    cal_fps = float(calibration.get("fps", 30.0))
+    try:
+        vf_ok = float(vfps) >= 0.5 and not np.isnan(float(vfps))
+    except (TypeError, ValueError):
+        vf_ok = False
+    if vf_ok:
+        fps = float(vfps)
+        fps_note = "video file metadata (CAP_PROP_FPS)"
+    else:
+        fps = cal_fps
+        fps_note = "calibration.json (fallback — video did not report FPS)"
+    print(f"  Frame rate: {fps:.3f} — from {fps_note}")
+    print(
+        "  Each video can differ; YouTube downloads often still carry a single FPS value in the file.\n"
+    )
 
     bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-        history=500,
-        varThreshold=64,
+        history=400,
+        varThreshold=32,
         detectShadows=False,
     )
 
@@ -242,24 +415,25 @@ def track_ball(video_path, calibration):
     last_r = 30
     no_meas_streak = 0
     max_pred_only_frames = 20
-    # Cap per-frame jump ~38 ft/s along lane (~26 mph) to reject spurious jumps ahead
-    v_cap_ft_s = 38.0
-    max_jump_px = min(
-        max(55.0, 4.0 * float(pixels_per_foot)),
-        float(pixels_per_foot) * v_cap_ft_s / max(float(fps), 1.0),
-    )
+    # Per-frame gate: must allow fast balls; also floor so high-FPS metadata does not
+    # shrink this to a few pixels and reject every real measurement.
+    fps_safe = max(float(fps), 1.0)
+    v_cap_ft_s = 62.0
+    max_jump_px = float(pixels_per_foot) * v_cap_ft_s / fps_safe
+    max_jump_px = max(24.0, min(max_jump_px, 180.0))
     # Breakpoint: lateral hook change — only after ball reaches dot row (avoids early noise)
     bp_tracker = BreakpointTracker(persist_frames=6, dx_eps=1.0)
-    # Past foul plane (px along lane axis); real track also needs motion chain below
-    past_foul_min_along_px = 4.0
-    init_chain_len = 4
-    init_max_step_px = 44.0
-    init_min_along_delta_px = 8.0
 
-    kernel = np.ones((5, 5), np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
     last_display = None
     video_ended_naturally = False
-    init_buffer = []
+    lane_centroid = lane_polygon_centroid(calibration)
+    # Light temporal blend on refined centers — reduces jitter when the mask flickers
+    last_meas_smooth = None
+    frames_since_track = 0
+    track_finished = False
+    frozen_positions = []
+    frozen_circle = None
 
     while True:
         ret, frame = cap.read()
@@ -267,111 +441,120 @@ def track_ball(video_path, calibration):
             video_ended_naturally = True
             break
 
+        if track_finished:
+            trail_draw = (
+                smooth_positions_for_display(frozen_positions)
+                if len(frozen_positions) > 2
+                else frozen_positions
+            )
+            draw_overlay(
+                frame,
+                calibration,
+                frozen_circle,
+                trail_draw,
+                breakpoint,
+                breakpoint_feet,
+                speed_mph,
+                foul_board,
+                dot_board,
+                video_fps=fps,
+            )
+            last_display = frame.copy()
+            cv2.imshow("PinPoint", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+            continue
+
         frame_number += 1
 
-        fg_mask = bg_subtractor.apply(frame)
+        # Faster model update at clip start so foreground appears sooner (release area).
+        learn = 0.07 if frame_number <= 55 else -1
+        fg_mask = bg_subtractor.apply(frame, learningRate=learn)
 
-        lane_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-        foul_near = calibration["points"]["foul_line_near"]
-        foul_far = calibration["points"]["foul_line_far"]
-        pin_near = calibration["points"]["pin_line_near"]
-        pin_far = calibration["points"]["pin_line_far"]
-
-        lane_corners = np.array(
-            [foul_near, foul_far, pin_far, pin_near], dtype=np.int32
-        )
-        cv2.fillPoly(lane_mask, [lane_corners], 255)
+        h, w = frame.shape[:2]
+        lane_mask = lane_and_approach_mask(h, w, calibration)
 
         combined_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=lane_mask)
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+        combined_mask = cv2.dilate(combined_mask, kernel, iterations=1)
 
-        blurred = cv2.GaussianBlur(combined_mask, (9, 9), 2)
-        best_circle = detect_from_motion_blob(combined_mask)
-        if best_circle is None:
-            best_circle = detect_from_hough(blurred)
+        blurred = cv2.GaussianBlur(combined_mask, (7, 7), 1.5)
+        motion_centroid = fg_centroid(combined_mask)
+        candidates = build_candidates(blurred, combined_mask)
+
+        measurement = None
+        coast_pred = None
+
+        if kalman is not None:
+            coast_pred = kalman.predict()
+            if candidates:
+                nc = pick_nearest_candidate(
+                    candidates, float(coast_pred[0, 0]), float(coast_pred[1, 0])
+                )
+                d = float(
+                    np.hypot(
+                        nc[0] - float(coast_pred[0, 0]),
+                        nc[1] - float(coast_pred[1, 0]),
+                    )
+                )
+                # Early clip: MOG2 + swing are noisy — allow a wider catch-up to the ball.
+                jump_ok = max_jump_px * (
+                    1.28 if frame_number <= 140 else 1.0
+                )
+                if d <= jump_ok:
+                    measurement = nc
+        else:
+            if candidates:
+                measurement = pick_init_measurement(
+                    candidates, motion_centroid, lane_centroid
+                )
 
         draw_circle = None
         sx = sy = None
 
-        if best_circle is not None:
+        if measurement is not None:
             no_meas_streak = 0
-            mx, my, mr = best_circle
-            along = ball_along_lane_px(mx, my, calibration)
-            if along is None:
-                along = -1e9
-
+            mx, my, mr = measurement
+            rx, ry, rr = refine_ball_center(frame, mx, my, mr)
+            if last_meas_smooth is not None and frames_since_track > 7:
+                a = 0.76
+                rx = a * rx + (1.0 - a) * last_meas_smooth[0]
+                ry = a * ry + (1.0 - a) * last_meas_smooth[1]
+            last_meas_smooth = (rx, ry)
             if kalman is None:
-                if along < past_foul_min_along_px:
-                    init_buffer.clear()
-                else:
-                    if not init_buffer:
-                        init_buffer.append((mx, my, mr))
-                    else:
-                        lx, ly, _ = init_buffer[-1]
-                        if np.hypot(mx - lx, my - ly) <= init_max_step_px:
-                            init_buffer.append((mx, my, mr))
-                        else:
-                            init_buffer = [(mx, my, mr)]
-                    while len(init_buffer) > init_chain_len:
-                        init_buffer.pop(0)
-                    if len(init_buffer) >= init_chain_len:
-                        x0, y0, _ = init_buffer[0]
-                        x1, y1, mr1 = init_buffer[-1]
-                        a0 = ball_along_lane_px(x0, y0, calibration)
-                        a1 = ball_along_lane_px(x1, y1, calibration)
-                        if (
-                            a0 is not None
-                            and a1 is not None
-                            and (a1 - a0) >= init_min_along_delta_px
-                        ):
-                            kalman = create_ball_kalman(float(x1), float(y1))
-                            last_r = int(mr1)
-                            init_buffer.clear()
-                            print(f"  Track started at frame {frame_number} (motion confirmed)")
-                            sx = int(round(float(kalman.statePost[0, 0])))
-                            sy = int(round(float(kalman.statePost[1, 0])))
-                            ball_positions.append((sx, sy, frame_number))
-                            draw_circle = (sx, sy, last_r)
-                        else:
-                            init_buffer.pop(0)
+                kalman = create_ball_kalman(float(rx), float(ry))
+                frames_since_track = 0
+                last_r = int(round(rr))
+                sx = int(round(float(kalman.statePost[0, 0])))
+                sy = int(round(float(kalman.statePost[1, 0])))
             else:
-                pred = kalman.predict()
-                pred_x = float(pred[0, 0])
-                pred_y = float(pred[1, 0])
-                dist = np.hypot(float(mx) - pred_x, float(my) - pred_y)
-                if dist <= max_jump_px:
-                    kalman.correct(
-                        np.array([[float(mx)], [float(my)]], dtype=np.float32)
-                    )
-                    last_r = int(mr)
-                    sx = int(round(float(kalman.statePost[0, 0])))
-                    sy = int(round(float(kalman.statePost[1, 0])))
-                else:
-                    sx = int(round(pred_x))
-                    sy = int(round(pred_y))
-                    kalman.statePost = pred.astype(np.float32).copy()
-                    kalman.errorCovPost = kalman.errorCovPre.copy()
+                frames_since_track += 1
+                kalman.correct(
+                    np.array([[float(rx)], [float(ry)]], dtype=np.float32)
+                )
+                last_r = int(max(6, min(90, round(rr))))
+                sx = int(round(float(kalman.statePost[0, 0])))
+                sy = int(round(float(kalman.statePost[1, 0])))
 
-                ball_positions.append((sx, sy, frame_number))
-                draw_circle = (sx, sy, last_r)
+            ball_positions.append((sx, sy, frame_number))
+            draw_circle = (sx, sy, last_r)
 
         elif kalman is not None:
             no_meas_streak += 1
             if no_meas_streak > max_pred_only_frames:
                 kalman = None
                 no_meas_streak = 0
-                init_buffer.clear()
+                last_meas_smooth = None
+                frames_since_track = 0
             else:
-                pred = kalman.predict()
+                pred = coast_pred
                 sx = int(round(float(pred[0, 0])))
                 sy = int(round(float(pred[1, 0])))
                 kalman.statePost = pred.astype(np.float32).copy()
                 kalman.errorCovPost = kalman.errorCovPre.copy()
                 ball_positions.append((sx, sy, frame_number))
                 draw_circle = (sx, sy, last_r)
-        else:
-            init_buffer.clear()
 
         if sx is not None:
             if foul_line_frame is None and is_near_line(sy, foul_line_y):
@@ -415,16 +598,30 @@ def track_ball(video_path, calibration):
                         f"  Breakpoint (~{breakpoint_feet:.1f} ft from foul)"
                     )
 
+            if should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
+                track_finished = True
+                frozen_positions = ball_positions.copy()
+                frozen_circle = draw_circle
+                kalman = None
+                last_meas_smooth = None
+                print(f"  Track stopped at pin deck (frame {frame_number})")
+
+        trail_draw = (
+            smooth_positions_for_display(ball_positions)
+            if len(ball_positions) > 2
+            else ball_positions
+        )
         draw_overlay(
             frame,
             calibration,
             draw_circle,
-            ball_positions,
+            trail_draw,
             breakpoint,
             breakpoint_feet,
             speed_mph,
             foul_board,
             dot_board,
+            video_fps=fps,
         )
 
         last_display = frame.copy()
@@ -450,6 +647,29 @@ def is_near_line(y, line_y, threshold=15):
     return abs(y - line_y) < threshold
 
 
+def ball_reached_pin_deck(sy, foul_line_y, pin_line_y, margin=8.0):
+    """
+    True when the ball center has crossed the calibrated pin-deck line toward the pins.
+    Uses relative position of foul vs pin row in the image (works for typical angles).
+    Small margin = stop closer to the real deck (large margin was stopping too early).
+    """
+    if pin_line_y < foul_line_y:
+        return sy <= pin_line_y + margin
+    return sy >= pin_line_y - margin
+
+
+def should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
+    """
+    Require both: far enough down-lane (feet) and pin-line crossing — avoids early cutoffs
+    when pin_line_y is miscalibrated or margin was too loose.
+    """
+    crossed = ball_reached_pin_deck(sy, foul_line_y, pin_line_y, margin=6.0)
+    ft = lane_axis_feet_from_foul(sx, sy, calibration)
+    if ft is not None:
+        return crossed and ft >= 47.0
+    return crossed
+
+
 def draw_overlay(
     frame,
     calibration,
@@ -460,6 +680,7 @@ def draw_overlay(
     speed_mph,
     foul_board,
     dot_board,
+    video_fps=None,
 ):
     foul_near = calibration["points"]["foul_line_near"]
     foul_far = calibration["points"]["foul_line_far"]
@@ -497,6 +718,18 @@ def draw_overlay(
             (positions[i][0], positions[i][1]),
             (0, 255, 0),
             2,
+        )
+
+    if video_fps is not None:
+        fh, fw = frame.shape[0], frame.shape[1]
+        cv2.putText(
+            frame,
+            f"FPS {video_fps:.2f}",
+            (fw - 130, fh - 14),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (200, 200, 200),
+            1,
         )
 
     if circle is not None:
