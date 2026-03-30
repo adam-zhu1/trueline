@@ -1,0 +1,10 @@
+# Copy to e.g. ~/my_dataset/data.yaml and set `path` to the ABSOLUTE path
+# to the folder that contains `images/` and `labels/`.
+
+path: /ABSOLUTE/PATH/TO/dataset_root
+train: images/train
+val: images/val
+
+nc: 1
+names:
+  0: bowling_ball

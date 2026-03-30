@@ -13,9 +13,10 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 ## Technical Approach
 
 ### Ball Detection & Tracking
-- Frame-by-frame ball localization using **OpenCV** (Hough Circle Transform + contour detection)
+- **Default:** OpenCV **MOG2** + Hough / blobs + Kalman (no ML install required).
+- **Optional:** Fine-tuned **YOLO** weights at `models/ball.pt` — appearance-based detection, better across lighting; see **`training/README.md`** for dataset layout and training on Apple Silicon (MPS).
 - Kalman filtering for smooth trajectory estimation and handling occlusion frames
-- Perspective correction to account for camera angle and position variance
+- Lane geometry from calibration; detector boxes are filtered to the lane polygon
 
 ### Board Tracking
 - Click-based lane geometry (foul line, 6 ft dot line, pin deck) defines the lane in the frame
@@ -48,7 +49,7 @@ PinPoint processes raw phone camera footage of a bowling delivery and extracts s
 | Language | Python 3.11 |
 | CV Pipeline | OpenCV |
 | Numerical | NumPy, SciPy |
-| ML Layer | PyTorch *(planned)* |
+| ML (optional ball detector) | Ultralytics YOLO + PyTorch *(see `training/`)* |
 | Mobile | TBD |
 
 ---
@@ -63,7 +64,7 @@ Calibration JSON uses `dot_line_near` / `dot_line_far` and `dot_line_y` (6 ft do
 
 ## Roadmap
 
-- [x] Ball detection and tracking from phone video *(MOG2 + Hough + Kalman; ongoing tuning)*
+- [x] Ball detection and tracking from phone video *(MOG2 + Hough + Kalman; optional YOLO in `models/ball.pt`)*
 - [ ] Perspective correction and lane homography
 - [x] Board identification at foul line and dot line *(linear interpolation; pins/breakpoint board TBD)*
 - [ ] Rev rate estimation via rotation tracking
@@ -72,6 +73,64 @@ Calibration JSON uses `dot_line_near` / `dot_line_far` and `dot_line_y` (6 ft do
 - [ ] Consistency metrics across multiple shots
 - [ ] Recommendation engine (ML model)
 - [ ] Mobile app interface
+
+---
+
+## Setup
+
+### 1. Clone and enter the repo
+
+Use whatever folder you keep projects in (examples: `~/Projects/pinpoint`, `~/Developer/pinpoint`).
+
+```bash
+cd /path/to/pinpoint
+```
+
+### 2. Virtual environment and dependencies
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**YOLO ball tracking** also needs PyTorch + Ultralytics (same venv):
+
+```bash
+pip install -r training/requirements-training.txt
+```
+
+Always **`source .venv/bin/activate`** before `pip` and `python3` so installs match the interpreter that runs the app.
+
+### 3. Run PinPoint
+
+From the **repo root** (where `src/` and `data/` live):
+
+```bash
+python3 src/main.py
+```
+
+Alternatively: `cd src && python3 main.py`.
+
+1. Paste the **full path** to your video when prompted.
+2. **Do not** wrap the path in single quotes (e.g. wrong: `'.../file.MP4'`). If the path has **spaces**, use **double quotes** in the shell or paste the path plain — the app strips a single pair of surrounding quotes if you paste them by mistake.
+3. **Calibration:** Lane geometry is stored once in **`data/calibration.json`** (not per video). **`R`** reuses it if the camera view matches; **`C`** recalibrates from this clip’s first frame (new phone position, lane, or zoom).
+4. During tracking, **`Q`** exits early; when the video ends, the last frame stays until **`Q`**.
+
+**YOLO:** If `models/ball.pt` exists and `torch` + `ultralytics` import correctly, the app uses YOLO automatically; the video overlay shows **`YOLO: ball.pt`** in the corner. Otherwise it falls back to **MOG2 + Hough** and prints why. Override weights: `export PINPOINT_BALL_MODEL=/path/to/other.pt`.
+
+**Playback speed** is not locked to real time — each frame is fully processed first, so preview can look slow on heavy clips or YOLO; that is expected.
+
+### 4. Train or update the ball detector (optional)
+
+Full workflow (extract frames → CVAT → dataset folders → train → copy weights) is in **`training/README.md`**. After each successful train, copy the printed **`best.pt`** path to:
+
+```bash
+mkdir -p models
+cp <path-from-training-output>/best.pt models/ball.pt
+```
+
+Optional: back up the old weights first: `cp models/ball.pt models/ball.pt.backup`.
 
 ---
 

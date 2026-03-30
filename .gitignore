@@ -1,6 +1,23 @@
 # ignore video and output files
 data/
 output/
+runs/
+
+# large learned weights (copy best.pt to models/ball.pt locally)
+models/*.pt
+models/*.onnx
+
+# Ultralytics may download base weights into the repo root
+yolov8n.pt
+yolo*.pt
+
+# Local YOLO dataset (images + labels); keep folder structure via .gitkeep
+dataset/ball_yolo/images/**/*.jpg
+dataset/ball_yolo/images/**/*.jpeg
+dataset/ball_yolo/images/**/*.png
+dataset/ball_yolo/images/**/*.webp
+dataset/ball_yolo/labels/**/*.txt
+dataset/ball_yolo/labels/**/*.cache
 
 # ignore python junk
 __pycache__/
