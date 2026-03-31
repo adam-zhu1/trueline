@@ -51,16 +51,10 @@ def calibrate(video_path, save_path):
     print("  - Stand on the SIDE of the lane (between ball return and lane edge), at the foul line.")
     print("  - Camera about hip height, landscape orientation.")
     print("  - Frame the full lane from foul line to pin deck — nothing cropped.")
+    print("  RIGHT gutter = to the bowler's right when they face the pins")
+    print("  LEFT gutter  = to the bowler's left when they face the pins")
+    print("  (This is the same regardless of where your camera is placed)")
     print("\nClick 6 points on the first frame: foul line, DOT line (6 ft), pin deck.")
-    print("\nBefore we start, two quick questions:")
-    print("")
-    print("Is the RIGHT gutter on the LEFT or RIGHT side of your video frame?")
-    print("(L) Left side of frame   (R) Right side of frame")
-    right_gutter_side = input("> ").strip().upper()
-    while right_gutter_side not in ("L", "R"):
-        print("Please enter L or R:")
-        right_gutter_side = input("> ").strip().upper()
-
     print("")
     print("Is the bowler RIGHT or LEFT handed?")
     print("(R) Right handed   (L) Left handed")
@@ -121,10 +115,10 @@ def calibrate(video_path, save_path):
 
         return (result["x"], result["y"])
 
-    print("Step 1: Click the FOUL LINE where it meets the right gutter edge")
+    print("Step 1: Click the FOUL LINE at the RIGHT GUTTER edge")
     points["foul_line_right"] = click_point(
-        "Foul Line (right)",
-        "STEP 1: Click where the foul line meets the right gutter edge",
+        "Foul (right gutter)",
+        "STEP 1: Click where the foul line meets the RIGHT GUTTER",
         (0, 255, 255),
     )
 
@@ -133,10 +127,10 @@ def calibrate(video_path, save_path):
         print("Calibration cancelled.")
         return None
 
-    print("Step 2: Click the FOUL LINE where it meets the left gutter edge")
+    print("Step 2: Click the FOUL LINE at the LEFT GUTTER edge")
     points["foul_line_left"] = click_point(
-        "Foul Line (left)",
-        "STEP 2: Click where the foul line meets the left gutter edge",
+        "Foul (left gutter)",
+        "STEP 2: Click where the foul line meets the LEFT GUTTER",
         (0, 255, 255),
     )
     if points["foul_line_left"] is None:
@@ -144,10 +138,10 @@ def calibrate(video_path, save_path):
         print("Calibration cancelled.")
         return None
 
-    print("Step 3: Click the DOT LINE (7 small circles in a row, 6 ft from foul) at the right gutter edge")
+    print("Step 3: Click the DOT LINE at the RIGHT GUTTER edge")
     points["dot_line_right"] = click_point(
-        "Dot Line (right)",
-        "STEP 3: Dot line (6 ft) — right gutter edge",
+        "Dot (right gutter)",
+        "STEP 3: Dot line (6 ft) — RIGHT GUTTER edge",
         (0, 165, 255),
     )
     if points["dot_line_right"] is None:
@@ -155,10 +149,10 @@ def calibrate(video_path, save_path):
         print("Calibration cancelled.")
         return None
 
-    print("Step 4: Click the DOT LINE at the left gutter edge")
+    print("Step 4: Click the DOT LINE at the LEFT GUTTER edge")
     points["dot_line_left"] = click_point(
-        "Dot Line (left)",
-        "STEP 4: Dot line (6 ft) — left gutter edge",
+        "Dot (left gutter)",
+        "STEP 4: Dot line (6 ft) — LEFT GUTTER edge",
         (0, 165, 255),
     )
     if points["dot_line_left"] is None:
@@ -166,10 +160,10 @@ def calibrate(video_path, save_path):
         print("Calibration cancelled.")
         return None
 
-    print("Step 5: Click the PIN DECK where it meets the right gutter edge")
+    print("Step 5: Click the PIN DECK at the RIGHT GUTTER edge")
     points["pin_line_right"] = click_point(
-        "Pin Line (right)",
-        "STEP 5: Click where the pin deck meets the right gutter edge",
+        "Pin (right gutter)",
+        "STEP 5: Pin deck — RIGHT GUTTER edge",
         (0, 255, 0),
     )
     if points["pin_line_right"] is None:
@@ -177,10 +171,10 @@ def calibrate(video_path, save_path):
         print("Calibration cancelled.")
         return None
 
-    print("Step 6: Click the PIN DECK where it meets the left gutter edge")
+    print("Step 6: Click the PIN DECK at the LEFT GUTTER edge")
     points["pin_line_left"] = click_point(
-        "Pin Line (left)",
-        "STEP 6: Click where the pin deck meets the left gutter edge",
+        "Pin (left gutter)",
+        "STEP 6: Pin deck — LEFT GUTTER edge",
         (0, 255, 0),
     )
     if points["pin_line_left"] is None:
@@ -255,7 +249,6 @@ def calibrate(video_path, save_path):
 
     calibration = {
         "points": {k: list(v) for k, v in points.items()},
-        "right_gutter_side": right_gutter_side,
         "bowler_hand": bowler_hand,
         "pixels_per_foot": pixels_per_foot,
         "pixels_per_board": pixels_per_board,

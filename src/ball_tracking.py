@@ -70,8 +70,6 @@ def board_at_position(bx, by, calibration):
     Board number at (bx, by).
     For right-handed bowler: board 1 = right gutter, board 39 = left gutter.
     For left-handed bowler: board 1 = left gutter, board 39 = right gutter.
-    right_gutter_side: 'R' means right gutter is on the right side of the frame (higher x).
-                       'L' means right gutter is on the left side of the frame (lower x).
     """
     fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float64)
     ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float64)
@@ -79,7 +77,6 @@ def board_at_position(bx, by, calibration):
     pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float64)
     foul_line_y = calibration["foul_line_y"]
     pin_line_y = calibration["pin_line_y"]
-    right_gutter_side = calibration.get("right_gutter_side", "R")
     bowler_hand = calibration.get("bowler_hand", "R")
 
     # interpolate lane edges at this y position
@@ -95,15 +92,10 @@ def board_at_position(bx, by, calibration):
     right_x = right_pt[0]
     left_x = left_pt[0]
 
-    # if right gutter is on the LEFT side of the frame, swap
-    if right_gutter_side == "L":
-        right_x, left_x = left_x, right_x
-
-    # interpolate: 0.0 = right gutter, 1.0 = left gutter
+    # fraction from right gutter toward left gutter
     lane_width = abs(left_x - right_x)
     if lane_width < 1e-6:
         return 20
-    # fraction from right gutter
     t_board = (bx - right_x) / (left_x - right_x)
     t_board = max(0.0, min(1.0, t_board))
 
