@@ -737,7 +737,7 @@ def should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
     foul_line_y > pin_line_y means pins are at top of frame (y decreases toward pins).
     margin_frac scales a pixel margin: larger = require ball farther past the line (stop later).
     """
-    margin = (abs(foul_line_y - pin_line_y)) * 0.06
+    margin = (abs(foul_line_y - pin_line_y)) * 0.02
     if pin_line_y < foul_line_y:
         return sy <= pin_line_y - margin
     return sy >= pin_line_y + margin
