@@ -7,7 +7,7 @@ import numpy as np
 # real world bowling lane measurements (regulation)
 LANE_LENGTH_FEET = 60.0
 LANE_WIDTH_INCHES = 41.5
-NUM_BOARDS = 60
+NUM_BOARDS = 39
 DOT_DISTANCE_FEET = 6.0
 FOUL_LINE_DISTANCE_FEET = 0.0
 
@@ -25,10 +25,10 @@ def lane_surface_quad(calibration: dict) -> np.ndarray:
     Closed quad in image space: foul_near → foul_far → pin_far → pin_near.
     Same order as lane_and_approach_mask in ball_tracking.
     """
-    fn = calibration["points"]["foul_line_near"]
-    ff = calibration["points"]["foul_line_far"]
-    pn = calibration["points"]["pin_line_near"]
-    pf = calibration["points"]["pin_line_far"]
+    fn = calibration["points"]["foul_line_right"]
+    ff = calibration["points"]["foul_line_left"]
+    pn = calibration["points"]["pin_line_right"]
+    pf = calibration["points"]["pin_line_left"]
     return np.array([fn, ff, pf, pn], dtype=np.float64)
 
 
@@ -52,6 +52,23 @@ def calibrate(video_path, save_path):
     print("  - Camera about hip height, landscape orientation.")
     print("  - Frame the full lane from foul line to pin deck — nothing cropped.")
     print("\nClick 6 points on the first frame: foul line, DOT line (6 ft), pin deck.")
+    print("\nBefore we start, two quick questions:")
+    print("")
+    print("Is the RIGHT gutter on the LEFT or RIGHT side of your video frame?")
+    print("(L) Left side of frame   (R) Right side of frame")
+    right_gutter_side = input("> ").strip().upper()
+    while right_gutter_side not in ("L", "R"):
+        print("Please enter L or R:")
+        right_gutter_side = input("> ").strip().upper()
+
+    print("")
+    print("Is the bowler RIGHT or LEFT handed?")
+    print("(R) Right handed   (L) Left handed")
+    bowler_hand = input("> ").strip().upper()
+    while bowler_hand not in ("R", "L"):
+        print("Please enter R or L:")
+        bowler_hand = input("> ").strip().upper()
+
     print("\nPress Enter to open the calibration frame...\n")
     input()
 
@@ -104,79 +121,79 @@ def calibrate(video_path, save_path):
 
         return (result["x"], result["y"])
 
-    print("Step 1: Click the FOUL LINE where it meets the near edge of the lane")
-    points["foul_line_near"] = click_point(
-        "Foul Line (near)",
-        "STEP 1: Click where the foul line meets the near lane edge",
+    print("Step 1: Click the FOUL LINE where it meets the right gutter edge")
+    points["foul_line_right"] = click_point(
+        "Foul Line (right)",
+        "STEP 1: Click where the foul line meets the right gutter edge",
         (0, 255, 255),
     )
 
-    if points["foul_line_near"] is None:
+    if points["foul_line_right"] is None:
         cv2.destroyAllWindows()
         print("Calibration cancelled.")
         return None
 
-    print("Step 2: Click the FOUL LINE where it meets the far edge of the lane")
-    points["foul_line_far"] = click_point(
-        "Foul Line (far)",
-        "STEP 2: Click where the foul line meets the far lane edge",
+    print("Step 2: Click the FOUL LINE where it meets the left gutter edge")
+    points["foul_line_left"] = click_point(
+        "Foul Line (left)",
+        "STEP 2: Click where the foul line meets the left gutter edge",
         (0, 255, 255),
     )
-    if points["foul_line_far"] is None:
+    if points["foul_line_left"] is None:
         cv2.destroyAllWindows()
         print("Calibration cancelled.")
         return None
 
-    print("Step 3: Click the DOT LINE (7 small circles in a row, 6 ft from foul) at the near edge")
-    points["dot_line_near"] = click_point(
-        "Dot Line (near)",
-        "STEP 3: Dot line (6 ft) — near lane edge",
+    print("Step 3: Click the DOT LINE (7 small circles in a row, 6 ft from foul) at the right gutter edge")
+    points["dot_line_right"] = click_point(
+        "Dot Line (right)",
+        "STEP 3: Dot line (6 ft) — right gutter edge",
         (0, 165, 255),
     )
-    if points["dot_line_near"] is None:
+    if points["dot_line_right"] is None:
         cv2.destroyAllWindows()
         print("Calibration cancelled.")
         return None
 
-    print("Step 4: Click the DOT LINE at the far edge of the lane")
-    points["dot_line_far"] = click_point(
-        "Dot Line (far)",
-        "STEP 4: Dot line (6 ft) — far lane edge",
+    print("Step 4: Click the DOT LINE at the left gutter edge")
+    points["dot_line_left"] = click_point(
+        "Dot Line (left)",
+        "STEP 4: Dot line (6 ft) — left gutter edge",
         (0, 165, 255),
     )
-    if points["dot_line_far"] is None:
+    if points["dot_line_left"] is None:
         cv2.destroyAllWindows()
         print("Calibration cancelled.")
         return None
 
-    print("Step 5: Click the PIN DECK where it meets the near edge of the lane")
-    points["pin_line_near"] = click_point(
-        "Pin Line (near)",
-        "STEP 5: Click where the pin deck meets the near lane edge",
+    print("Step 5: Click the PIN DECK where it meets the right gutter edge")
+    points["pin_line_right"] = click_point(
+        "Pin Line (right)",
+        "STEP 5: Click where the pin deck meets the right gutter edge",
         (0, 255, 0),
     )
-    if points["pin_line_near"] is None:
+    if points["pin_line_right"] is None:
         cv2.destroyAllWindows()
         print("Calibration cancelled.")
         return None
 
-    print("Step 6: Click the PIN DECK where it meets the far edge of the lane")
-    points["pin_line_far"] = click_point(
-        "Pin Line (far)",
-        "STEP 6: Click where the pin deck meets the far lane edge",
+    print("Step 6: Click the PIN DECK where it meets the left gutter edge")
+    points["pin_line_left"] = click_point(
+        "Pin Line (left)",
+        "STEP 6: Click where the pin deck meets the left gutter edge",
         (0, 255, 0),
     )
-    if points["pin_line_far"] is None:
+    if points["pin_line_left"] is None:
         cv2.destroyAllWindows()
         print("Calibration cancelled.")
         return None
 
-    foul_near = np.array(points["foul_line_near"], dtype=np.int32)
-    foul_far = np.array(points["foul_line_far"], dtype=np.int32)
-    dot_near = np.array(points["dot_line_near"], dtype=np.int32)
-    dot_far = np.array(points["dot_line_far"], dtype=np.int32)
-    pin_near = np.array(points["pin_line_near"], dtype=np.int32)
-    pin_far = np.array(points["pin_line_far"], dtype=np.int32)
+    foul_near = np.array(points["foul_line_right"], dtype=np.int32)
+    foul_far = np.array(points["foul_line_left"], dtype=np.int32)
+    dot_near = np.array(points["dot_line_right"], dtype=np.int32)
+    dot_far = np.array(points["dot_line_left"], dtype=np.int32)
+    pin_near = np.array(points["pin_line_right"], dtype=np.int32)
+    pin_far = np.array(points["pin_line_left"], dtype=np.int32)
 
     quad_i = np.array([foul_near, foul_far, pin_far, pin_near], dtype=np.int32)
     preview = frame.copy()
@@ -213,12 +230,12 @@ def calibrate(video_path, save_path):
 
     cv2.destroyAllWindows()
 
-    foul_near = np.array(points["foul_line_near"])
-    foul_far = np.array(points["foul_line_far"])
-    dot_near = np.array(points["dot_line_near"])
-    dot_far = np.array(points["dot_line_far"])
-    pin_near = np.array(points["pin_line_near"])
-    pin_far = np.array(points["pin_line_far"])
+    foul_near = np.array(points["foul_line_right"])
+    foul_far = np.array(points["foul_line_left"])
+    dot_near = np.array(points["dot_line_right"])
+    dot_far = np.array(points["dot_line_left"])
+    pin_near = np.array(points["pin_line_right"])
+    pin_far = np.array(points["pin_line_left"])
 
     foul_mid = (foul_near + foul_far) / 2
     dot_mid = (dot_near + dot_far) / 2
@@ -238,14 +255,16 @@ def calibrate(video_path, save_path):
 
     calibration = {
         "points": {k: list(v) for k, v in points.items()},
+        "right_gutter_side": right_gutter_side,
+        "bowler_hand": bowler_hand,
         "pixels_per_foot": pixels_per_foot,
         "pixels_per_board": pixels_per_board,
         "fps": fps,
         "foul_line_y": float(foul_mid[1]),
         "dot_line_y": float(dot_mid[1]),
         "pin_line_y": float(pin_mid[1]),
-        "foul_line_near_x": float(foul_near[0]),
-        "foul_line_far_x": float(foul_far[0]),
+        "foul_line_right_x": float(foul_near[0]),
+        "foul_line_left_x": float(foul_far[0]),
     }
 
     with open(save_path, "w") as f:

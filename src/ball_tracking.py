@@ -49,7 +49,7 @@ def create_ball_kalman(init_x, init_y):
 
 def board_from_ball_on_line(bx, by, far_pt, near_pt):
     """
-    Board 1 at far edge, board 60 at near edge (regulation numbering).
+    Board 1 at far edge, board 39 at near edge.
     far_pt / near_pt are (x, y) image coordinates for that line's endpoints.
     """
     far = np.array(far_pt, dtype=np.float64)
@@ -58,11 +58,63 @@ def board_from_ball_on_line(bx, by, far_pt, near_pt):
     w = near - far
     w_len2 = float(np.dot(w, w))
     if w_len2 < 1e-6:
-        return 30
+        return 20
     t = float(np.dot(p - far, w) / w_len2)
     t = max(0.0, min(1.0, t))
-    board = int(round(1.0 + t * 59.0))
-    return max(1, min(60, board))
+    board = int(round(1.0 + t * 38.0))
+    return max(1, min(39, board))
+
+
+def board_at_position(bx, by, calibration):
+    """
+    Board number at (bx, by).
+    For right-handed bowler: board 1 = right gutter, board 39 = left gutter.
+    For left-handed bowler: board 1 = left gutter, board 39 = right gutter.
+    right_gutter_side: 'R' means right gutter is on the right side of the frame (higher x).
+                       'L' means right gutter is on the left side of the frame (lower x).
+    """
+    fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float64)
+    ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float64)
+    pn = np.array(calibration["points"]["pin_line_right"], dtype=np.float64)
+    pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float64)
+    foul_line_y = calibration["foul_line_y"]
+    pin_line_y = calibration["pin_line_y"]
+    right_gutter_side = calibration.get("right_gutter_side", "R")
+    bowler_hand = calibration.get("bowler_hand", "R")
+
+    # interpolate lane edges at this y position
+    total = abs(pin_line_y - foul_line_y)
+    if total < 1e-6:
+        return 20
+    t = abs(by - foul_line_y) / total
+    t = max(0.0, min(1.0, t))
+    right_pt = fn + t * (pn - fn)
+    left_pt = ff + t * (pf - ff)
+
+    # right_x and left_x in image space
+    right_x = right_pt[0]
+    left_x = left_pt[0]
+
+    # if right gutter is on the LEFT side of the frame, swap
+    if right_gutter_side == "L":
+        right_x, left_x = left_x, right_x
+
+    # interpolate: 0.0 = right gutter, 1.0 = left gutter
+    lane_width = abs(left_x - right_x)
+    if lane_width < 1e-6:
+        return 20
+    # fraction from right gutter
+    t_board = (bx - right_x) / (left_x - right_x)
+    t_board = max(0.0, min(1.0, t_board))
+
+    # right-handed: board 1 at right gutter, board 39 at left
+    # left-handed: board 1 at left gutter, board 39 at right
+    if bowler_hand == "R":
+        board = int(round(1.0 + t_board * 38.0))
+    else:
+        board = int(round(1.0 + (1.0 - t_board) * 38.0))
+
+    return max(1, min(39, board))
 
 
 class BreakpointTracker:
@@ -136,12 +188,12 @@ def _lane_axis_vectors(calibration):
     Foul-line midpoint, unit vector toward pins (pin midpoint), and scalar projection
     (pixels) from foul midpoint to dot midpoint along that axis — used for scale.
     """
-    fn = np.array(calibration["points"]["foul_line_near"], dtype=np.float64)
-    ff = np.array(calibration["points"]["foul_line_far"], dtype=np.float64)
-    pn = np.array(calibration["points"]["pin_line_near"], dtype=np.float64)
-    pf = np.array(calibration["points"]["pin_line_far"], dtype=np.float64)
-    dn = np.array(calibration["points"]["dot_line_near"], dtype=np.float64)
-    df = np.array(calibration["points"]["dot_line_far"], dtype=np.float64)
+    fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float64)
+    ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float64)
+    pn = np.array(calibration["points"]["pin_line_right"], dtype=np.float64)
+    pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float64)
+    dn = np.array(calibration["points"]["dot_line_right"], dtype=np.float64)
+    df = np.array(calibration["points"]["dot_line_left"], dtype=np.float64)
     foul_m = 0.5 * (fn + ff)
     pin_m = 0.5 * (pn + pf)
     dot_m = 0.5 * (dn + df)
@@ -224,10 +276,10 @@ def fg_centroid(mask):
 
 def lane_polygon_centroid(calibration):
     """Fallback reference when motion centroid is weak (center of calibrated trapezoid)."""
-    fn = calibration["points"]["foul_line_near"]
-    ff = calibration["points"]["foul_line_far"]
-    pn = calibration["points"]["pin_line_near"]
-    pf = calibration["points"]["pin_line_far"]
+    fn = calibration["points"]["foul_line_right"]
+    ff = calibration["points"]["foul_line_left"]
+    pn = calibration["points"]["pin_line_right"]
+    pf = calibration["points"]["pin_line_left"]
     pts = np.array([fn, ff, pf, pn], dtype=np.float64)
     return float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1]))
 
@@ -238,10 +290,10 @@ def lane_and_approach_mask(h, w, calibration, approach_extend_px=400):
     ball is still inside the mask during release (it was only on the lane trapezoid before).
     """
     mask = np.zeros((h, w), dtype=np.uint8)
-    fn = calibration["points"]["foul_line_near"]
-    ff = calibration["points"]["foul_line_far"]
-    pn = calibration["points"]["pin_line_near"]
-    pf = calibration["points"]["pin_line_far"]
+    fn = calibration["points"]["foul_line_right"]
+    ff = calibration["points"]["foul_line_left"]
+    pn = calibration["points"]["pin_line_right"]
+    pf = calibration["points"]["pin_line_left"]
     foul_near = np.array(fn, dtype=np.float64)
     foul_far = np.array(ff, dtype=np.float64)
     pin_near = np.array(pn, dtype=np.float64)
@@ -397,10 +449,6 @@ def track_ball(video_path, calibration):
     foul_line_y = calibration["foul_line_y"]
     dot_line_y = calibration["dot_line_y"]
     pin_line_y = calibration["pin_line_y"]
-    foul_near_pt = calibration["points"]["foul_line_near"]
-    foul_far_pt = calibration["points"]["foul_line_far"]
-    dot_near_pt = calibration["points"]["dot_line_near"]
-    dot_far_pt = calibration["points"]["dot_line_far"]
 
     cap = cv2.VideoCapture(video_path)
     vfps = cap.get(cv2.CAP_PROP_FPS)
@@ -463,6 +511,7 @@ def track_ball(video_path, calibration):
     dot_board = None
     breakpoint = None
     breakpoint_feet = None
+    breakpoint_board = None
     speed_mph = None
     frame_number = 0
     kalman = None
@@ -476,7 +525,7 @@ def track_ball(video_path, calibration):
     max_jump_px = float(pixels_per_foot) * v_cap_ft_s / fps_safe
     max_jump_px = max(32.0, min(max_jump_px, 320.0))
     # Breakpoint: lateral hook change — only after ball reaches dot row (avoids early noise)
-    bp_tracker = BreakpointTracker(persist_frames=6, dx_eps=1.0)
+    bp_tracker = BreakpointTracker(persist_frames=3, dx_eps=0.4)
 
     kernel = np.ones((3, 3), np.uint8)
     last_display = None
@@ -630,9 +679,7 @@ def track_ball(video_path, calibration):
 
             if foul_line_frame is None and is_near_line(sy, foul_line_y):
                 foul_line_frame = frame_number
-                foul_board = board_from_ball_on_line(
-                    sx, sy, foul_far_pt, foul_near_pt
-                )
+                foul_board = board_at_position(sx, sy, calibration)
                 print(
                     f"  Ball crossed foul line at frame {frame_number} (board {foul_board})"
                 )
@@ -640,9 +687,7 @@ def track_ball(video_path, calibration):
             if foul_line_frame is not None and dot_line_frame is None:
                 if is_near_line(sy, dot_line_y):
                     dot_line_frame = frame_number
-                    dot_board = board_from_ball_on_line(
-                        sx, sy, dot_far_pt, dot_near_pt
-                    )
+                    dot_board = board_at_position(sx, sy, calibration)
                     print(
                         f"  Ball crossed dot line at frame {frame_number} (board {dot_board})"
                     )
@@ -665,6 +710,7 @@ def track_ball(video_path, calibration):
                 breakpoint_feet = lane_axis_feet_from_foul(
                     new_bp[0], new_bp[1], calibration
                 )
+                breakpoint_board = board_at_position(new_bp[0], new_bp[1], calibration)
                 if breakpoint_feet is not None:
                     print(
                         f"  Breakpoint (~{breakpoint_feet:.1f} ft from foul)"
@@ -705,8 +751,64 @@ def track_ball(video_path, calibration):
 
     cap.release()
 
+    # Post-processing: breakpoint = position furthest from final x position (pocket)
+    # i.e. furthest from where the ball ends up, in the x direction.
+    if breakpoint is None and len(ball_positions) >= 20:
+        # Use last 5 positions to estimate final x (pocket area).
+        final_x = np.mean([p[0] for p in ball_positions[-5:]])
+
+        # Only look past the first 30% of the trail (skip approach noise).
+        start_idx = len(ball_positions) // 3
+        candidates = ball_positions[start_idx:]
+
+        if candidates:
+            # Find position with maximum x distance from final pocket position.
+            bp = max(candidates, key=lambda p: abs(p[0] - final_x))
+            bp_board = board_at_position(bp[0], bp[1], calibration)
+            breakpoint = (bp[0], bp[1])
+            breakpoint_feet = None
+            breakpoint_board = bp_board
+            print(f"  Breakpoint (post-processed): board {breakpoint_board}")
+
+    # Post-processing: extract metrics from ball_positions if not captured during tracking.
+    if ball_positions and foul_board is None:
+        # Find the tracked position closest to the calibrated foul-line y.
+        closest_foul = min(ball_positions, key=lambda p: abs(p[1] - foul_line_y))
+        foul_board = board_at_position(closest_foul[0], closest_foul[1], calibration)
+        foul_line_frame = closest_foul[2]
+
+    if ball_positions and dot_board is None:
+        # Find the tracked position closest to the calibrated dot-line y.
+        closest_dot = min(ball_positions, key=lambda p: abs(p[1] - dot_line_y))
+        dot_board = board_at_position(closest_dot[0], closest_dot[1], calibration)
+        dot_line_frame = closest_dot[2]
+
+    # Recalculate speed if we have both derived crossing frames.
+    if speed_mph is None and foul_line_frame is not None and dot_line_frame is not None:
+        frames_taken = abs(dot_line_frame - foul_line_frame)
+        seconds_taken = frames_taken / fps
+        if seconds_taken > 0:
+            speed_fps = DOT_DISTANCE_FEET / seconds_taken
+            speed_mph = speed_fps * 0.681818
+            print(f"  Speed (post-processed): {speed_mph:.1f} mph")
+
+    print("\n========== SHOT SUMMARY ==========")
+    if speed_mph is not None:
+        print(f"  Speed:            {speed_mph:.1f} mph")
+    else:
+        print("  Speed:            --")
+    if dot_board is not None:
+        print(f"  Board @ arrows:   {dot_board}")
+    else:
+        print("  Board @ arrows:   --")
+    if breakpoint_board is not None:
+        print(f"  Breakpoint board: {breakpoint_board}")
+    else:
+        print("  Breakpoint board: --")
+    print("===================================\n")
+
     if video_ended_naturally and last_display is not None:
-        print("\nVideo ended — final frame (path, HUD) stays open. Press Q to exit.")
+        print("Final frame on screen — press Q to exit.")
         while True:
             cv2.imshow("PinPoint", last_display)
             if cv2.waitKey(50) & 0xFF == ord("q"):
@@ -763,12 +865,12 @@ def _lane_world_to_image_homography(calibration):
     d = float(DOT_DISTANCE_FEET)
     L = float(LANE_LENGTH_FEET)
 
-    ff = np.array(calibration["points"]["foul_line_far"], dtype=np.float32)
-    fn = np.array(calibration["points"]["foul_line_near"], dtype=np.float32)
-    df = np.array(calibration["points"]["dot_line_far"], dtype=np.float32)
-    dn = np.array(calibration["points"]["dot_line_near"], dtype=np.float32)
-    pf = np.array(calibration["points"]["pin_line_far"], dtype=np.float32)
-    pn = np.array(calibration["points"]["pin_line_near"], dtype=np.float32)
+    ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float32)
+    fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float32)
+    df = np.array(calibration["points"]["dot_line_left"], dtype=np.float32)
+    dn = np.array(calibration["points"]["dot_line_right"], dtype=np.float32)
+    pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float32)
+    pn = np.array(calibration["points"]["pin_line_right"], dtype=np.float32)
 
     world = np.array(
         [
@@ -801,10 +903,10 @@ def _interpolate_lane_edge(calibration, y_ft):
     L = float(LANE_LENGTH_FEET)
     t = float(np.clip(y_ft / L, 0.0, 1.0))
 
-    fn = np.array(calibration["points"]["foul_line_near"], dtype=np.float64)
-    ff = np.array(calibration["points"]["foul_line_far"], dtype=np.float64)
-    pn = np.array(calibration["points"]["pin_line_near"], dtype=np.float64)
-    pf = np.array(calibration["points"]["pin_line_far"], dtype=np.float64)
+    fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float64)
+    ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float64)
+    pn = np.array(calibration["points"]["pin_line_right"], dtype=np.float64)
+    pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float64)
 
     near = fn + t * (pn - fn)
     far = ff + t * (pf - ff)
@@ -867,8 +969,8 @@ def draw_overlay(
     _draw_detector_badge(frame, detector_label)
 
     # Foul line — drawn directly from clicked points
-    foul_near = tuple(map(int, calibration["points"]["foul_line_near"]))
-    foul_far = tuple(map(int, calibration["points"]["foul_line_far"]))
+    foul_near = tuple(map(int, calibration["points"]["foul_line_right"]))
+    foul_far = tuple(map(int, calibration["points"]["foul_line_left"]))
     cv2.line(frame, foul_near, foul_far, (0, 255, 255), 2)
     lx, ly = foul_near
     cv2.putText(
@@ -882,8 +984,8 @@ def draw_overlay(
     )
 
     # Dot line — drawn directly from clicked points
-    dot_near = tuple(map(int, calibration["points"]["dot_line_near"]))
-    dot_far = tuple(map(int, calibration["points"]["dot_line_far"]))
+    dot_near = tuple(map(int, calibration["points"]["dot_line_right"]))
+    dot_far = tuple(map(int, calibration["points"]["dot_line_left"]))
     cv2.line(frame, dot_near, dot_far, (0, 165, 255), 2)
     lx, ly = dot_near
     cv2.putText(
@@ -897,8 +999,8 @@ def draw_overlay(
     )
 
     # Pin line — drawn directly from clicked points
-    pin_near = tuple(map(int, calibration["points"]["pin_line_near"]))
-    pin_far = tuple(map(int, calibration["points"]["pin_line_far"]))
+    pin_near = tuple(map(int, calibration["points"]["pin_line_right"]))
+    pin_far = tuple(map(int, calibration["points"]["pin_line_left"]))
     cv2.line(frame, pin_near, pin_far, (0, 200, 0), 2)
     lx, ly = pin_near
     cv2.putText(
