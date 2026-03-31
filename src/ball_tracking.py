@@ -1,12 +1,22 @@
+import os
+
 import cv2
 import numpy as np
 
 from calibration import (
     DOT_DISTANCE_FEET,
     LANE_LENGTH_FEET,
+    LANE_MASK_DILATE_ITERATIONS,
     LANE_WIDTH_INCHES,
 )
 from yolo_ball import load_yolo_ball, resolved_ball_weights_path
+
+# CV Kalman state: [x, y, vx, vy] (pixels / frame). Sharp backends change (vx, vy) fast;
+# higher Q_vel than Q_xy avoids over-smoothing hooks; lower R trusts detections more.
+_KF_PROCESS_NOISE_XY = 2.0e-2
+_KF_PROCESS_NOISE_VEL = 0.35
+_KF_MEASUREMENT_NOISE = 12.0
+
 
 def create_ball_kalman(init_x, init_y):
     """Constant-velocity Kalman filter for (x, y); smooths noisy detections."""
@@ -21,9 +31,15 @@ def create_ball_kalman(init_x, init_y):
         [[1, 0, 0, 0],
          [0, 1, 0, 0]], dtype=np.float32
     )
-    # Balance: trust measurements enough to follow the ball; smooth velocity a bit
-    kf.processNoiseCov = np.eye(4, dtype=np.float32) * 7e-3
-    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 36.0
+    kf.processNoiseCov = np.diag(
+        [
+            _KF_PROCESS_NOISE_XY,
+            _KF_PROCESS_NOISE_XY,
+            _KF_PROCESS_NOISE_VEL,
+            _KF_PROCESS_NOISE_VEL,
+        ]
+    ).astype(np.float32)
+    kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * _KF_MEASUREMENT_NOISE
     kf.errorCovPost = np.eye(4, dtype=np.float32)
     kf.statePost = np.array(
         [[init_x], [init_y], [0.0], [0.0]], dtype=np.float32
@@ -246,6 +262,9 @@ def lane_and_approach_mask(h, w, calibration, approach_extend_px=400):
     approach_quad = np.array([back_near, back_far, foul_far, foul_near], dtype=np.int32)
     cv2.fillPoly(mask, [lane_quad], 255)
     cv2.fillPoly(mask, [approach_quad], 255)
+    if LANE_MASK_DILATE_ITERATIONS > 0:
+        k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        cv2.dilate(mask, k, dst=mask, iterations=LANE_MASK_DILATE_ITERATIONS)
     return mask
 
 
@@ -449,13 +468,13 @@ def track_ball(video_path, calibration):
     kalman = None
     last_r = 30
     no_meas_streak = 0
-    max_pred_only_frames = 20
+    max_pred_only_frames = 75
     # Per-frame gate: must allow fast balls; also floor so high-FPS metadata does not
     # shrink this to a few pixels and reject every real measurement.
     fps_safe = max(float(fps), 1.0)
-    v_cap_ft_s = 62.0
+    v_cap_ft_s = 72.0
     max_jump_px = float(pixels_per_foot) * v_cap_ft_s / fps_safe
-    max_jump_px = max(24.0, min(max_jump_px, 180.0))
+    max_jump_px = max(32.0, min(max_jump_px, 320.0))
     # Breakpoint: lateral hook change — only after ball reaches dot row (avoids early noise)
     bp_tracker = BreakpointTracker(persist_frames=6, dx_eps=1.0)
 
@@ -540,10 +559,14 @@ def track_ball(video_path, calibration):
                         nc[1] - float(coast_pred[1, 0]),
                     )
                 )
-                # Early clip: MOG2 + swing are noisy — allow a wider catch-up to the ball.
-                jump_ok = max_jump_px * (
-                    1.28 if frame_number <= 140 else 1.0
-                )
+                # Widen gate early (release noise) and later (hook: prediction can lag YOLO).
+                if frame_number <= 140:
+                    jump_scale = 1.55
+                elif dot_line_frame is not None and frame_number >= dot_line_frame:
+                    jump_scale = 1.48
+                else:
+                    jump_scale = 1.32
+                jump_ok = max_jump_px * jump_scale
                 if d <= jump_ok:
                     measurement = nc
         else:
@@ -560,7 +583,7 @@ def track_ball(video_path, calibration):
             mx, my, mr = measurement
             rx, ry, rr = refine_ball_center(frame, mx, my, mr)
             if last_meas_smooth is not None and frames_since_track > 7:
-                a = 0.76
+                a = 0.42
                 rx = a * rx + (1.0 - a) * last_meas_smooth[0]
                 ry = a * ry + (1.0 - a) * last_meas_smooth[1]
             last_meas_smooth = (rx, ry)
@@ -599,6 +622,12 @@ def track_ball(video_path, calibration):
                 draw_circle = (sx, sy, last_r)
 
         if sx is not None:
+            if os.environ.get("PINPOINT_DEBUG_TRACK"):
+                ft_dbg = lane_axis_feet_from_foul(sx, sy, calibration)
+                if ft_dbg is not None and ft_dbg > 45.0:
+                    mstat = "yes" if measurement is not None else "COASTING"
+                    print(f"  frame {frame_number}: ft={ft_dbg:.1f}, measurement={mstat}")
+
             if foul_line_frame is None and is_near_line(sy, foul_line_y):
                 foul_line_frame = frame_number
                 foul_board = board_from_ball_on_line(
@@ -695,23 +724,23 @@ def ball_reached_pin_deck(sy, foul_line_y, pin_line_y, margin=8.0):
     """
     True when the ball center has crossed the calibrated pin-deck line toward the pins.
     Uses relative position of foul vs pin row in the image (works for typical angles).
-    Small margin = stop closer to the real deck (large margin was stopping too early).
+    margin is extra pixels past the pin line (toward pins) before counting as crossed.
     """
     if pin_line_y < foul_line_y:
-        return sy <= pin_line_y + margin
-    return sy >= pin_line_y - margin
+        return sy <= pin_line_y - margin
+    return sy >= pin_line_y + margin
 
 
 def should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
     """
-    Require both: far enough down-lane (feet) and pin-line crossing — avoids early cutoffs
-    when pin_line_y is miscalibrated or margin was too loose.
+    Stop when ball y crosses pin_line_y toward the pins.
+    foul_line_y > pin_line_y means pins are at top of frame (y decreases toward pins).
+    margin_frac scales a pixel margin: larger = require ball farther past the line (stop later).
     """
-    crossed = ball_reached_pin_deck(sy, foul_line_y, pin_line_y, margin=6.0)
-    ft = lane_axis_feet_from_foul(sx, sy, calibration)
-    if ft is not None:
-        return crossed and ft >= 47.0
-    return crossed
+    margin = (abs(foul_line_y - pin_line_y)) * 0.06
+    if pin_line_y < foul_line_y:
+        return sy <= pin_line_y - margin
+    return sy >= pin_line_y + margin
 
 
 def _world_to_image(H, x_ft, y_ft):
@@ -725,92 +754,75 @@ def _lane_world_to_image_homography(calibration):
     Map regulation lane plane (feet) → image pixels.
 
     World axes: x across the lane (0 = far / board 1 side, W = near / board 60),
-    y down-lane from the foul line (feet).
+    y down-lane from the foul line (0 = foul, d = dot row, L = pin deck).
 
-    **Fitting uses foul + dot lines only** (four corners at y=0 and y=DOT_DISTANCE_FEET).
-    Those marks are close to the camera and easy to place accurately. The pin deck
-    at 60 ft is **not** used here — extrapolation to y=60 follows the same flat-plane
-    homography (pin clicks remain in JSON for other heuristics like stop-at-deck).
+    **Six-point homography** (foul, dot, and pin lines): avoids extrapolating from
+    a 6 ft baseline out to 60 ft, which magnifies click error on foot markers.
     """
     W = float(LANE_WIDTH_INCHES) / 12.0
     d = float(DOT_DISTANCE_FEET)
+    L = float(LANE_LENGTH_FEET)
+
     ff = np.array(calibration["points"]["foul_line_far"], dtype=np.float32)
     fn = np.array(calibration["points"]["foul_line_near"], dtype=np.float32)
     df = np.array(calibration["points"]["dot_line_far"], dtype=np.float32)
     dn = np.array(calibration["points"]["dot_line_near"], dtype=np.float32)
+    pf = np.array(calibration["points"]["pin_line_far"], dtype=np.float32)
+    pn = np.array(calibration["points"]["pin_line_near"], dtype=np.float32)
+
     world = np.array(
-        [[0.0, 0.0], [W, 0.0], [0.0, d], [W, d]],
+        [
+            [0.0, 0.0],
+            [W, 0.0],
+            [0.0, d],
+            [W, d],
+            [0.0, L],
+            [W, L],
+        ],
         dtype=np.float32,
     )
-    img = np.array([ff, fn, df, dn], dtype=np.float32)
-    return cv2.getPerspectiveTransform(world, img)
+    img = np.array([ff, fn, df, dn, pf, pn], dtype=np.float32)
+
+    H, _ = cv2.findHomography(world, img, method=0)
+    if H is None:
+        world4 = world[:4].copy()
+        img4 = img[:4].copy()
+        H = cv2.getPerspectiveTransform(world4, img4)
+    return H
 
 
-def _lane_row_segment(H, y_ft):
-    """Image endpoints of the transverse line at y_ft (world), x from 0 to W."""
+def _interpolate_lane_edge(calibration, y_ft):
+    """
+    For distance down the lane (feet), interpolate near/far image positions from the
+    six clicked calibration points (linear between foul row at 0 ft and pin row at 60 ft).
+    Returns (far_pt, near_pt) as length-2 float arrays (x, y) in pixels — far = board 1
+    side, near = board 60 side.
+    """
+    L = float(LANE_LENGTH_FEET)
+    t = float(np.clip(y_ft / L, 0.0, 1.0))
+
+    fn = np.array(calibration["points"]["foul_line_near"], dtype=np.float64)
+    ff = np.array(calibration["points"]["foul_line_far"], dtype=np.float64)
+    pn = np.array(calibration["points"]["pin_line_near"], dtype=np.float64)
+    pf = np.array(calibration["points"]["pin_line_far"], dtype=np.float64)
+
+    near = fn + t * (pn - fn)
+    far = ff + t * (pf - ff)
+    return far, near
+
+
+def _lane_row_segment(H, y_ft, calibration=None):
+    """Transverse segment at y_ft (feet): interpolated from clicks if calibration given, else homography."""
+    if calibration is not None:
+        far_pt, near_pt = _interpolate_lane_edge(calibration, y_ft)
+        return (
+            (int(round(far_pt[0])), int(round(far_pt[1]))),
+            (int(round(near_pt[0])), int(round(near_pt[1]))),
+        )
     W = float(LANE_WIDTH_INCHES) / 12.0
     x0, y0 = _world_to_image(H, 0.0, y_ft)
     x1, y1 = _world_to_image(H, W, y_ft)
     return (int(round(x0)), int(round(y0))), (int(round(x1)), int(round(y1)))
-
-
-def draw_lane_foot_markers(
-    frame,
-    H,
-    tick_color=(88, 88, 88),
-    label_color=(160, 160, 160),
-    tick_inward_ft=0.42,
-    label_every_ft=5,
-    min_tick_px=7.0,
-):
-    """
-    Tick marks every 1 ft on both long lane edges (foul → pins).
-
-    Spacing is **not** linear in image space: flat USBC lane (feet) → pixels via
-    homography **fitted to foul + dot lines** (6 ft baseline), then extrapolated to
-    60 ft. Equal steps in **y** are equal in real distance; ticks point inward in
-    world x (correct angle after projection).
-    """
-    W = float(LANE_WIDTH_INCHES) / 12.0
-    L = float(LANE_LENGTH_FEET)
-    eps = float(tick_inward_ft)
-
-    n_feet = int(round(L))
-    for f in range(n_feet + 1):
-        y = float(f)
-
-        # Long edges: x = 0 (far) and x = W (near); inward is +x / -x respectively.
-        for x_edge, sign in ((0.0, 1.0), (W, -1.0)):
-            xi, yi = _world_to_image(H, x_edge, y)
-            xo, yo = _world_to_image(H, x_edge + sign * eps, y)
-            dx, dy = xo - xi, yo - yi
-            pl = float(np.hypot(dx, dy))
-            if pl < 1e-6:
-                continue
-            if pl < min_tick_px:
-                s = min_tick_px / pl
-                xo, yo = xi + dx * s, yi + dy * s
-            cv2.line(
-                frame,
-                (int(round(xi)), int(round(yi))),
-                (int(round(xo)), int(round(yo))),
-                tick_color,
-                1,
-                cv2.LINE_AA,
-            )
-
-        if label_every_ft > 0 and f > 0 and f % label_every_ft == 0:
-            lx, ly = _world_to_image(H, W, y)
-            cv2.putText(
-                frame,
-                f"{f} ft",
-                (int(round(lx)) + 4, int(round(ly)) - 4),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.38,
-                label_color,
-                1,
-                cv2.LINE_AA,
-            )
 
 
 def _draw_detector_badge(frame, label: str) -> None:
@@ -852,48 +864,47 @@ def draw_overlay(
     video_fps=None,
     detector_label: str = "MOG2 + Hough",
 ):
-    H_lane = _lane_world_to_image_homography(calibration)
-    W_ft = float(LANE_WIDTH_INCHES) / 12.0
-    d_ft = float(DOT_DISTANCE_FEET)
-    L_ft = float(LANE_LENGTH_FEET)
-
     _draw_detector_badge(frame, detector_label)
 
-    draw_lane_foot_markers(frame, H_lane)
-
-    p_foul_a, p_foul_b = _lane_row_segment(H_lane, 0.0)
-    cv2.line(frame, p_foul_a, p_foul_b, (0, 255, 255), 2)
-    lx, ly = _world_to_image(H_lane, W_ft, 0.0)
+    # Foul line — drawn directly from clicked points
+    foul_near = tuple(map(int, calibration["points"]["foul_line_near"]))
+    foul_far = tuple(map(int, calibration["points"]["foul_line_far"]))
+    cv2.line(frame, foul_near, foul_far, (0, 255, 255), 2)
+    lx, ly = foul_near
     cv2.putText(
         frame,
         "Foul Line",
-        (int(round(lx)) + 10, int(round(ly))),
+        (lx + 10, ly),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
         (0, 255, 255),
         1,
     )
 
-    p_dot_a, p_dot_b = _lane_row_segment(H_lane, d_ft)
-    cv2.line(frame, p_dot_a, p_dot_b, (0, 165, 255), 2)
-    lx, ly = _world_to_image(H_lane, W_ft, d_ft)
+    # Dot line — drawn directly from clicked points
+    dot_near = tuple(map(int, calibration["points"]["dot_line_near"]))
+    dot_far = tuple(map(int, calibration["points"]["dot_line_far"]))
+    cv2.line(frame, dot_near, dot_far, (0, 165, 255), 2)
+    lx, ly = dot_near
     cv2.putText(
         frame,
-        f"Dots ({int(d_ft)} ft)",
-        (int(round(lx)) + 10, int(round(ly))),
+        "Dots (6 ft)",
+        (lx + 10, ly),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
         (0, 165, 255),
         1,
     )
 
-    p_pin_a, p_pin_b = _lane_row_segment(H_lane, L_ft)
-    cv2.line(frame, p_pin_a, p_pin_b, (0, 200, 0), 2)
-    lx, ly = _world_to_image(H_lane, W_ft, L_ft)
+    # Pin line — drawn directly from clicked points
+    pin_near = tuple(map(int, calibration["points"]["pin_line_near"]))
+    pin_far = tuple(map(int, calibration["points"]["pin_line_far"]))
+    cv2.line(frame, pin_near, pin_far, (0, 200, 0), 2)
+    lx, ly = pin_near
     cv2.putText(
         frame,
-        f"Pins ({int(L_ft)} ft, model)",
-        (int(round(lx)) + 10, int(round(ly))),
+        "Pins (60 ft)",
+        (lx + 10, ly),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.5,
         (0, 200, 0),
