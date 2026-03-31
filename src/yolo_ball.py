@@ -24,8 +24,9 @@ import os
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-import cv2
 import numpy as np
+
+from calibration import detection_center_in_lane
 
 Candidate = Tuple[float, float, float]  # (cx, cy, radius_px)
 
@@ -39,30 +40,12 @@ def default_model_path() -> Path:
     return _project_root() / "models" / "ball.pt"
 
 
-def lane_surface_quad(calibration: dict) -> np.ndarray:
-    """
-    Same corner order as the lane trapezoid in lane_and_approach_mask (lane only):
-    foul_near → foul_far → pin_far → pin_near (closed polygon).
-    """
-    fn = calibration["points"]["foul_line_near"]
-    ff = calibration["points"]["foul_line_far"]
-    pn = calibration["points"]["pin_line_near"]
-    pf = calibration["points"]["pin_line_far"]
-    return np.array([fn, ff, pf, pn], dtype=np.float64)
-
-
-def _center_inside_lane(cx: float, cy: float, calibration: dict) -> bool:
-    """True if the point lies inside the calibrated lane quadrilateral."""
-    quad = lane_surface_quad(calibration).astype(np.float32)
-    return cv2.pointPolygonTest(quad, (float(cx), float(cy)), False) >= 0.0
-
-
 class BallDetector:
     """
     Thin wrapper around Ultralytics YOLO for one class (bowling ball).
 
     We run one forward pass per frame, take boxes above a confidence threshold,
-    keep detections whose *center* lies inside the lane polygon from calibration,
+    keep detections whose *center* lies inside the lane polygon (with a small margin),
     and convert each box to (cx, cy, r) for the rest of the pipeline.
     """
 
@@ -112,7 +95,7 @@ class BallDetector:
         for x1, y1, x2, y2 in boxes:
             cx = 0.5 * (x1 + x2)
             cy = 0.5 * (y1 + y2)
-            if not _center_inside_lane(cx, cy, calibration):
+            if not detection_center_in_lane(cx, cy, calibration):
                 continue
             w = x2 - x1
             h = y2 - y1
