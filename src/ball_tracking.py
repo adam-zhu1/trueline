@@ -17,6 +17,17 @@ _KF_PROCESS_NOISE_XY = 2.0e-2
 _KF_PROCESS_NOISE_VEL = 0.35
 _KF_MEASUREMENT_NOISE = 12.0
 
+# USBC arrow V: center arrow (board 20) at 16 ft, outer arrows (boards 5 & 35) at 12 ft.
+# Linear slope from center outward: 4 ft over 15 boards.
+_ARROW_CENTER_BOARD = 20
+_ARROW_CENTER_FEET = 16.0
+_ARROW_SLOPE = 4.0 / 15.0
+
+
+def arrow_feet_at_board(board: float) -> float:
+    """Feet from foul line of the arrow V at a given board (extrapolates beyond 5-35)."""
+    return _ARROW_CENTER_FEET - abs(board - _ARROW_CENTER_BOARD) * _ARROW_SLOPE
+
 
 def create_ball_kalman(init_x, init_y):
     """Constant-velocity Kalman filter for (x, y); smooths noisy detections."""
@@ -173,6 +184,48 @@ class BreakpointTracker:
                 self.last_sign = s
 
         return None
+
+
+def _image_to_lane_H(calibration):
+    """
+    3×3 homography mapping image pixels → lane world coords (t_across, feet).
+    t_across: 0 = right gutter click, 1 = left gutter click.
+    feet: 0 = foul line, 60 = pin line.
+    Uses the four corner clicks (foul right/left, pin right/left).
+    """
+    src = np.array([
+        calibration["points"]["foul_line_right"],
+        calibration["points"]["foul_line_left"],
+        calibration["points"]["pin_line_left"],
+        calibration["points"]["pin_line_right"],
+    ], dtype=np.float32)
+    dst = np.array([
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [1.0, 60.0],
+        [0.0, 60.0],
+    ], dtype=np.float32)
+    return cv2.getPerspectiveTransform(src, dst)
+
+
+def image_to_lane(bx, by, calibration):
+    """
+    Map an image pixel (bx, by) to (board, feet) via perspective homography.
+    Returns (board_int, feet_float) or (None, None) on failure.
+    """
+    H = _image_to_lane_H(calibration)
+    pt = np.array([[[float(bx), float(by)]]], dtype=np.float32)
+    out = cv2.perspectiveTransform(pt, H)
+    t_across, feet = float(out[0][0][0]), float(out[0][0][1])
+    feet = max(0.0, min(60.0, feet))
+    t_across = max(0.0, min(1.0, t_across))
+    bowler_hand = calibration.get("bowler_hand", "R")
+    if bowler_hand == "R":
+        board = int(round(1.0 + t_across * 38.0))
+    else:
+        board = int(round(1.0 + (1.0 - t_across) * 38.0))
+    board = max(1, min(39, board))
+    return board, feet
 
 
 def _lane_axis_vectors(calibration):
@@ -501,6 +554,7 @@ def track_ball(video_path, calibration):
     dot_line_frame = None
     foul_board = None
     dot_board = None
+    arrow_board = None
     breakpoint = None
     breakpoint_feet = None
     breakpoint_board = None
@@ -551,7 +605,7 @@ def track_ball(video_path, calibration):
                 breakpoint_feet,
                 speed_mph,
                 foul_board,
-                dot_board,
+                arrow_board,
                 video_fps=fps,
                 detector_label=detector_overlay_label,
             )
@@ -563,7 +617,7 @@ def track_ball(video_path, calibration):
                 breakpoint_board=breakpoint_board,
                 speed_mph=speed_mph,
                 foul_board=foul_board,
-                dot_board=dot_board,
+                arrow_board=arrow_board,
             )
             cv2.imshow("PinPoint — Lane View", lane_view)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -701,6 +755,13 @@ def track_ball(video_path, calibration):
                             speed_mph = speed_fps * 0.681818
                             print(f"  Speed: {speed_mph:.1f} mph")
 
+            if foul_line_frame is not None and arrow_board is None:
+                ft = lane_axis_feet_from_foul(sx, sy, calibration)
+                b = board_at_position(sx, sy, calibration)
+                if ft is not None and ft >= arrow_feet_at_board(b):
+                    arrow_board = b
+                    print(f"  Ball crossed arrow V at frame {frame_number} (board {arrow_board})")
+
             new_bp = (
                 bp_tracker.update(ball_positions)
                 if dot_line_frame is not None
@@ -739,7 +800,7 @@ def track_ball(video_path, calibration):
             breakpoint_feet,
             speed_mph,
             foul_board,
-            dot_board,
+            arrow_board,
             video_fps=fps,
             detector_label=detector_overlay_label,
         )
@@ -753,7 +814,7 @@ def track_ball(video_path, calibration):
             breakpoint_board=breakpoint_board,
             speed_mph=speed_mph,
             foul_board=foul_board,
-            dot_board=dot_board,
+            arrow_board=arrow_board,
         )
         cv2.imshow("PinPoint — Lane View", lane_view)
 
@@ -794,6 +855,15 @@ def track_ball(video_path, calibration):
         dot_board = board_at_position(closest_dot[0], closest_dot[1], calibration)
         dot_line_frame = closest_dot[2]
 
+    if ball_positions and arrow_board is None:
+        for px, py_pos, _ in ball_positions:
+            ft = lane_axis_feet_from_foul(px, py_pos, calibration)
+            b = board_at_position(px, py_pos, calibration)
+            if ft is not None and ft >= arrow_feet_at_board(b):
+                arrow_board = b
+                print(f"  Arrow board (post-processed): {arrow_board}")
+                break
+
     # Recalculate speed if we have both derived crossing frames.
     if speed_mph is None and foul_line_frame is not None and dot_line_frame is not None:
         frames_taken = abs(dot_line_frame - foul_line_frame)
@@ -808,8 +878,8 @@ def track_ball(video_path, calibration):
         print(f"  Speed:            {speed_mph:.1f} mph")
     else:
         print("  Speed:            --")
-    if dot_board is not None:
-        print(f"  Board @ arrows:   {dot_board}")
+    if arrow_board is not None:
+        print(f"  Board @ arrows:   {arrow_board}")
     else:
         print("  Board @ arrows:   --")
     if breakpoint_board is not None:
@@ -825,7 +895,7 @@ def track_ball(video_path, calibration):
             breakpoint_board=breakpoint_board,
             speed_mph=speed_mph,
             foul_board=foul_board,
-            dot_board=dot_board,
+            arrow_board=arrow_board,
         )
         cv2.imshow("PinPoint — Lane View", final_lane_view)
         print("Final frame on screen — press Q to exit.")
@@ -981,7 +1051,7 @@ def draw_lane_view(
     breakpoint_board=None,
     speed_mph=None,
     foul_board=None,
-    dot_board=None,
+    arrow_board=None,
     canvas_w=300,
     canvas_h=700,
 ):
@@ -1032,10 +1102,24 @@ def draw_lane_view(
     cv2.putText(canvas, "Dots", (margin_x + lane_w + 2, dy + 4),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 165, 255), 1)
 
-    # arrow line (15 ft)
-    ay = feet_to_y(15)
-    cv2.line(canvas, (margin_x, ay), (margin_x + lane_w, ay), (200, 200, 100), 1)
-    cv2.putText(canvas, "Arrows", (margin_x + lane_w + 2, ay + 4),
+    # arrow V — 7 arrows at boards 5,10,15,20,25,30,35
+    _arrow_boards = [5, 10, 15, 20, 25, 30, 35]
+    arrow_pts = []
+    for ab in _arrow_boards:
+        ax = board_to_x(ab)
+        af = arrow_feet_at_board(ab)
+        ay2 = feet_to_y(af)
+        arrow_pts.append((ax, ay2))
+    for i in range(1, len(arrow_pts)):
+        cv2.line(canvas, arrow_pts[i - 1], arrow_pts[i], (200, 200, 100), 1)
+    for ax, ay2 in arrow_pts:
+        tri = np.array([
+            [ax, ay2 - 5],
+            [ax - 4, ay2 + 4],
+            [ax + 4, ay2 + 4],
+        ], dtype=np.int32)
+        cv2.fillPoly(canvas, [tri], (200, 200, 100))
+    cv2.putText(canvas, "Arrows", (margin_x + lane_w + 2, arrow_pts[3][1] + 4),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 100), 1)
 
     # pin line (60 ft)
@@ -1044,32 +1128,31 @@ def draw_lane_view(
     cv2.putText(canvas, "Pins", (margin_x + lane_w + 2, py + 4),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 200, 0), 1)
 
-    # ball path
+    # ball path (perspective-correct via homography)
     if len(ball_positions) >= 2:
         pts = []
         for px, py_pos, _ in ball_positions:
-            ft = lane_axis_feet_from_foul(px, py_pos, calibration)
-            board = board_at_position(px, py_pos, calibration)
-            if ft is not None:
+            board, ft = image_to_lane(px, py_pos, calibration)
+            if board is not None:
                 vx = board_to_x(board)
                 vy = feet_to_y(ft)
                 pts.append((vx, vy))
         for i in range(1, len(pts)):
             cv2.line(canvas, pts[i - 1], pts[i], (0, 255, 0), 2)
 
-    # dot board marker
-    if dot_board is not None:
-        bx = board_to_x(dot_board)
-        dy2 = feet_to_y(6)
-        cv2.circle(canvas, (bx, dy2), 5, (0, 165, 255), -1)
-        cv2.putText(canvas, f"Bd {dot_board}", (bx + 6, dy2 - 4),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 165, 255), 1)
+    # arrow board marker — on the ball's path at the V crossing
+    if arrow_board is not None:
+        abx = board_to_x(arrow_board)
+        afy = feet_to_y(arrow_feet_at_board(arrow_board))
+        cv2.circle(canvas, (abx, afy), 5, (200, 200, 100), -1)
+        cv2.putText(canvas, f"Bd {arrow_board}", (abx + 6, afy - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 100), 1)
 
-    # breakpoint marker
+    # breakpoint marker (perspective-correct via homography)
     if breakpoint is not None and breakpoint_board is not None:
         bx_bp, by_bp = breakpoint
-        ft_bp = lane_axis_feet_from_foul(bx_bp, by_bp, calibration)
-        if ft_bp is not None:
+        bp_board_h, ft_bp = image_to_lane(bx_bp, by_bp, calibration)
+        if bp_board_h is not None:
             vx = board_to_x(breakpoint_board)
             vy = feet_to_y(ft_bp)
             cv2.circle(canvas, (vx, vy), 7, (255, 0, 255), -1)
@@ -1097,7 +1180,7 @@ def draw_overlay(
     breakpoint_feet,
     speed_mph,
     foul_board,
-    dot_board,
+    arrow_board,
     video_fps=None,
     detector_label: str = "MOG2 + Hough",
 ):
@@ -1213,10 +1296,10 @@ def draw_overlay(
             2,
         )
         hud_y += 32
-    if dot_board is not None:
+    if arrow_board is not None:
         cv2.putText(
             frame,
-            f"Board @ dots: {dot_board}",
+            f"Board @ arrows: {arrow_board}",
             (20, hud_y),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
