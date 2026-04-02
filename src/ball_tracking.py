@@ -570,8 +570,7 @@ def track_ball(video_path, calibration):
     v_cap_ft_s = 72.0
     max_jump_px = float(pixels_per_foot) * v_cap_ft_s / fps_safe
     max_jump_px = max(32.0, min(max_jump_px, 320.0))
-    # Breakpoint: lateral hook change — only after ball reaches dot row (avoids early noise)
-    bp_tracker = BreakpointTracker(persist_frames=3, dx_eps=0.4)
+    # Breakpoint is computed in post-processing (min board along the path).
 
     kernel = np.ones((3, 3), np.uint8)
     last_display = None
@@ -759,21 +758,6 @@ def track_ball(video_path, calibration):
                     arrow_board = round(b_h, 1)
                     print(f"  Ball crossed arrow V at frame {frame_number} (board {arrow_board})")
 
-            new_bp = (
-                bp_tracker.update(ball_positions)
-                if dot_line_frame is not None
-                else None
-            )
-            if new_bp is not None and breakpoint is None:
-                breakpoint = new_bp
-                bp_b, bp_f = image_to_lane(new_bp[0], new_bp[1], calibration)
-                breakpoint_board = round(bp_b, 1) if bp_b is not None else None
-                breakpoint_feet = bp_f
-                if breakpoint_feet is not None:
-                    print(
-                        f"  Breakpoint (~{breakpoint_feet:.1f} ft from foul)"
-                    )
-
             if should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
                 track_finished = True
                 frozen_positions = ball_positions.copy()
@@ -817,23 +801,26 @@ def track_ball(video_path, calibration):
 
     cap.release()
 
-    # Post-processing: breakpoint = position furthest from final x position (pocket)
-    # i.e. furthest from where the ball ends up, in the x direction.
-    if breakpoint is None and len(ball_positions) >= 20:
-        # Use last 5 positions to estimate final x (pocket area).
-        final_x = np.mean([p[0] for p in ball_positions[-5:]])
-
-        # Only look past the first 30% of the trail (skip approach noise).
-        start_idx = len(ball_positions) // 3
-        candidates = ball_positions[start_idx:]
-
-        if candidates:
-            bp = max(candidates, key=lambda p: abs(p[0] - final_x))
-            bp_b, bp_f = image_to_lane(bp[0], bp[1], calibration)
-            breakpoint = (bp[0], bp[1])
-            breakpoint_board = round(bp_b, 1) if bp_b is not None else None
-            breakpoint_feet = bp_f
-            print(f"  Breakpoint (post-processed): board {breakpoint_board}")
+    # Breakpoint = min board along the path (most toward outside gutter).
+    # With current numbering, board 1 is outside for both hands, so argmin works for both.
+    # Trim first 30% (approach noise) and last 5% (pin deck scatter).
+    if len(ball_positions) >= 10:
+        n = len(ball_positions)
+        start_idx = n // 3
+        end_idx = max(start_idx + 1, n - max(1, n // 20))
+        window = ball_positions[start_idx:end_idx]
+        min_board = None
+        min_bp = None
+        for px, py_pos, _ in window:
+            b, f = image_to_lane(px, py_pos, calibration)
+            if b is not None and (min_board is None or b < min_board):
+                min_board = b
+                min_bp = (px, py_pos, f)
+        if min_bp is not None:
+            breakpoint = (min_bp[0], min_bp[1])
+            breakpoint_board = round(min_board, 1)
+            breakpoint_feet = min_bp[2]
+            print(f"  Breakpoint: board {breakpoint_board}")
 
     # Post-processing: extract metrics from ball_positions if not captured during tracking.
     if ball_positions and foul_board is None:
