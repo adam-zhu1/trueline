@@ -557,6 +557,15 @@ def track_ball(video_path, calibration):
             )
             last_display = frame.copy()
             cv2.imshow("PinPoint", frame)
+            lane_view = draw_lane_view(
+                ball_positions, calibration,
+                breakpoint=breakpoint,
+                breakpoint_board=breakpoint_board,
+                speed_mph=speed_mph,
+                foul_board=foul_board,
+                dot_board=dot_board,
+            )
+            cv2.imshow("PinPoint — Lane View", lane_view)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
             continue
@@ -738,6 +747,16 @@ def track_ball(video_path, calibration):
         last_display = frame.copy()
         cv2.imshow("PinPoint", frame)
 
+        lane_view = draw_lane_view(
+            ball_positions, calibration,
+            breakpoint=breakpoint,
+            breakpoint_board=breakpoint_board,
+            speed_mph=speed_mph,
+            foul_board=foul_board,
+            dot_board=dot_board,
+        )
+        cv2.imshow("PinPoint — Lane View", lane_view)
+
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
@@ -800,9 +819,19 @@ def track_ball(video_path, calibration):
     print("===================================\n")
 
     if video_ended_naturally and last_display is not None:
+        final_lane_view = draw_lane_view(
+            ball_positions, calibration,
+            breakpoint=breakpoint,
+            breakpoint_board=breakpoint_board,
+            speed_mph=speed_mph,
+            foul_board=foul_board,
+            dot_board=dot_board,
+        )
+        cv2.imshow("PinPoint — Lane View", final_lane_view)
         print("Final frame on screen — press Q to exit.")
         while True:
             cv2.imshow("PinPoint", last_display)
+            cv2.imshow("PinPoint — Lane View", final_lane_view)
             if cv2.waitKey(50) & 0xFF == ord("q"):
                 break
 
@@ -943,6 +972,120 @@ def _draw_detector_badge(frame, label: str) -> None:
         thickness,
         cv2.LINE_AA,
     )
+
+
+def draw_lane_view(
+    ball_positions,
+    calibration,
+    breakpoint=None,
+    breakpoint_board=None,
+    speed_mph=None,
+    foul_board=None,
+    dot_board=None,
+    canvas_w=300,
+    canvas_h=700,
+):
+    """Top-down 2D lane diagram: foul at bottom, pins at top, board 1 on the right."""
+    canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+    canvas[:] = (30, 30, 30)
+
+    margin_x = 40
+    margin_top = 30
+    margin_bottom = 50
+    lane_w = canvas_w - 2 * margin_x
+    lane_h = canvas_h - margin_top - margin_bottom
+
+    # lane surface
+    cv2.rectangle(canvas, (margin_x, margin_top),
+                  (margin_x + lane_w, margin_top + lane_h), (210, 180, 140), -1)
+
+    # gutters
+    cv2.rectangle(canvas, (margin_x - 8, margin_top),
+                  (margin_x, margin_top + lane_h), (80, 80, 80), -1)
+    cv2.rectangle(canvas, (margin_x + lane_w, margin_top),
+                  (margin_x + lane_w + 8, margin_top + lane_h), (80, 80, 80), -1)
+
+    def board_to_x(board):
+        t = (board - 1) / 38.0
+        return int(margin_x + lane_w * (1.0 - t))
+
+    def feet_to_y(feet):
+        t = feet / 60.0
+        return int(margin_top + lane_h * (1.0 - t))
+
+    # board lines every 5 boards
+    for b in range(5, 39, 5):
+        bx = board_to_x(b)
+        cv2.line(canvas, (bx, margin_top), (bx, margin_top + lane_h), (180, 160, 120), 1)
+        cv2.putText(canvas, str(b), (bx - 6, margin_top + lane_h + 14),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (180, 180, 180), 1)
+
+    # foul line (0 ft)
+    fy = feet_to_y(0)
+    cv2.line(canvas, (margin_x, fy), (margin_x + lane_w, fy), (0, 255, 255), 2)
+    cv2.putText(canvas, "Foul", (margin_x + lane_w + 2, fy + 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1)
+
+    # dot line (6 ft)
+    dy = feet_to_y(6)
+    cv2.line(canvas, (margin_x, dy), (margin_x + lane_w, dy), (0, 165, 255), 1)
+    cv2.putText(canvas, "Dots", (margin_x + lane_w + 2, dy + 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 165, 255), 1)
+
+    # arrow line (15 ft)
+    ay = feet_to_y(15)
+    cv2.line(canvas, (margin_x, ay), (margin_x + lane_w, ay), (200, 200, 100), 1)
+    cv2.putText(canvas, "Arrows", (margin_x + lane_w + 2, ay + 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 100), 1)
+
+    # pin line (60 ft)
+    py = feet_to_y(60)
+    cv2.line(canvas, (margin_x, py), (margin_x + lane_w, py), (0, 200, 0), 2)
+    cv2.putText(canvas, "Pins", (margin_x + lane_w + 2, py + 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 200, 0), 1)
+
+    # ball path
+    if len(ball_positions) >= 2:
+        pts = []
+        for px, py_pos, _ in ball_positions:
+            ft = lane_axis_feet_from_foul(px, py_pos, calibration)
+            board = board_at_position(px, py_pos, calibration)
+            if ft is not None:
+                vx = board_to_x(board)
+                vy = feet_to_y(ft)
+                pts.append((vx, vy))
+        for i in range(1, len(pts)):
+            cv2.line(canvas, pts[i - 1], pts[i], (0, 255, 0), 2)
+
+    # dot board marker
+    if dot_board is not None:
+        bx = board_to_x(dot_board)
+        dy2 = feet_to_y(6)
+        cv2.circle(canvas, (bx, dy2), 5, (0, 165, 255), -1)
+        cv2.putText(canvas, f"Bd {dot_board}", (bx + 6, dy2 - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 165, 255), 1)
+
+    # breakpoint marker
+    if breakpoint is not None and breakpoint_board is not None:
+        bx_bp, by_bp = breakpoint
+        ft_bp = lane_axis_feet_from_foul(bx_bp, by_bp, calibration)
+        if ft_bp is not None:
+            vx = board_to_x(breakpoint_board)
+            vy = feet_to_y(ft_bp)
+            cv2.circle(canvas, (vx, vy), 7, (255, 0, 255), -1)
+            cv2.putText(canvas, f"BP {breakpoint_board}", (vx + 8, vy),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 0, 255), 1)
+
+    # HUD at bottom
+    hud_y = canvas_h - 35
+    if speed_mph is not None:
+        cv2.putText(canvas, f"{speed_mph:.1f} mph", (margin_x, hud_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+    if foul_board is not None:
+        cv2.putText(canvas, f"Foul: Bd {foul_board}", (margin_x, hud_y + 16),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1)
+
+    return canvas
 
 
 def draw_overlay(
