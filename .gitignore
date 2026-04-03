@@ -19,6 +19,9 @@ dataset/ball_yolo/images/**/*.webp
 dataset/ball_yolo/labels/**/*.txt
 dataset/ball_yolo/labels/**/*.cache
 
+# Claude Code internal directory
+.claude/
+
 # ignore python junk
 __pycache__/
 *.pyc
