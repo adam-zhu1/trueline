@@ -29,7 +29,7 @@ Details: `src/` and comments in `ball_tracking.py`.
 
 Python 3.11+, OpenCV, NumPy/SciPy; optional PyTorch + Ultralytics (`training/`).
 
----
+----
 
 ## Setup and run
 
