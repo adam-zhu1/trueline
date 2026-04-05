@@ -19,7 +19,7 @@ dataset/ball_yolo/images/**/*.webp
 dataset/ball_yolo/labels/**/*.txt
 dataset/ball_yolo/labels/**/*.cache
 
-# Claude Code internal directory
+# Local agent/IDE work directories (gitlinks / worktrees)
 .claude/
 
 # ignore python junk

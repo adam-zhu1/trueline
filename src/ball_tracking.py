@@ -463,8 +463,10 @@ def smooth_positions_for_display(positions, window=9):
     pad = w // 2
     xs_s = np.convolve(np.pad(xs, (pad, pad), mode="edge"), k, mode="valid")
     ys_s = np.convolve(np.pad(ys, (pad, pad), mode="edge"), k, mode="valid")
+    has_radius = len(positions[0]) >= 4
     return [
-        (int(round(xs_s[i])), int(round(ys_s[i])), positions[i][2])
+        (int(round(xs_s[i])), int(round(ys_s[i])), positions[i][2],
+         positions[i][3] if has_radius else 0)
         for i in range(n)
     ]
 
@@ -613,6 +615,7 @@ def track_ball(video_path, calibration):
                 ball_positions, calibration,
                 breakpoint=breakpoint,
                 breakpoint_board=breakpoint_board,
+                breakpoint_feet=breakpoint_feet,
                 speed_mph=speed_mph,
                 arrow_board=arrow_board,
             )
@@ -703,7 +706,7 @@ def track_ball(video_path, calibration):
                 sx = int(round(float(kalman.statePost[0, 0])))
                 sy = int(round(float(kalman.statePost[1, 0])))
 
-            ball_positions.append((sx, sy, frame_number))
+            ball_positions.append((sx, sy, frame_number, last_r))
             draw_circle = (sx, sy, last_r)
 
         elif kalman is not None:
@@ -719,7 +722,7 @@ def track_ball(video_path, calibration):
                 sy = int(round(float(pred[1, 0])))
                 kalman.statePost = pred.astype(np.float32).copy()
                 kalman.errorCovPost = kalman.errorCovPre.copy()
-                ball_positions.append((sx, sy, frame_number))
+                ball_positions.append((sx, sy, frame_number, last_r))
                 draw_circle = (sx, sy, last_r)
 
         if sx is not None:
@@ -753,7 +756,7 @@ def track_ball(video_path, calibration):
                             print(f"  Speed: {speed_mph:.1f} mph")
 
             if foul_line_frame is not None and arrow_board is None:
-                b_h, ft_h = image_to_lane(sx, sy, calibration)
+                b_h, ft_h = image_to_lane(sx, sy + last_r, calibration)
                 if b_h is not None and ft_h >= arrow_feet_at_board(b_h):
                     arrow_board = round(b_h, 1)
                     print(f"  Ball crossed arrow V at frame {frame_number} (board {arrow_board})")
@@ -791,6 +794,7 @@ def track_ball(video_path, calibration):
             ball_positions, calibration,
             breakpoint=breakpoint,
             breakpoint_board=breakpoint_board,
+            breakpoint_feet=breakpoint_feet,
             speed_mph=speed_mph,
             arrow_board=arrow_board,
         )
@@ -811,13 +815,13 @@ def track_ball(video_path, calibration):
         window = ball_positions[start_idx:end_idx]
         min_board = None
         min_bp = None
-        for px, py_pos, _ in window:
-            b, f = image_to_lane(px, py_pos, calibration)
+        for px, py_pos, _, r_pos in window:
+            b, f = image_to_lane(px, py_pos + r_pos, calibration)
             if b is not None and (min_board is None or b < min_board):
                 min_board = b
-                min_bp = (px, py_pos, f)
+                min_bp = (px, py_pos, f, r_pos)
         if min_bp is not None:
-            breakpoint = (min_bp[0], min_bp[1])
+            breakpoint = (min_bp[0], min_bp[1] + min_bp[3])
             breakpoint_board = round(min_board, 1)
             breakpoint_feet = min_bp[2]
             print(f"  Breakpoint: board {breakpoint_board}")
@@ -836,8 +840,8 @@ def track_ball(video_path, calibration):
         dot_line_frame = closest_dot[2]
 
     if ball_positions and arrow_board is None:
-        for px, py_pos, _ in ball_positions:
-            b_h, ft_h = image_to_lane(px, py_pos, calibration)
+        for px, py_pos, _, r_pos in ball_positions:
+            b_h, ft_h = image_to_lane(px, py_pos + r_pos, calibration)
             if b_h is not None and ft_h >= arrow_feet_at_board(b_h):
                 arrow_board = round(b_h, 1)
                 print(f"  Arrow board (post-processed): {arrow_board}")
@@ -872,6 +876,7 @@ def track_ball(video_path, calibration):
             ball_positions, calibration,
             breakpoint=breakpoint,
             breakpoint_board=breakpoint_board,
+            breakpoint_feet=breakpoint_feet,
             speed_mph=speed_mph,
             arrow_board=arrow_board,
         )
@@ -1027,6 +1032,7 @@ def draw_lane_view(
     calibration,
     breakpoint=None,
     breakpoint_board=None,
+    breakpoint_feet=None,
     speed_mph=None,
     arrow_board=None,
     canvas_w=340,
@@ -1109,8 +1115,8 @@ def draw_lane_view(
     if len(ball_positions) >= 2:
         raw_boards = []
         raw_feet = []
-        for px, py_pos, _ in ball_positions:
-            board, ft = image_to_lane(px, py_pos, calibration)
+        for px, py_pos, _, r_pos in ball_positions:
+            board, ft = image_to_lane(px, py_pos + r_pos, calibration)
             if board is not None:
                 raw_boards.append(board)
                 raw_feet.append(ft)
@@ -1138,16 +1144,13 @@ def draw_lane_view(
         cv2.putText(canvas, f"Bd {arrow_board}", (abx + 6, afy - 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 100), 1)
 
-    # breakpoint marker (perspective-correct via homography)
-    if breakpoint is not None and breakpoint_board is not None:
-        bx_bp, by_bp = breakpoint
-        bp_board_h, ft_bp = image_to_lane(bx_bp, by_bp, calibration)
-        if bp_board_h is not None:
-            vx = board_to_x(breakpoint_board)
-            vy = feet_to_y(ft_bp)
-            cv2.circle(canvas, (vx, vy), 7, (255, 0, 255), -1)
-            cv2.putText(canvas, f"BP {breakpoint_board}", (vx + 8, vy),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 0, 255), 1)
+    # breakpoint marker
+    if breakpoint_board is not None and breakpoint_feet is not None:
+        vx = board_to_x(breakpoint_board)
+        vy = feet_to_y(breakpoint_feet)
+        cv2.circle(canvas, (vx, vy), 7, (255, 0, 255), -1)
+        cv2.putText(canvas, f"BP {breakpoint_board}", (vx + 8, vy),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 0, 255), 1)
 
     # HUD below board numbers
     hud_y = margin_top + lane_h + 30
@@ -1224,10 +1227,12 @@ def draw_overlay(
     )
 
     for i in range(1, len(positions)):
+        r_prev = positions[i - 1][3] if len(positions[i - 1]) >= 4 else 0
+        r_curr = positions[i][3] if len(positions[i]) >= 4 else 0
         cv2.line(
             frame,
-            (positions[i - 1][0], positions[i - 1][1]),
-            (positions[i][0], positions[i][1]),
+            (positions[i - 1][0], positions[i - 1][1] + r_prev),
+            (positions[i][0], positions[i][1] + r_curr),
             (0, 255, 0),
             2,
         )
