@@ -1,6 +1,6 @@
 # PinPoint
 
-Computer vision on phone video: ball speed, board line, breakpoint, rev rate (planned), with optional YOLO ball detection.
+Computer vision on phone video: ball speed, board line, breakpoint, rev rate (planned), with YOLO ball detection.
 
 ---
 
