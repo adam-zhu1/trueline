@@ -58,24 +58,6 @@ def create_ball_kalman(init_x, init_y):
     return kf
 
 
-def board_from_ball_on_line(bx, by, far_pt, near_pt):
-    """
-    Board 1 at far edge, board 39 at near edge.
-    far_pt / near_pt are (x, y) image coordinates for that line's endpoints.
-    """
-    far = np.array(far_pt, dtype=np.float64)
-    near = np.array(near_pt, dtype=np.float64)
-    p = np.array([bx, by], dtype=np.float64)
-    w = near - far
-    w_len2 = float(np.dot(w, w))
-    if w_len2 < 1e-6:
-        return 20
-    t = float(np.dot(p - far, w) / w_len2)
-    t = max(0.0, min(1.0, t))
-    board = int(round(1.0 + t * 38.0))
-    return max(1, min(39, board))
-
-
 def board_at_position(bx, by, calibration):
     """
     Board number at (bx, by).
@@ -118,72 +100,6 @@ def board_at_position(bx, by, calibration):
         board = int(round(1.0 + (1.0 - t_board) * 38.0))
 
     return max(1, min(39, board))
-
-
-class BreakpointTracker:
-    """
-    Detect lateral direction reversal with 5 consecutive frames of the new sign
-    on smoothed x-velocity before confirming (reduces noise false triggers).
-    """
-
-    def __init__(self, persist_frames=5, dx_eps=0.35):
-        self.persist_frames = persist_frames
-        self.dx_eps = dx_eps
-        self.confirmed = None
-        self.last_sign = None
-        self.pending_sign = None
-        self.pending_count = 0
-        self.candidate = None
-
-    @staticmethod
-    def _sign(dx, eps):
-        if dx > eps:
-            return 1
-        if dx < -eps:
-            return -1
-        return 0
-
-    def update(self, positions):
-        """positions: list of (x, y, frame_number). Returns (bx, by) or None."""
-        if self.confirmed is not None:
-            return self.confirmed
-        if len(positions) < 10:
-            return None
-
-        xs = [p[0] for p in positions]
-        smoothed = np.convolve(xs, np.ones(5) / 5.0, mode="valid")
-        if len(smoothed) < 2:
-            return None
-
-        dx = float(smoothed[-1] - smoothed[-2])
-        s = self._sign(dx, self.dx_eps)
-        x, y = positions[-1][0], positions[-1][1]
-
-        if self.pending_sign is None:
-            if s != 0:
-                if self.last_sign is None:
-                    self.last_sign = s
-                elif self.last_sign != s:
-                    self.pending_sign = s
-                    self.pending_count = 1
-                    self.candidate = (x, y)
-                else:
-                    self.last_sign = s
-        else:
-            if s == 0:
-                pass
-            elif s == self.pending_sign:
-                self.pending_count += 1
-                if self.pending_count >= self.persist_frames:
-                    self.confirmed = self.candidate
-                    return self.confirmed
-            else:
-                self.pending_sign = None
-                self.pending_count = 0
-                self.candidate = None
-                self.last_sign = s
-
-        return None
 
 
 def _image_to_lane_H(calibration):
@@ -249,14 +165,6 @@ def _lane_axis_vectors(calibration):
     u_hat = u / u_len
     s_dot = float(np.dot(dot_m - foul_m, u_hat))
     return foul_m, u_hat, dot_m, s_dot
-
-
-def ball_along_lane_px(bx, by, calibration):
-    """Signed pixels along foul→pins axis (0 ≈ foul plane, increases toward pins)."""
-    foul_m, u_hat, _, _ = _lane_axis_vectors(calibration)
-    if foul_m is None:
-        return None
-    return float(np.dot(np.array([bx, by], dtype=np.float64) - foul_m, u_hat))
 
 
 def detect_from_motion_blob(mask):
@@ -894,17 +802,6 @@ def track_ball(video_path, calibration):
 
 def is_near_line(y, line_y, threshold=15):
     return abs(y - line_y) < threshold
-
-
-def ball_reached_pin_deck(sy, foul_line_y, pin_line_y, margin=8.0):
-    """
-    True when the ball center has crossed the calibrated pin-deck line toward the pins.
-    Uses relative position of foul vs pin row in the image (works for typical angles).
-    margin is extra pixels past the pin line (toward pins) before counting as crossed.
-    """
-    if pin_line_y < foul_line_y:
-        return sy <= pin_line_y - margin
-    return sy >= pin_line_y + margin
 
 
 def should_stop_at_pin_deck(sx, sy, foul_line_y, pin_line_y, calibration):
