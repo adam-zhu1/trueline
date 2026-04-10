@@ -98,7 +98,7 @@ models/               ball.pt weights (gitignored)
 
 ## Status / roadmap
 
-Working: speed, board at arrows, breakpoint, perspective lane view, parallax correction.
+Working: speed, board at arrows, breakpoint, perspective lane view, parallax correction, right/left hand support.
 
 Roadmap: rev rate, session logging / consistency metrics, recommendations, mobile.
 
