@@ -100,7 +100,7 @@ models/               ball.pt weights (gitignored)
 
 Working: speed, board at arrows, breakpoint, perspective lane view, parallax correction, right/left hand support.
 
-Roadmap: rev rate, session logging / consistency metrics, recommendations, mobile.
+Roadmap: session logging / consistency metrics, recommendations, mobile.
 
 ---
 
