@@ -907,67 +907,120 @@ def draw_lane_view(
     breakpoint_feet=None,
     speed_mph=None,
     arrow_board=None,
-    canvas_w=400,
+    canvas_w=600,
     canvas_h=820,
 ):
-    """Top-down 2D lane diagram: foul at bottom, pins at top, board 1 on the right."""
+    """Specto-style lane view: stats sidebar on left, lane diagram on right."""
     from ui import (
-        ACCENT, BP_MARKER, FONT_LABEL, FONT_VALUE, LANE_REF,
-        LV_BG, LV_GUTTER, LV_GRID, LV_LANE, LV_LANE_BORDER,
+        ACCENT, ACCENT_DIM, BP_MARKER, FONT_LABEL, FONT_VALUE, LANE_REF,
+        LV_BG, LV_GUTTER, LV_GRID, LV_LANE, LV_LANE_BORDER, LV_SIDEBAR,
         TEXT_DIM, TEXT_LABEL, TEXT_VALUE, TRAIL_COLOR,
-        draw_text, metrics_panel,
+        draw_pill_label, draw_text,
     )
 
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
     canvas[:] = LV_BG
 
-    margin_left = 48
-    margin_right = 20
-    margin_top = 40
-    margin_bottom = 90
-    lane_w = canvas_w - margin_left - margin_right
-    lane_h = canvas_h - margin_top - margin_bottom
+    # --- Layout constants ---
+    sidebar_w = 200
+    lane_left = sidebar_w + 12
+    lane_right = canvas_w - 14
+    lane_top = 30
+    lane_bottom = canvas_h - 40
+    lane_w = lane_right - lane_left
+    lane_h = lane_bottom - lane_top
 
-    # Lane surface with border
-    cv2.rectangle(canvas, (margin_left, margin_top),
-                  (margin_left + lane_w, margin_top + lane_h), LV_LANE, -1)
-    cv2.rectangle(canvas, (margin_left, margin_top),
-                  (margin_left + lane_w, margin_top + lane_h), LV_LANE_BORDER, 1, cv2.LINE_AA)
+    # --- Sidebar background ---
+    cv2.rectangle(canvas, (0, 0), (sidebar_w, canvas_h), LV_SIDEBAR, -1)
+
+    # --- Sidebar content ---
+    sx = 20
+    sy = 40
+
+    draw_text(canvas, sx, sy, "PINPOINT", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+    sy += 16
+    cv2.line(canvas, (sx, sy), (sidebar_w - 20, sy), ACCENT, 2, cv2.LINE_AA)
+    sy += 36
+
+    # Speed
+    if speed_mph is not None:
+        draw_text(canvas, sx, sy, f"{speed_mph:.1f}", 1.2, ACCENT, 2, FONT_VALUE)
+        sy += 18
+        draw_text(canvas, sx, sy, "MPH", 0.42, TEXT_LABEL, 1)
+    else:
+        draw_text(canvas, sx, sy, "--", 1.2, TEXT_DIM, 2, FONT_VALUE)
+        sy += 18
+        draw_text(canvas, sx, sy, "MPH", 0.42, TEXT_LABEL, 1)
+    sy += 28
+    cv2.line(canvas, (sx, sy), (sidebar_w - 20, sy), ACCENT_DIM, 1, cv2.LINE_AA)
+    sy += 24
+
+    # Breakpoint board
+    draw_text(canvas, sx, sy, "BREAKPOINT", 0.42, TEXT_VALUE, 1)
+    sy += 16
+    draw_text(canvas, sx, sy, "BOARD", 0.42, TEXT_VALUE, 1)
+    sy += 28
+    if breakpoint_board is not None:
+        cv2.circle(canvas, (sx + 6, sy - 4), 5, ACCENT, -1, cv2.LINE_AA)
+        draw_text(canvas, sx + 20, sy, f"{breakpoint_board:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+    else:
+        draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
+    sy += 32
+    cv2.line(canvas, (sx, sy), (sidebar_w - 20, sy), ACCENT_DIM, 1, cv2.LINE_AA)
+    sy += 24
+
+    # Position at arrows
+    draw_text(canvas, sx, sy, "POSITION AT", 0.42, TEXT_VALUE, 1)
+    sy += 16
+    draw_text(canvas, sx, sy, "ARROWS", 0.42, TEXT_VALUE, 1)
+    sy += 28
+    if arrow_board is not None:
+        tri = np.array([
+            [sx + 6, sy - 10],
+            [sx + 1, sy - 1],
+            [sx + 11, sy - 1],
+        ], dtype=np.int32)
+        cv2.fillPoly(canvas, [tri], ACCENT)
+        draw_text(canvas, sx + 20, sy, f"{arrow_board:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+    else:
+        draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
+
+    # --- Lane diagram ---
+
+    # Lane surface
+    cv2.rectangle(canvas, (lane_left, lane_top),
+                  (lane_right, lane_bottom), LV_LANE, -1)
+    cv2.rectangle(canvas, (lane_left, lane_top),
+                  (lane_right, lane_bottom), LV_LANE_BORDER, 1, cv2.LINE_AA)
 
     # Gutters
     gw = 5
-    cv2.rectangle(canvas, (margin_left - gw, margin_top),
-                  (margin_left, margin_top + lane_h), LV_GUTTER, -1)
-    cv2.rectangle(canvas, (margin_left + lane_w, margin_top),
-                  (margin_left + lane_w + gw, margin_top + lane_h), LV_GUTTER, -1)
+    cv2.rectangle(canvas, (lane_left - gw, lane_top),
+                  (lane_left, lane_bottom), LV_GUTTER, -1)
+    cv2.rectangle(canvas, (lane_right, lane_top),
+                  (lane_right + gw, lane_bottom), LV_GUTTER, -1)
 
     def board_to_x(board):
         t = (board - 1) / 38.0
-        return int(margin_left + lane_w * (1.0 - t))
+        return int(lane_left + lane_w * (1.0 - t))
 
     def feet_to_y(feet):
         t = feet / 60.0
-        return int(margin_top + lane_h * (1.0 - t))
+        return int(lane_top + lane_h * (1.0 - t))
 
-    # Board grid — very subtle
+    # Board grid
     for b in range(5, 39, 5):
         bx = board_to_x(b)
-        cv2.line(canvas, (bx, margin_top), (bx, margin_top + lane_h), LV_GRID, 1, cv2.LINE_AA)
-        draw_text(canvas, bx - 6, margin_top + lane_h + 14, str(b),
-                  0.32, TEXT_LABEL, 1)
+        cv2.line(canvas, (bx, lane_top), (bx, lane_bottom), LV_GRID, 1, cv2.LINE_AA)
+        draw_text(canvas, bx - 6, lane_bottom + 14, str(b), 0.32, TEXT_LABEL, 1)
 
-    # Feet markers on left margin
-    for ft_val in (0, 6, 15, 30, 45, 60):
-        fy = feet_to_y(ft_val)
-        draw_text(canvas, 6, fy + 4, str(ft_val), 0.32, TEXT_DIM, 1)
-
-    # Foul line (0 ft)
+    # Foul line
     fy = feet_to_y(0)
-    cv2.line(canvas, (margin_left, fy), (margin_left + lane_w, fy), LANE_REF, 2, cv2.LINE_AA)
+    cv2.line(canvas, (lane_left, fy), (lane_right, fy), LANE_REF, 2, cv2.LINE_AA)
 
-    # Dot line (6 ft) — dashed
+    # Dot line — dashed
     dy = feet_to_y(6)
-    _draw_dashed_line(canvas, (margin_left, dy), (margin_left + lane_w, dy), LANE_REF, 1, 8, 6)
+    _draw_dashed_line(canvas, (lane_left, dy), (lane_right, dy), LANE_REF, 1, 8, 6)
 
     # Arrow V
     _arrow_boards = [5, 10, 15, 20, 25, 30, 35]
@@ -978,7 +1031,7 @@ def draw_lane_view(
         ay2 = feet_to_y(af)
         arrow_pts.append((ax, ay2))
     for i in range(1, len(arrow_pts)):
-        cv2.line(canvas, arrow_pts[i - 1], arrow_pts[i], ACCENT, 1, cv2.LINE_AA)
+        cv2.line(canvas, arrow_pts[i - 1], arrow_pts[i], ACCENT_DIM, 1, cv2.LINE_AA)
     for ax, ay2 in arrow_pts:
         tri = np.array([
             [ax, ay2 - 4],
@@ -987,11 +1040,11 @@ def draw_lane_view(
         ], dtype=np.int32)
         cv2.fillPoly(canvas, [tri], ACCENT)
 
-    # Pin line (60 ft)
-    py = feet_to_y(60)
-    cv2.line(canvas, (margin_left, py), (margin_left + lane_w, py), LANE_REF, 2, cv2.LINE_AA)
+    # Pin line
+    py_line = feet_to_y(60)
+    cv2.line(canvas, (lane_left, py_line), (lane_right, py_line), LANE_REF, 2, cv2.LINE_AA)
 
-    # Ball path — white, smoothed
+    # Ball path — orange, thick, smoothed
     if len(ball_positions) >= 2:
         raw_boards = []
         raw_feet = []
@@ -1014,33 +1067,19 @@ def draw_lane_view(
             pts = [(board_to_x(raw_boards[i]), feet_to_y(raw_feet[i]))
                    for i in range(len(raw_boards))]
         for i in range(1, len(pts)):
-            cv2.line(canvas, pts[i - 1], pts[i], TRAIL_COLOR, 2, cv2.LINE_AA)
+            cv2.line(canvas, pts[i - 1], pts[i], TRAIL_COLOR, 3, cv2.LINE_AA)
 
-    # Arrow crossing marker
+    # Arrow crossing — pill marker
     if arrow_board is not None:
         abx = board_to_x(arrow_board)
         afy = feet_to_y(arrow_feet_at_board(arrow_board))
-        cv2.circle(canvas, (abx, afy), 4, ACCENT, -1, cv2.LINE_AA)
+        draw_pill_label(canvas, abx, afy, f"{arrow_board:.1f}", icon="triangle", color=ACCENT)
 
-    # Breakpoint marker
+    # Breakpoint — pill marker
     if breakpoint_board is not None and breakpoint_feet is not None:
         vx = board_to_x(breakpoint_board)
         vy = feet_to_y(breakpoint_feet)
-        cv2.circle(canvas, (vx, vy), 5, BP_MARKER, -1, cv2.LINE_AA)
-
-    # Header
-    draw_text(canvas, canvas_w // 2 - 36, 24, "PINPOINT", 0.5, TEXT_DIM, 1, FONT_LABEL)
-
-    # Metrics card at bottom
-    metrics = []
-    if speed_mph is not None:
-        metrics.append((f"{speed_mph:.1f}", "MPH"))
-    if arrow_board is not None:
-        metrics.append((f"{arrow_board:.1f}", "ARROWS"))
-    if breakpoint_board is not None:
-        metrics.append((f"{breakpoint_board:.1f}", "BREAKPOINT"))
-    if metrics:
-        metrics_panel(canvas, 12, canvas_h - 82, metrics, pad=12, gap=14, radius=8)
+        draw_pill_label(canvas, vx, vy, f"{breakpoint_board:.1f}", icon="circle", color=BP_MARKER)
 
     return canvas
 
@@ -1077,11 +1116,11 @@ def draw_overlay(
     breakpoint_board=None,
 ):
     from ui import (
-        ACCENT, BP_MARKER, LANE_REF, TRAIL_COLOR, TEXT_VALUE,
+        ACCENT, BP_MARKER, LANE_REF, TRAIL_COLOR,
         metrics_panel,
     )
 
-    # Lane reference lines — single muted color, no text labels
+    # Lane reference lines — muted orange, no text labels
     foul_near = tuple(map(int, calibration["points"]["foul_line_right"]))
     foul_far = tuple(map(int, calibration["points"]["foul_line_left"]))
     cv2.line(frame, foul_near, foul_far, LANE_REF, 2, cv2.LINE_AA)
@@ -1094,7 +1133,7 @@ def draw_overlay(
     pin_far = tuple(map(int, calibration["points"]["pin_line_left"]))
     cv2.line(frame, pin_near, pin_far, LANE_REF, 1, cv2.LINE_AA)
 
-    # Ball trail — thin white polyline at contact points
+    # Ball trail — orange polyline at contact points
     for i in range(1, len(positions)):
         r_prev = positions[i - 1][3] if len(positions[i - 1]) >= 4 else 0
         r_curr = positions[i][3] if len(positions[i]) >= 4 else 0
@@ -1105,12 +1144,12 @@ def draw_overlay(
             TRAIL_COLOR, 2, cv2.LINE_AA,
         )
 
-    # Ball circle — thin white ring
+    # Ball circle — thin orange ring
     if circle is not None:
         x, y, r = circle
-        cv2.circle(frame, (x, y), r, TEXT_VALUE, 2, cv2.LINE_AA)
+        cv2.circle(frame, (x, y), r, ACCENT, 2, cv2.LINE_AA)
 
-    # Breakpoint — small soft dot, no label on video
+    # Breakpoint — small orange dot, no label on video
     if breakpoint is not None:
         bx, by = int(breakpoint[0]), int(breakpoint[1])
         cv2.circle(frame, (bx, by), 6, BP_MARKER, -1, cv2.LINE_AA)

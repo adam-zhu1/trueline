@@ -10,22 +10,24 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Palette
 # ---------------------------------------------------------------------------
-ACCENT = (180, 160, 100)
+ACCENT = (0, 140, 255)
+ACCENT_DIM = (0, 100, 200)
 TEXT_VALUE = (255, 255, 255)
 TEXT_LABEL = (160, 160, 160)
 TEXT_DIM = (100, 100, 100)
 PANEL_BG = (0, 0, 0)
 PANEL_ALPHA = 0.55
-LANE_REF = (180, 170, 0)
-TRAIL_COLOR = (255, 255, 255)
-BP_MARKER = (200, 120, 255)
+LANE_REF = (0, 100, 180)
+TRAIL_COLOR = (0, 140, 255)
+BP_MARKER = (0, 140, 255)
 
 # Lane-view specific
-LV_BG = (25, 20, 20)
-LV_LANE = (120, 155, 180)
-LV_LANE_BORDER = (90, 120, 140)
-LV_GRID = (108, 140, 160)
-LV_GUTTER = (55, 55, 55)
+LV_BG = (22, 20, 20)
+LV_LANE = (60, 55, 55)
+LV_LANE_BORDER = (80, 75, 70)
+LV_GRID = (75, 70, 65)
+LV_GUTTER = (40, 38, 38)
+LV_SIDEBAR = (30, 28, 28)
 
 # Fonts
 FONT_VALUE = cv2.FONT_HERSHEY_DUPLEX
@@ -146,3 +148,37 @@ def metrics_panel(img, x, y, metrics, pad=14, gap=18, radius=10):
     for i, (val, lab) in enumerate(metrics):
         draw_metric(img, cx, y + pad + max_vh, val, lab, col_widths[i])
         cx += col_widths[i] + gap
+
+
+def draw_pill_label(img, x, y, value_str, icon="circle", color=None):
+    """
+    Draw a small icon (circle or triangle) + rounded pill with a value label.
+    (x, y) is the center of the icon. The pill extends to the right.
+    """
+    if color is None:
+        color = ACCENT
+
+    t_scale = 0.42
+    t_thick = 1
+    (tw, th), _ = cv2.getTextSize(value_str, FONT_LABEL, t_scale, t_thick)
+
+    pill_x = x + 10
+    pill_y = y - th // 2 - 4
+    pill_w = tw + 14
+    pill_h = th + 8
+
+    rounded_rect(img, (pill_x, pill_y), (pill_x + pill_w, pill_y + pill_h),
+                 PANEL_BG, 8, 0.6)
+
+    if icon == "circle":
+        cv2.circle(img, (int(x), int(y)), 5, color, -1, cv2.LINE_AA)
+    elif icon == "triangle":
+        tri = np.array([
+            [int(x), int(y) - 5],
+            [int(x) - 5, int(y) + 4],
+            [int(x) + 5, int(y) + 4],
+        ], dtype=np.int32)
+        cv2.fillPoly(img, [tri], color)
+
+    draw_text(img, pill_x + 7, pill_y + th + 3, value_str,
+              t_scale, TEXT_VALUE, t_thick)
