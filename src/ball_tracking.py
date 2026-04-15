@@ -907,7 +907,7 @@ def draw_lane_view(
     breakpoint_feet=None,
     speed_mph=None,
     arrow_board=None,
-    canvas_w=600,
+    canvas_w=440,
     canvas_h=820,
 ):
     """Specto-style lane view: stats sidebar on left, lane diagram on right."""
@@ -922,9 +922,9 @@ def draw_lane_view(
     canvas[:] = LV_BG
 
     # --- Layout constants ---
-    sidebar_w = 200
-    lane_left = sidebar_w + 12
-    lane_right = canvas_w - 14
+    sidebar_w = 160
+    lane_left = sidebar_w + 10
+    lane_right = canvas_w - 10
     lane_top = 30
     lane_bottom = canvas_h - 40
     lane_w = lane_right - lane_left
@@ -934,12 +934,12 @@ def draw_lane_view(
     cv2.rectangle(canvas, (0, 0), (sidebar_w, canvas_h), LV_SIDEBAR, -1)
 
     # --- Sidebar content ---
-    sx = 20
+    sx = 16
     sy = 40
 
-    draw_text(canvas, sx, sy, "PINPOINT", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+    draw_text(canvas, sx, sy, "PINPOINT", 0.55, TEXT_VALUE, 1, FONT_VALUE)
     sy += 16
-    cv2.line(canvas, (sx, sy), (sidebar_w - 20, sy), ACCENT, 2, cv2.LINE_AA)
+    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT, 2, cv2.LINE_AA)
     sy += 36
 
     # Speed
@@ -952,7 +952,7 @@ def draw_lane_view(
         sy += 18
         draw_text(canvas, sx, sy, "MPH", 0.42, TEXT_LABEL, 1)
     sy += 28
-    cv2.line(canvas, (sx, sy), (sidebar_w - 20, sy), ACCENT_DIM, 1, cv2.LINE_AA)
+    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT_DIM, 1, cv2.LINE_AA)
     sy += 24
 
     # Breakpoint board
@@ -966,7 +966,7 @@ def draw_lane_view(
     else:
         draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
     sy += 32
-    cv2.line(canvas, (sx, sy), (sidebar_w - 20, sy), ACCENT_DIM, 1, cv2.LINE_AA)
+    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT_DIM, 1, cv2.LINE_AA)
     sy += 24
 
     # Position at arrows
