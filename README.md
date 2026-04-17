@@ -88,6 +88,7 @@ src/
   main.py             CLI entry point
   calibration.py      Six-click calibration, lane geometry constants
   ball_tracking.py    Detection, Kalman tracking, homography, metrics, overlays, lane view
+  ui.py               Drawing primitives, color palette, HUD components
   yolo_ball.py        Optional YOLO detector wrapper
 training/             YOLO training scripts + docs
 data/                 calibration.json (gitignored video/output files)
