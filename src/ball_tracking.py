@@ -350,6 +350,40 @@ def refine_ball_center(frame_bgr, mx, my, mr):
     return rx, ry, float(ri)
 
 
+def _savgol_smooth(data, window=11, poly_order=2):
+    """
+    Savitzky-Golay style local polynomial smoother (numpy-only).
+    Fits a polynomial of *poly_order* in a sliding window of *window* points and
+    evaluates at the center — preserves curve shape (hooks) better than a moving average.
+    Edge regions where the window is asymmetric drop to linear to prevent overshoot.
+    """
+    arr = np.asarray(data, dtype=np.float64)
+    n = len(arr)
+    if n < 3:
+        return arr.copy()
+    w = min(window, n)
+    if w % 2 == 0:
+        w -= 1
+    w = max(3, w)
+    po = min(poly_order, w - 1)
+    half = w // 2
+    out = np.empty_like(arr)
+    for i in range(n):
+        lo = max(0, i - half)
+        hi = min(n, i + half + 1)
+        seg_len = hi - lo
+        # Use linear fit near edges where the window is truncated/asymmetric
+        local_po = 1 if (seg_len < w or i < half or i >= n - half) else po
+        local_po = min(local_po, seg_len - 1)
+        if seg_len < 2:
+            out[i] = arr[i]
+            continue
+        xs = np.arange(seg_len, dtype=np.float64)
+        coeffs = np.polyfit(xs, arr[lo:hi], local_po)
+        out[i] = np.polyval(coeffs, float(i - lo))
+    return out
+
+
 def smooth_positions_for_display(positions, window=9):
     """
     Moving average on the polyline for drawing only (metrics use raw `positions`).
@@ -708,22 +742,36 @@ def track_ball(video_path, calibration):
     # Breakpoint = min board along the path (most toward outside gutter).
     # With current numbering, board 1 is outside for both hands, so argmin works for both.
     # Trim first 30% (approach noise) and last 5% (pin deck scatter).
+    # Smooth the board series first so frame-to-frame jitter doesn't produce a spurious min.
     if len(ball_positions) >= 10:
         n = len(ball_positions)
         start_idx = n // 3
         end_idx = max(start_idx + 1, n - max(1, n // 20))
         window = ball_positions[start_idx:end_idx]
-        min_board = None
-        min_bp = None
+        window_boards = []
+        window_feet = []
+        window_meta = []
         for px, py_pos, _, r_pos in window:
             b, f = image_to_lane(px, py_pos + r_pos, calibration)
-            if b is not None and (min_board is None or b < min_board):
-                min_board = b
-                min_bp = (px, py_pos, f, r_pos)
-        if min_bp is not None:
-            breakpoint = (min_bp[0], min_bp[1] + min_bp[3])
-            breakpoint_board = round(min_board, 1)
-            breakpoint_feet = min_bp[2]
+            if b is not None:
+                window_boards.append(b)
+                window_feet.append(f)
+                window_meta.append((px, py_pos, r_pos))
+        if len(window_boards) >= 3:
+            smooth_boards = _savgol_smooth(window_boards, window=11)
+            min_idx = int(np.argmin(smooth_boards))
+            min_board = smooth_boards[min_idx]
+            px, py_pos, r_pos = window_meta[min_idx]
+            breakpoint = (px, py_pos + r_pos)
+            breakpoint_board = round(float(min_board), 1)
+            breakpoint_feet = window_feet[min_idx]
+            print(f"  Breakpoint: board {breakpoint_board}")
+        elif window_boards:
+            min_idx = int(np.argmin(window_boards))
+            px, py_pos, r_pos = window_meta[min_idx]
+            breakpoint = (px, py_pos + r_pos)
+            breakpoint_board = round(window_boards[min_idx], 1)
+            breakpoint_feet = window_feet[min_idx]
             print(f"  Breakpoint: board {breakpoint_board}")
 
     # Post-processing: extract metrics from ball_positions if not captured during tracking.
@@ -1044,7 +1092,7 @@ def draw_lane_view(
     py_line = feet_to_y(60)
     cv2.line(canvas, (lane_left, py_line), (lane_right, py_line), LANE_REF, 2, cv2.LINE_AA)
 
-    # Ball path — orange, thick, smoothed
+    # Ball path — orange, thick, smoothed; trim last 5% (pin deck scatter)
     if len(ball_positions) >= 2:
         raw_boards = []
         raw_feet = []
@@ -1053,15 +1101,12 @@ def draw_lane_view(
             if board is not None:
                 raw_boards.append(board)
                 raw_feet.append(ft)
+        trim = max(1, len(raw_boards) // 20)
+        raw_boards = raw_boards[:len(raw_boards) - trim] if len(raw_boards) > trim + 3 else raw_boards
+        raw_feet = raw_feet[:len(raw_feet) - trim] if len(raw_feet) > trim + 3 else raw_feet
         if len(raw_boards) >= 3:
-            w = min(11, len(raw_boards) // 2 * 2 + 1)
-            if w % 2 == 0:
-                w -= 1
-            w = max(3, w)
-            pad = w // 2
-            k = np.ones(w) / float(w)
-            sb = np.convolve(np.pad(raw_boards, (pad, pad), mode="edge"), k, mode="valid")
-            sf = np.convolve(np.pad(raw_feet, (pad, pad), mode="edge"), k, mode="valid")
+            sb = _savgol_smooth(raw_boards, window=19)
+            sf = _savgol_smooth(raw_feet, window=19)
             pts = [(board_to_x(sb[i]), feet_to_y(sf[i])) for i in range(len(sb))]
         else:
             pts = [(board_to_x(raw_boards[i]), feet_to_y(raw_feet[i]))
