@@ -496,6 +496,7 @@ def track_ball(video_path, calibration):
     breakpoint = None
     breakpoint_feet = None
     breakpoint_board = None
+    entry_angle = None
     speed_mph = None
     frame_number = 0
     kalman = None
@@ -543,6 +544,7 @@ def track_ball(video_path, calibration):
                 speed_mph,
                 arrow_board,
                 breakpoint_board=breakpoint_board,
+                entry_angle=entry_angle,
             )
             last_display = frame.copy()
             cv2.imshow("PinPoint", frame)
@@ -553,6 +555,7 @@ def track_ball(video_path, calibration):
                 breakpoint_feet=breakpoint_feet,
                 speed_mph=speed_mph,
                 arrow_board=arrow_board,
+                entry_angle=entry_angle,
             )
             cv2.imshow("PinPoint — Lane View", lane_view)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -719,6 +722,7 @@ def track_ball(video_path, calibration):
             speed_mph,
             arrow_board,
             breakpoint_board=breakpoint_board,
+            entry_angle=entry_angle,
         )
 
         last_display = frame.copy()
@@ -731,6 +735,7 @@ def track_ball(video_path, calibration):
             breakpoint_feet=breakpoint_feet,
             speed_mph=speed_mph,
             arrow_board=arrow_board,
+            entry_angle=entry_angle,
         )
         cv2.imshow("PinPoint — Lane View", lane_view)
 
@@ -766,6 +771,16 @@ def track_ball(video_path, calibration):
             breakpoint_board = round(float(min_board), 1)
             breakpoint_feet = window_feet[min_idx]
             print(f"  Breakpoint: board {breakpoint_board}")
+            if len(smooth_boards) >= 5:
+                smooth_feet_ea = _savgol_smooth(window_feet, window=11)
+                tail = min(max(5, len(smooth_boards) // 6), len(smooth_boards) - 1)
+                db = smooth_boards[-1] - smooth_boards[-tail]
+                df = smooth_feet_ea[-1] - smooth_feet_ea[-tail]
+                if df > 0.5:
+                    db_in = db * (LANE_WIDTH_INCHES / 39.0)
+                    df_in = df * 12.0
+                    entry_angle = round(float(np.degrees(np.arctan2(db_in, df_in))), 1)
+                    print(f"  Entry angle: {entry_angle}\u00b0")
         elif window_boards:
             min_idx = int(np.argmin(window_boards))
             px, py_pos, r_pos = window_meta[min_idx]
@@ -817,6 +832,10 @@ def track_ball(video_path, calibration):
         print(f"  Breakpoint board: {breakpoint_board}")
     else:
         print("  Breakpoint board: --")
+    if entry_angle is not None:
+        print(f"  Entry angle:      {entry_angle}\u00b0")
+    else:
+        print("  Entry angle:      --")
     print("===================================\n")
 
     if video_ended_naturally and last_display is not None:
@@ -829,6 +848,7 @@ def track_ball(video_path, calibration):
             last_display, calibration, None, trail_draw,
             breakpoint, breakpoint_feet, speed_mph, arrow_board,
             breakpoint_board=breakpoint_board,
+            entry_angle=entry_angle,
         )
         final_lane_view = draw_lane_view(
             ball_positions, calibration,
@@ -837,6 +857,7 @@ def track_ball(video_path, calibration):
             breakpoint_feet=breakpoint_feet,
             speed_mph=speed_mph,
             arrow_board=arrow_board,
+            entry_angle=entry_angle,
         )
         print("Final frame on screen — press Q to exit.")
         while True:
@@ -955,6 +976,7 @@ def draw_lane_view(
     breakpoint_feet=None,
     speed_mph=None,
     arrow_board=None,
+    entry_angle=None,
     canvas_w=440,
     canvas_h=820,
 ):
@@ -1030,6 +1052,20 @@ def draw_lane_view(
         ], dtype=np.int32)
         cv2.fillPoly(canvas, [tri], ACCENT)
         draw_text(canvas, sx + 20, sy, f"{arrow_board:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+    else:
+        draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
+    sy += 32
+    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT_DIM, 1, cv2.LINE_AA)
+    sy += 24
+
+    # Entry angle
+    draw_text(canvas, sx, sy, "ENTRY", 0.42, TEXT_VALUE, 1)
+    sy += 16
+    draw_text(canvas, sx, sy, "ANGLE", 0.42, TEXT_VALUE, 1)
+    sy += 28
+    if entry_angle is not None:
+        cv2.line(canvas, (sx + 2, sy - 2), (sx + 10, sy - 10), ACCENT, 2, cv2.LINE_AA)
+        draw_text(canvas, sx + 20, sy, f"{entry_angle:.1f}\u00b0", 0.6, TEXT_VALUE, 1, FONT_VALUE)
     else:
         draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
 
@@ -1159,6 +1195,7 @@ def draw_overlay(
     speed_mph,
     arrow_board,
     breakpoint_board=None,
+    entry_angle=None,
 ):
     from ui import (
         ACCENT, BP_MARKER, LANE_REF, TRAIL_COLOR,
@@ -1208,5 +1245,7 @@ def draw_overlay(
         metrics.append((f"{arrow_board:.1f}", "ARROWS"))
     if breakpoint_board is not None:
         metrics.append((f"{breakpoint_board:.1f}", "BREAKPOINT"))
+    if entry_angle is not None:
+        metrics.append((f"{entry_angle:.1f}\u00b0", "ENTRY"))
     if metrics:
         metrics_panel(frame, 16, fh - 72, metrics)
