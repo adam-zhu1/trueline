@@ -15,7 +15,7 @@ from yolo_ball import load_yolo_ball, resolved_ball_weights_path
 # higher Q_vel than Q_xy avoids over-smoothing hooks; lower R trusts detections more.
 _KF_PROCESS_NOISE_XY = 2.0e-2
 _KF_PROCESS_NOISE_VEL = 0.35
-_KF_MEASUREMENT_NOISE = 12.0
+_KF_MEASUREMENT_NOISE = 6.0
 
 # USBC arrow V: center arrow (board 20) at 16 ft, outer arrows (boards 5 & 35) at 12 ft.
 # Linear slope from center outward: 4 ft over 15 boards.
