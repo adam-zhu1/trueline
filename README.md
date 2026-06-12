@@ -1,6 +1,6 @@
 # PinPoint
 
-Computer vision on phone video: ball speed, board at arrows, and breakpoint — from a single side-mounted camera, no extra hardware. Optional YOLO ball detection.
+Computer vision on phone video: ball speed, board at arrows, breakpoint, and entry angle — from a single side-mounted camera, no extra hardware. Optional YOLO ball detection.
 
 ---
 
@@ -21,6 +21,7 @@ The piece of this that excites me technically is **board-level accuracy from a s
 | **Speed (mph)** | Frame count between foul line and 6 ft dot line crossings × FPS. |
 | **Board at arrows** | Homography projects the ball's lane contact point onto the USBC arrow V (board 5–35, 12–16 ft). Reported to 0.1 board. |
 | **Breakpoint board** | Minimum homography board along the tracked path (trimmed to cut approach noise and pin-deck scatter). |
+| **Entry angle (°)** | Angle between the smoothed path and the boards over the final stretch before the pins, in real lane inches. |
 
 All board/feet calculations use a **perspective homography** (`image_to_lane`) built from four calibrated lane corners. A **parallax correction** offsets from the ball center to the lane contact point (bottom of the detected circle) so metrics are accurate from a low side angle.
 
@@ -39,7 +40,7 @@ All board/feet calculations use a **perspective homography** (`image_to_lane`) b
 
 Two OpenCV windows:
 
-1. **PinPoint** — video with foul/dot/pin lines, ball trail (drawn at the lane contact point), breakpoint marker, and HUD (speed, arrow board).
+1. **PinPoint** — video with foul/dot/pin lines, ball trail (drawn at the lane contact point), breakpoint marker, and HUD (speed, arrow board, breakpoint, entry angle).
 2. **PinPoint — Lane View** — top-down schematic with smoothed ball path, arrow V, breakpoint dot, and metrics.
 
 Terminal prints a shot summary after tracking finishes.
@@ -73,6 +74,8 @@ python3 src/main.py
 
 **Custom weights:** `export PINPOINT_BALL_MODEL=/path/to/other.pt` to use a checkpoint other than `models/ball.pt`.
 
+**Other environment variables:** `PINPOINT_DEBUG_TRACK=1` logs whether each frame past 45 ft was measurement-backed or coasting (prediction-only); `PINPOINT_LANE_MARGIN_PX` overrides how far outside the calibrated lane polygon a YOLO detection center may sit (default 22 px).
+
 ---
 
 ## Train or update the ball detector
@@ -99,9 +102,15 @@ models/               ball.pt weights (gitignored)
 
 ## Status / roadmap
 
-Working: speed, board at arrows, breakpoint, perspective lane view, parallax correction, right/left hand support.
+Working: speed, board at arrows, breakpoint, entry angle, perspective lane view, parallax correction, right/left hand support, measurement-backed tracking to the pin deck.
 
-Roadmap: session logging / consistency metrics, entry angle, recommendations, mobile.
+Roadmap: session logging / consistency metrics, recommendations, mobile.
+
+---
+
+## License
+
+MIT — see `LICENSE`.
 
 ---
 
