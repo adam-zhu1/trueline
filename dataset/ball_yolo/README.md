@@ -20,7 +20,7 @@ dataset/ball_yolo/
 | Step | Action |
 |------|--------|
 | 1 | Place frames in `images/train/` (and `images/val/` after splitting). |
-| 2 | Label in a tool such as [CVAT](https://www.cvat.ai/), export YOLO, place `.txt` files in `labels/train/` and `labels/val/` with matching image basenames. |
+| 2 | Label in a tool such as [CVAT](https://www.cvat.ai/), export YOLO, place `.txt` files in `labels/train/` and `labels/val/` with matching image basenames — or skip manual labeling: `training/auto_label.py` pseudo-labels confident frames and `training/harvest_far_lane.py` harvests hard far-lane frames + negatives. |
 | 3 | Install training dependencies from the repo root: `pip install -r training/requirements-training.txt` (after activating the project virtual environment). |
 | 4 | Train from the repo root: `python3 training/train_ball_detector.py --data dataset/ball_yolo/data.yaml --epochs 80` (add `--model models/ball.pt` when fine-tuning). |
 | 5 | Copy the checkpoint Ultralytics reports (typically `runs/detect/ball/weights/best.pt`) to `models/ball.pt`. |

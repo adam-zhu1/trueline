@@ -167,29 +167,6 @@ def image_to_lane(bx, by, calibration):
     return board, feet
 
 
-def _lane_axis_vectors(calibration):
-    """
-    Foul-line midpoint, unit vector toward pins (pin midpoint), and scalar projection
-    (pixels) from foul midpoint to dot midpoint along that axis — used for scale.
-    """
-    fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float64)
-    ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float64)
-    pn = np.array(calibration["points"]["pin_line_right"], dtype=np.float64)
-    pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float64)
-    dn = np.array(calibration["points"]["dot_line_right"], dtype=np.float64)
-    df = np.array(calibration["points"]["dot_line_left"], dtype=np.float64)
-    foul_m = 0.5 * (fn + ff)
-    pin_m = 0.5 * (pn + pf)
-    dot_m = 0.5 * (dn + df)
-    u = pin_m - foul_m
-    u_len = float(np.linalg.norm(u))
-    if u_len < 1e-6:
-        return None, None, None, None
-    u_hat = u / u_len
-    s_dot = float(np.dot(dot_m - foul_m, u_hat))
-    return foul_m, u_hat, dot_m, s_dot
-
-
 def detect_from_motion_blob(mask):
     """
     Prefer largest roughly circular foreground blob (actual ball) over Hough on
@@ -436,21 +413,6 @@ def smooth_positions_for_display(positions, window=9):
     ]
 
 
-def lane_axis_feet_from_foul(bx, by, calibration):
-    """
-    Feet down-lane from the foul plane: project (bx,by) onto foul-mid → pin-mid and
-    scale using the calibrated foul→dot distance (regulation dot row distance).
-    """
-    foul_m, u_hat, _, s_dot = _lane_axis_vectors(calibration)
-    if foul_m is None or s_dot < 8.0:
-        return None
-    p = np.array([bx, by], dtype=np.float64)
-    s_ball = float(np.dot(p - foul_m, u_hat))
-    pixels_per_foot_axis = s_dot / float(DOT_DISTANCE_FEET)
-    feet = s_ball / pixels_per_foot_axis
-    return max(0.0, min(60.0, feet))
-
-
 def track_ball(video_path, calibration):
     print("\n=== BALL TRACKING ===")
     print("Press Q to stop playback early.")
@@ -678,8 +640,8 @@ def track_ball(video_path, calibration):
 
         elif kalman is not None:
             no_meas_streak += 1
-            # Perspective feet (homography), NOT lane_axis_feet_from_foul: the linear
-            # pixel scale tops out near ~15 "feet" by the pins on a low camera angle.
+            # Perspective feet via homography — a linear px/ft scale tops out near
+            # ~15 "feet" by the pins on a low camera angle and must not be used here.
             _, pred_ft = image_to_lane(
                 float(coast_pred[0, 0]), float(coast_pred[1, 0]), calibration
             )
