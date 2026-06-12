@@ -102,6 +102,29 @@ def board_at_position(bx, by, calibration):
     return max(1, min(39, board))
 
 
+def _lane_width_scale_at(by, calibration):
+    """
+    Local lane pixel width / foul-line pixel width at image row of y = by.
+    Pixel velocity shrinks by the same perspective factor down-lane, so the
+    Kalman association gate must shrink with it or it spans half the pin deck.
+    """
+    fn = np.array(calibration["points"]["foul_line_right"], dtype=np.float64)
+    ff = np.array(calibration["points"]["foul_line_left"], dtype=np.float64)
+    pn = np.array(calibration["points"]["pin_line_right"], dtype=np.float64)
+    pf = np.array(calibration["points"]["pin_line_left"], dtype=np.float64)
+    foul_line_y = calibration["foul_line_y"]
+    pin_line_y = calibration["pin_line_y"]
+    total = abs(pin_line_y - foul_line_y)
+    w_foul = float(np.linalg.norm(ff - fn))
+    if total < 1e-6 or w_foul < 1e-6:
+        return 1.0
+    t = max(0.0, min(1.0, abs(by - foul_line_y) / total))
+    right = fn + t * (pn - fn)
+    left = ff + t * (pf - ff)
+    w_here = float(np.linalg.norm(left - right))
+    return max(0.2, min(1.0, w_here / w_foul))
+
+
 def _image_to_lane_H(calibration):
     """
     3×3 homography mapping image pixels → lane world coords (t_across, feet).
@@ -503,6 +526,9 @@ def track_ball(video_path, calibration):
     last_r = 30
     no_meas_streak = 0
     max_pred_only_frames = 75
+    # Past 45 ft a coasting prediction paints a straight line exactly where the
+    # hook matters; a short cap there corrupts far less path than the global one.
+    far_coast_cap = 12
     # Per-frame gate: must allow fast balls; also floor so high-FPS metadata does not
     # shrink this to a few pixels and reject every real measurement.
     fps_safe = max(float(fps), 1.0)
@@ -608,7 +634,10 @@ def track_ball(video_path, calibration):
                     jump_scale = 1.48
                 else:
                     jump_scale = 1.32
-                jump_ok = max_jump_px * jump_scale
+                jump_ok = max_jump_px * jump_scale * _lane_width_scale_at(
+                    float(coast_pred[1, 0]), calibration
+                )
+                jump_ok = max(28.0, jump_ok)
                 if d <= jump_ok:
                     measurement = nc
         else:
@@ -649,7 +678,28 @@ def track_ball(video_path, calibration):
 
         elif kalman is not None:
             no_meas_streak += 1
-            if no_meas_streak > max_pred_only_frames:
+            # Perspective feet (homography), NOT lane_axis_feet_from_foul: the linear
+            # pixel scale tops out near ~15 "feet" by the pins on a low camera angle.
+            _, pred_ft = image_to_lane(
+                float(coast_pred[0, 0]), float(coast_pred[1, 0]), calibration
+            )
+            coast_cap = (
+                far_coast_cap
+                if pred_ft is not None and pred_ft > 45.0
+                else max_pred_only_frames
+            )
+            if no_meas_streak > coast_cap:
+                if coast_cap == far_coast_cap:
+                    # Lost deep down-lane: the shot is over (ball in the pins or
+                    # occluded by them). Freeze instead of re-initializing — a later
+                    # shot in the same clip would otherwise append onto this path.
+                    # The coasted tail is prediction-only; drop it from the path.
+                    if len(ball_positions) > far_coast_cap:
+                        del ball_positions[-far_coast_cap:]
+                    track_finished = True
+                    frozen_positions = ball_positions.copy()
+                    frozen_circle = None
+                    print(f"  Track lost near pin deck — stopping (frame {frame_number})")
                 kalman = None
                 no_meas_streak = 0
                 last_meas_smooth = None
@@ -665,7 +715,7 @@ def track_ball(video_path, calibration):
 
         if sx is not None:
             if os.environ.get("PINPOINT_DEBUG_TRACK"):
-                ft_dbg = lane_axis_feet_from_foul(sx, sy, calibration)
+                _, ft_dbg = image_to_lane(sx, sy + last_r, calibration)
                 if ft_dbg is not None and ft_dbg > 45.0:
                     mstat = "yes" if measurement is not None else "COASTING"
                     print(f"  frame {frame_number}: ft={ft_dbg:.1f}, measurement={mstat}")
@@ -746,12 +796,13 @@ def track_ball(video_path, calibration):
 
     # Breakpoint = min board along the path (most toward outside gutter).
     # With current numbering, board 1 is outside for both hands, so argmin works for both.
-    # Trim first 30% (approach noise) and last 5% (pin deck scatter).
+    # Trim first 30% (approach noise) and last 2% (pin deck scatter; the far-lane
+    # coast cap keeps the tail measurement-backed, so only a sliver is dropped).
     # Smooth the board series first so frame-to-frame jitter doesn't produce a spurious min.
     if len(ball_positions) >= 10:
         n = len(ball_positions)
         start_idx = n // 3
-        end_idx = max(start_idx + 1, n - max(1, n // 20))
+        end_idx = max(start_idx + 1, n - max(1, n // 50))
         window = ball_positions[start_idx:end_idx]
         window_boards = []
         window_feet = []
@@ -792,15 +843,19 @@ def track_ball(video_path, calibration):
     # Post-processing: extract metrics from ball_positions if not captured during tracking.
     if ball_positions and foul_board is None:
         # Find the tracked position closest to the calibrated foul-line y.
+        # Only accept it if the path actually came near the line — a track that
+        # starts mid-lane would otherwise yield two nearby frames and absurd speed.
         closest_foul = min(ball_positions, key=lambda p: abs(p[1] - foul_line_y))
-        foul_board = board_at_position(closest_foul[0], closest_foul[1], calibration)
-        foul_line_frame = closest_foul[2]
+        if abs(closest_foul[1] - foul_line_y) < 30:
+            foul_board = board_at_position(closest_foul[0], closest_foul[1], calibration)
+            foul_line_frame = closest_foul[2]
 
     if ball_positions and dot_board is None:
         # Find the tracked position closest to the calibrated dot-line y.
         closest_dot = min(ball_positions, key=lambda p: abs(p[1] - dot_line_y))
-        dot_board = board_at_position(closest_dot[0], closest_dot[1], calibration)
-        dot_line_frame = closest_dot[2]
+        if abs(closest_dot[1] - dot_line_y) < 30:
+            dot_board = board_at_position(closest_dot[0], closest_dot[1], calibration)
+            dot_line_frame = closest_dot[2]
 
     if ball_positions and arrow_board is None:
         for px, py_pos, _, r_pos in ball_positions:
@@ -1128,7 +1183,7 @@ def draw_lane_view(
     py_line = feet_to_y(60)
     cv2.line(canvas, (lane_left, py_line), (lane_right, py_line), LANE_REF, 2, cv2.LINE_AA)
 
-    # Ball path — orange, thick, smoothed; trim last 5% (pin deck scatter)
+    # Ball path — orange, thick, smoothed; trim last 2% (pin deck scatter)
     if len(ball_positions) >= 2:
         raw_boards = []
         raw_feet = []
@@ -1137,7 +1192,7 @@ def draw_lane_view(
             if board is not None:
                 raw_boards.append(board)
                 raw_feet.append(ft)
-        trim = max(1, len(raw_boards) // 20)
+        trim = max(1, len(raw_boards) // 50)
         raw_boards = raw_boards[:len(raw_boards) - trim] if len(raw_boards) > trim + 3 else raw_boards
         raw_feet = raw_feet[:len(raw_feet) - trim] if len(raw_feet) > trim + 3 else raw_feet
         if len(raw_boards) >= 3:
