@@ -26,9 +26,14 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
-from calibration import detection_center_in_lane
+from calibration import detection_center_in_lane, lane_feet_at_point
 
 Candidate = Tuple[float, float, float]  # (cx, cy, radius_px)
+
+# Past this distance the ball is small/blurred and legitimately scores lower, so a
+# detection there only needs to clear FAR_CONF instead of the main threshold.
+FAR_FEET = 40.0
+FAR_CONF = 0.18
 
 
 def _project_root() -> Path:
@@ -61,6 +66,11 @@ class BallDetector:
         self.model = YOLO(str(self._weights))
         self.conf = conf
         self.iou = iou
+        # Inference must match training resolution or small far-lane balls degrade.
+        try:
+            self.imgsz = int((self.model.ckpt or {}).get("train_args", {}).get("imgsz", 640))
+        except Exception:
+            self.imgsz = 640
 
     @property
     def weights_path(self) -> Path:
@@ -77,11 +87,13 @@ class BallDetector:
         Multiple boxes can appear (e.g. reflection); the Kalman association step in
         ball_tracking picks the nearest to the predicted position.
         """
-        # predict: single image, no verbose logs each frame
+        # predict: single image, no verbose logs each frame.
+        # Run at the far-lane floor; near-lane boxes still must clear self.conf below.
         results = self.model.predict(
             source=frame_bgr,
-            conf=self.conf,
+            conf=min(self.conf, FAR_CONF),
             iou=self.iou,
+            imgsz=self.imgsz,
             verbose=False,
         )
         out: List[Candidate] = []
@@ -92,7 +104,8 @@ class BallDetector:
             return out
 
         boxes = r0.boxes.xyxy.cpu().numpy()
-        for x1, y1, x2, y2 in boxes:
+        confs = r0.boxes.conf.cpu().numpy()
+        for (x1, y1, x2, y2), score in zip(boxes, confs):
             cx = 0.5 * (x1 + x2)
             cy = 0.5 * (y1 + y2)
             if not detection_center_in_lane(cx, cy, calibration):
@@ -102,6 +115,12 @@ class BallDetector:
             # Radius for refine_ball_center: use half the smaller side (conservative disk)
             r = 0.5 * float(min(w, h))
             r = max(6.0, min(r, 120.0))
+            if score < self.conf:
+                # Low score only acceptable in the back end, where the ball is
+                # small/blurred among the pins and never reaches the main threshold.
+                feet = lane_feet_at_point(cx, cy + r, calibration)
+                if feet < FAR_FEET or score < FAR_CONF:
+                    continue
             out.append((float(cx), float(cy), r))
         return out
 

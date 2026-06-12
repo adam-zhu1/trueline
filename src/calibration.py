@@ -45,6 +45,30 @@ def detection_center_in_lane(cx: float, cy: float, calibration: dict) -> bool:
     return d >= -margin
 
 
+def lane_feet_at_point(cx: float, cy: float, calibration: dict) -> float:
+    """
+    Feet down-lane (0 = foul line, 60 = pin line) of an image point, via the same
+    four-corner homography as ball_tracking.image_to_lane. Lives here so yolo_ball
+    can be distance-aware without importing ball_tracking (which imports yolo_ball).
+    """
+    src = np.array([
+        calibration["points"]["foul_line_right"],
+        calibration["points"]["foul_line_left"],
+        calibration["points"]["pin_line_left"],
+        calibration["points"]["pin_line_right"],
+    ], dtype=np.float32)
+    dst = np.array([
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [1.0, 60.0],
+        [0.0, 60.0],
+    ], dtype=np.float32)
+    H = cv2.getPerspectiveTransform(src, dst)
+    pt = np.array([[[float(cx), float(cy)]]], dtype=np.float32)
+    feet = float(cv2.perspectiveTransform(pt, H)[0, 0, 1])
+    return max(0.0, min(60.0, feet))
+
+
 def calibrate(video_path, save_path):
     print("\n=== CALIBRATION ===")
     print("Camera setup (read before starting):")
