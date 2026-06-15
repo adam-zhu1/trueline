@@ -17,6 +17,12 @@ _KF_PROCESS_NOISE_XY = 2.0e-2
 _KF_PROCESS_NOISE_VEL = 0.35
 _KF_MEASUREMENT_NOISE = 6.0
 
+# Lane-view path is cosmetic (breakpoint/entry markers are computed separately), so it
+# can be smoothed harder than the metrics to kill perspective-magnified jitter near the
+# pins. A real ball skids straight then makes one smooth arc — there is no high-frequency
+# wobble in the true path — so a wide window matches how pro systems (Specto) render it.
+_LANE_VIEW_SMOOTH_WINDOW = 41
+
 # USBC arrow V: center arrow (board 20) at 16 ft, outer arrows (boards 5 & 35) at 12 ft.
 # Linear slope from center outward: 4 ft over 15 boards.
 _ARROW_CENTER_BOARD = 20
@@ -384,27 +390,22 @@ def _savgol_smooth(data, window=11, poly_order=2):
     return out
 
 
-def smooth_positions_for_display(positions, window=9):
+def smooth_positions_for_display(positions, window=15):
     """
-    Moving average on the polyline for drawing only (metrics use raw `positions`).
+    Smooth the drawn polyline only (metrics still use raw `positions`).
 
-    np.convolve(..., mode='same') implicitly pads with zeros at the ends, which pulls
-    the first/last points toward (0,0) — top-left of the image — causing bogus long
-    green segments toward the corner. Edge-padding fixes that.
+    Uses the same Savitzky-Golay local-polynomial smoother as the lane view rather
+    than a moving average: it follows the hook's curvature while removing the
+    frame-to-frame detection jitter that perspective magnifies into visible kinks
+    near the pins (a tiny box-center wobble there spans several boards on screen).
     """
     n = len(positions)
     if n < 3:
         return positions
-    w = min(window | 1, n)
-    if w % 2 == 0:
-        w -= 1
-    w = max(w, 3)
     xs = np.array([p[0] for p in positions], dtype=np.float64)
     ys = np.array([p[1] for p in positions], dtype=np.float64)
-    k = np.ones(w, dtype=np.float64) / float(w)
-    pad = w // 2
-    xs_s = np.convolve(np.pad(xs, (pad, pad), mode="edge"), k, mode="valid")
-    ys_s = np.convolve(np.pad(ys, (pad, pad), mode="edge"), k, mode="valid")
+    xs_s = _savgol_smooth(xs, window=window)
+    ys_s = _savgol_smooth(ys, window=window)
     has_radius = len(positions[0]) >= 4
     return [
         (int(round(xs_s[i])), int(round(ys_s[i])), positions[i][2],
@@ -1002,7 +1003,7 @@ def draw_lane_view(
         ACCENT, ACCENT_DIM, BP_MARKER, FONT_LABEL, FONT_VALUE, LANE_REF,
         LV_BG, LV_GUTTER, LV_GRID, LV_LANE, LV_LANE_BORDER, LV_SIDEBAR,
         TEXT_DIM, TEXT_LABEL, TEXT_VALUE, TRAIL_COLOR,
-        draw_pill_label, draw_text,
+        draw_degrees, draw_pill_label, draw_text,
     )
 
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
@@ -1082,7 +1083,7 @@ def draw_lane_view(
     sy += 28
     if entry_angle is not None:
         cv2.line(canvas, (sx + 2, sy - 2), (sx + 10, sy - 10), ACCENT, 2, cv2.LINE_AA)
-        draw_text(canvas, sx + 20, sy, f"{entry_angle:.1f}\u00b0", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+        draw_degrees(canvas, sx + 20, sy, f"{entry_angle:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
     else:
         draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
 
@@ -1158,8 +1159,8 @@ def draw_lane_view(
         raw_boards = raw_boards[:len(raw_boards) - trim] if len(raw_boards) > trim + 3 else raw_boards
         raw_feet = raw_feet[:len(raw_feet) - trim] if len(raw_feet) > trim + 3 else raw_feet
         if len(raw_boards) >= 3:
-            sb = _savgol_smooth(raw_boards, window=19)
-            sf = _savgol_smooth(raw_feet, window=19)
+            sb = _savgol_smooth(raw_boards, window=_LANE_VIEW_SMOOTH_WINDOW)
+            sf = _savgol_smooth(raw_feet, window=_LANE_VIEW_SMOOTH_WINDOW)
             pts = [(board_to_x(sb[i]), feet_to_y(sf[i])) for i in range(len(sb))]
         else:
             pts = [(board_to_x(raw_boards[i]), feet_to_y(raw_feet[i]))
@@ -1263,6 +1264,6 @@ def draw_overlay(
     if breakpoint_board is not None:
         metrics.append((f"{breakpoint_board:.1f}", "BREAKPOINT"))
     if entry_angle is not None:
-        metrics.append((f"{entry_angle:.1f}\u00b0", "ENTRY"))
+        metrics.append((f"{entry_angle:.1f}", "ENTRY", True))  # True \u2192 draw \u00b0 ring
     if metrics:
         metrics_panel(frame, 16, fh - 72, metrics)
