@@ -1013,7 +1013,10 @@ def draw_lane_view(
     sidebar_w = 160
     lane_left = sidebar_w + 10
     lane_right = canvas_w - 10
-    lane_top = 30
+    # Reserve a strip above the 60 ft line for the pin deck: the head pin is at 60 ft
+    # and rows 2-4 stand behind it (off the measured lane), so they need room up top.
+    pin_deck_h = 56
+    lane_top = 30 + pin_deck_h
     lane_bottom = canvas_h - 40
     lane_w = lane_right - lane_left
     lane_h = lane_bottom - lane_top
@@ -1145,6 +1148,40 @@ def draw_lane_view(
     # Pin line
     py_line = feet_to_y(60)
     cv2.line(canvas, (lane_left, py_line), (lane_right, py_line), LANE_REF, 2, cv2.LINE_AA)
+
+    # --- Pins on the deck ---
+    # Regulation: head pin (1) centered on the lane at 60 ft; all pins 12 in apart
+    # center-to-center, so each lateral step is 6 in. Lateral positions are exact (real
+    # boards) so pocket alignment with the path is true; row depth is schematic (the
+    # diagram compresses length ~6x vs width, so a metric depth would be invisible).
+    boards_per_6in = (6.0 / LANE_WIDTH_INCHES) * 39.0          # ~5.64 boards
+    head_board = 20.0
+    pocket_board = head_board - boards_per_6in                 # ~14.4: pocket-side row-2 pin
+    row_dy = 15
+    pin_r = 5
+    # offsets (in 6-in steps) from the center board, per row 1..4
+    pin_rows = [(0,), (-1, 1), (-2, 0, 2), (-3, -1, 1, 3)]
+
+    # Faint deck backing to ground the pins
+    deck_top = py_line - (len(pin_rows) - 1) * row_dy - pin_r - 4
+    cv2.rectangle(canvas, (lane_left, deck_top), (lane_right, py_line), (38, 35, 35), -1)
+
+    # Pocket guide: dim dashed line down-lane from the pocket gap (board ~17.5, between
+    # head pin and pocket-side pin) so you can see whether the path lined up with it.
+    pocket_x = board_to_x(head_board - boards_per_6in / 2.0)
+    _draw_dashed_line(canvas, (pocket_x, py_line), (pocket_x, feet_to_y(48)),
+                      ACCENT_DIM, 1, 6, 8)
+
+    for ri, offs in enumerate(pin_rows):
+        py = py_line - ri * row_dy
+        for off in offs:
+            b = head_board + off * boards_per_6in
+            px = board_to_x(b)
+            # Highlight the pocket: head pin + the pocket-side row-2 pin (outside of center).
+            is_pocket_pin = (ri == 0) or (ri == 1 and off < 0)
+            fill = ACCENT if is_pocket_pin else (220, 220, 220)
+            cv2.circle(canvas, (px, py), pin_r, fill, -1, cv2.LINE_AA)
+            cv2.circle(canvas, (px, py), pin_r, (40, 40, 40), 1, cv2.LINE_AA)
 
     # Ball path — orange, thick, smoothed; trim last 2% (pin deck scatter)
     if len(ball_positions) >= 2:
