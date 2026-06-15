@@ -45,6 +45,21 @@ def draw_text(img, x, y, text, scale, color, thickness=1, font=None):
     cv2.putText(img, text, (int(x), int(y)), font, scale, color, thickness, cv2.LINE_AA)
 
 
+def draw_degrees(img, x, y, value_str, scale, color, thickness=1, font=None):
+    """
+    Draw an angle value followed by a degree sign. OpenCV's Hershey fonts have no
+    `°` glyph (it renders as garbage), so the symbol is a small drawn ring sitting
+    superscript to the number. (x, y) is the text baseline origin, as in draw_text.
+    """
+    if font is None:
+        font = FONT_LABEL
+    draw_text(img, x, y, value_str, scale, color, thickness, font)
+    (tw, th), _ = cv2.getTextSize(value_str, font, scale, thickness)
+    r = max(2, int(round(th * 0.18)))
+    cv2.circle(img, (int(x + tw + r + 3), int(y - th + r)), r, color,
+               max(1, thickness), cv2.LINE_AA)
+
+
 def rounded_rect(img, pt1, pt2, color, radius, alpha=None):
     """
     Filled rounded rectangle.  If *alpha* is given (0-1), the shape is blended
@@ -91,10 +106,10 @@ def _fill_rounded(img, x1, y1, x2, y2, r, color):
     cv2.ellipse(img, (x1 + r, y2 - r), (r, r), 90, 0, 90, color, -1, cv2.LINE_AA)
 
 
-def draw_metric(img, x, y, value_str, label_str, col_width=None):
+def draw_metric(img, x, y, value_str, label_str, col_width=None, degree=False):
     """
     Big value on top, small label below.  Returns the width consumed so the
-    caller can lay out multiple metrics in a row.
+    caller can lay out multiple metrics in a row. *degree* appends a `°` ring.
     """
     v_scale = 0.7
     l_scale = 0.35
@@ -104,11 +119,17 @@ def draw_metric(img, x, y, value_str, label_str, col_width=None):
     (vw, vh), _ = cv2.getTextSize(value_str, FONT_VALUE, v_scale, v_thick)
     (lw, lh), _ = cv2.getTextSize(label_str, FONT_LABEL, l_scale, l_thick)
 
-    w = col_width if col_width else max(vw, lw) + 4
-    vx = x + (w - vw) // 2
+    deg_r = max(2, int(round(vh * 0.18))) if degree else 0
+    deg_w = (deg_r * 2 + 3) if degree else 0
+
+    w = col_width if col_width else max(vw + deg_w, lw) + 4
+    vx = x + (w - (vw + deg_w)) // 2
     lx = x + (w - lw) // 2
 
     draw_text(img, vx, y, value_str, v_scale, TEXT_VALUE, v_thick, FONT_VALUE)
+    if degree:
+        cv2.circle(img, (int(vx + vw + deg_r + 3), int(y - vh + deg_r)),
+                   deg_r, TEXT_VALUE, v_thick, cv2.LINE_AA)
     draw_text(img, lx, y + vh + 6, label_str, l_scale, TEXT_LABEL, l_thick, FONT_LABEL)
 
     return w
@@ -130,12 +151,17 @@ def metrics_panel(img, x, y, metrics, pad=14, gap=18, radius=10):
     l_thick = 1
 
     col_widths = []
+    degrees = []
     max_vh = 0
     max_lh = 0
-    for val, lab in metrics:
+    for item in metrics:
+        val, lab = item[0], item[1]
+        deg = bool(item[2]) if len(item) > 2 else False
+        degrees.append(deg)
         (vw, vh), _ = cv2.getTextSize(val, FONT_VALUE, v_scale, v_thick)
         (lw, lh), _ = cv2.getTextSize(lab, FONT_LABEL, l_scale, l_thick)
-        col_widths.append(max(vw, lw) + 4)
+        deg_w = (max(2, int(round(vh * 0.18))) * 2 + 3) if deg else 0
+        col_widths.append(max(vw + deg_w, lw) + 4)
         max_vh = max(max_vh, vh)
         max_lh = max(max_lh, lh)
 
@@ -145,8 +171,9 @@ def metrics_panel(img, x, y, metrics, pad=14, gap=18, radius=10):
     rounded_rect(img, (x, y), (x + total_w, y + total_h), PANEL_BG, radius, PANEL_ALPHA)
 
     cx = x + pad
-    for i, (val, lab) in enumerate(metrics):
-        draw_metric(img, cx, y + pad + max_vh, val, lab, col_widths[i])
+    for i, item in enumerate(metrics):
+        draw_metric(img, cx, y + pad + max_vh, item[0], item[1], col_widths[i],
+                    degree=degrees[i])
         cx += col_widths[i] + gap
 
 
