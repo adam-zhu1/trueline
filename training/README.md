@@ -14,6 +14,24 @@ Fine-tune YOLOv8 on labeled frames; PinPoint loads **`models/ball.pt`** at runti
 
 ---
 
+## Videos: train vs. test (keep them separate)
+
+`data/` is gitignored, but keep two folders so footage never leaks across the
+train/test boundary:
+
+| Folder | Purpose |
+|--------|---------|
+| `data/train_videos/` | Videos used to build the dataset (auto-label / far-lane harvest run on these). |
+| `data/test_videos/`  | **Held-out** clips for evaluation only — never labeled or trained on. |
+
+Measure model quality on `data/test_videos/` (see `eval_far_lane.py` /
+`eval_track.py` below). The moment you harvest frames from a clip it stops being
+a valid test — record a fresh clip if you want to fold an old test video into
+training. Far-lane harvesting also needs a calibration matching that video's
+camera angle; auto-labeling does not.
+
+---
+
 ## One-time setup
 
 ```bash
