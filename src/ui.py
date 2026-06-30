@@ -177,35 +177,39 @@ def metrics_panel(img, x, y, metrics, pad=14, gap=18, radius=10):
         cx += col_widths[i] + gap
 
 
-def draw_pill_label(img, x, y, value_str, icon="circle", color=None):
+def draw_pill_label(img, x, y, value_str, icon="circle", color=None, scale=1.0):
     """
     Draw a small icon (circle or triangle) + rounded pill with a value label.
     (x, y) is the center of the icon. The pill extends to the right.
+    ``scale`` multiplies every dimension so the marker matches a scaled canvas.
     """
     if color is None:
         color = ACCENT
 
-    t_scale = 0.42
-    t_thick = 1
+    def S(v):
+        return int(round(v * scale))
+
+    t_scale = 0.42 * scale
+    t_thick = max(1, int(round(scale)))
     (tw, th), _ = cv2.getTextSize(value_str, FONT_LABEL, t_scale, t_thick)
 
-    pill_x = x + 10
-    pill_y = y - th // 2 - 4
-    pill_w = tw + 14
-    pill_h = th + 8
+    pill_x = x + S(10)
+    pill_y = y - th // 2 - S(4)
+    pill_w = tw + S(14)
+    pill_h = th + S(8)
 
     rounded_rect(img, (pill_x, pill_y), (pill_x + pill_w, pill_y + pill_h),
-                 PANEL_BG, 8, 0.6)
+                 PANEL_BG, S(8), 0.6)
 
     if icon == "circle":
-        cv2.circle(img, (int(x), int(y)), 5, color, -1, cv2.LINE_AA)
+        cv2.circle(img, (int(x), int(y)), S(5), color, -1, cv2.LINE_AA)
     elif icon == "triangle":
         tri = np.array([
-            [int(x), int(y) - 5],
-            [int(x) - 5, int(y) + 4],
-            [int(x) + 5, int(y) + 4],
+            [int(x), int(y) - S(5)],
+            [int(x) - S(5), int(y) + S(4)],
+            [int(x) + S(5), int(y) + S(4)],
         ], dtype=np.int32)
         cv2.fillPoly(img, [tri], color)
 
-    draw_text(img, pill_x + 7, pill_y + th + 3, value_str,
+    draw_text(img, pill_x + S(7), pill_y + th + S(3), value_str,
               t_scale, TEXT_VALUE, t_thick)
