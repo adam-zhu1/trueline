@@ -414,6 +414,41 @@ def smooth_positions_for_display(positions, window=15):
     ]
 
 
+def arrow_board_from_path(ball_positions, calibration, window=11):
+    """
+    Board at the arrow V, read from the smoothed board/feet series instead of a
+    single raw crossing frame. Projects each contact point to (board, feet), smooths
+    both series, then finds the first sample where the path reaches the arrow V
+    (feet >= arrow_feet_at_board(board)) and linearly interpolates the crossing for
+    sub-frame precision. Returns a board rounded to 0.1, or None if it can't be found.
+    """
+    boards = []
+    feet = []
+    for px, py_pos, _, r_pos in ball_positions:
+        b, f = image_to_lane(px, py_pos + r_pos, calibration)
+        if b is not None:
+            boards.append(b)
+            feet.append(f)
+    if len(boards) < 3:
+        return None
+    sb = _savgol_smooth(boards, window=window)
+    sf = _savgol_smooth(feet, window=window)
+    # g(i) >= 0 once the path has reached the arrow V at that board.
+    prev_g = sf[0] - arrow_feet_at_board(sb[0])
+    for i in range(1, len(sb)):
+        g = sf[i] - arrow_feet_at_board(sb[i])
+        if g >= 0:
+            if prev_g < 0 and g != prev_g:
+                # Interpolate the zero crossing between samples i-1 and i.
+                t = prev_g / (prev_g - g)
+                board = sb[i - 1] + t * (sb[i] - sb[i - 1])
+            else:
+                board = sb[i]
+            return round(float(board), 1)
+        prev_g = g
+    return None
+
+
 def track_ball(video_path, calibration):
     print("\n=== BALL TRACKING ===")
     print("Press Q to stop playback early.")
@@ -820,13 +855,13 @@ def track_ball(video_path, calibration):
             dot_board = board_at_position(closest_dot[0], closest_dot[1], calibration)
             dot_line_frame = closest_dot[2]
 
-    if ball_positions and arrow_board is None:
-        for px, py_pos, _, r_pos in ball_positions:
-            b_h, ft_h = image_to_lane(px, py_pos + r_pos, calibration)
-            if b_h is not None and ft_h >= arrow_feet_at_board(b_h):
-                arrow_board = round(b_h, 1)
-                print(f"  Arrow board (post-processed): {arrow_board}")
-                break
+    # Arrow board: read off the smoothed board/feet series (interpolated to the exact
+    # arrow-V crossing) rather than a single raw frame, so the value is less noisy and
+    # agrees with the smoothed path drawn in the lane view. Overrides any live value.
+    smoothed_arrow = arrow_board_from_path(ball_positions, calibration)
+    if smoothed_arrow is not None:
+        arrow_board = smoothed_arrow
+        print(f"  Arrow board (smoothed): {arrow_board}")
 
     # Recalculate speed if we have both derived crossing frames.
     if speed_mph is None and foul_line_frame is not None and dot_line_frame is not None:
@@ -997,8 +1032,14 @@ def draw_lane_view(
     entry_angle=None,
     canvas_w=440,
     canvas_h=820,
+    scale=2.0,
 ):
-    """Specto-style lane view: stats sidebar on left, lane diagram on right."""
+    """Specto-style lane view: stats sidebar on left, lane diagram on right.
+
+    Every dimension is multiplied by ``scale`` so the diagram renders at higher
+    resolution — at the base size one board spans only ~7 px, so a 0.3-board
+    difference is sub-pixel; scaling up makes the path's true line visible.
+    """
     from ui import (
         ACCENT, ACCENT_DIM, BP_MARKER, FONT_LABEL, FONT_VALUE, LANE_REF,
         LV_BG, LV_GUTTER, LV_GRID, LV_LANE, LV_LANE_BORDER, LV_SIDEBAR,
@@ -1006,18 +1047,28 @@ def draw_lane_view(
         draw_degrees, draw_pill_label, draw_text,
     )
 
+    def S(v):
+        """Scale a pixel length."""
+        return int(round(v * scale))
+
+    def TH(v):
+        """Scale a stroke thickness (never below 1)."""
+        return max(1, int(round(v * scale)))
+
+    canvas_w = S(canvas_w)
+    canvas_h = S(canvas_h)
     canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
     canvas[:] = LV_BG
 
     # --- Layout constants ---
-    sidebar_w = 160
-    lane_left = sidebar_w + 10
-    lane_right = canvas_w - 10
+    sidebar_w = S(160)
+    lane_left = sidebar_w + S(10)
+    lane_right = canvas_w - S(10)
     # Reserve a strip above the 60 ft line for the pin deck: the head pin is at 60 ft
     # and rows 2-4 stand behind it (off the measured lane), so they need room up top.
-    pin_deck_h = 56
-    lane_top = 30 + pin_deck_h
-    lane_bottom = canvas_h - 40
+    pin_deck_h = S(56)
+    lane_top = S(30) + pin_deck_h
+    lane_bottom = canvas_h - S(40)
     lane_w = lane_right - lane_left
     lane_h = lane_bottom - lane_top
 
@@ -1025,70 +1076,70 @@ def draw_lane_view(
     cv2.rectangle(canvas, (0, 0), (sidebar_w, canvas_h), LV_SIDEBAR, -1)
 
     # --- Sidebar content ---
-    sx = 16
-    sy = 40
+    sx = S(16)
+    sy = S(40)
 
-    draw_text(canvas, sx, sy, "PINPOINT", 0.55, TEXT_VALUE, 1, FONT_VALUE)
-    sy += 16
-    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT, 2, cv2.LINE_AA)
-    sy += 36
+    draw_text(canvas, sx, sy, "PINPOINT", 0.55 * scale, TEXT_VALUE, TH(1), FONT_VALUE)
+    sy += S(16)
+    cv2.line(canvas, (sx, sy), (sidebar_w - S(16), sy), ACCENT, TH(2), cv2.LINE_AA)
+    sy += S(36)
 
     # Speed
     if speed_mph is not None:
-        draw_text(canvas, sx, sy, f"{speed_mph:.1f}", 1.2, ACCENT, 2, FONT_VALUE)
-        sy += 18
-        draw_text(canvas, sx, sy, "MPH", 0.42, TEXT_LABEL, 1)
+        draw_text(canvas, sx, sy, f"{speed_mph:.1f}", 1.2 * scale, ACCENT, TH(2), FONT_VALUE)
+        sy += S(18)
+        draw_text(canvas, sx, sy, "MPH", 0.42 * scale, TEXT_LABEL, TH(1))
     else:
-        draw_text(canvas, sx, sy, "--", 1.2, TEXT_DIM, 2, FONT_VALUE)
-        sy += 18
-        draw_text(canvas, sx, sy, "MPH", 0.42, TEXT_LABEL, 1)
-    sy += 28
-    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT_DIM, 1, cv2.LINE_AA)
-    sy += 24
+        draw_text(canvas, sx, sy, "--", 1.2 * scale, TEXT_DIM, TH(2), FONT_VALUE)
+        sy += S(18)
+        draw_text(canvas, sx, sy, "MPH", 0.42 * scale, TEXT_LABEL, TH(1))
+    sy += S(28)
+    cv2.line(canvas, (sx, sy), (sidebar_w - S(16), sy), ACCENT_DIM, TH(1), cv2.LINE_AA)
+    sy += S(24)
 
     # Breakpoint board
-    draw_text(canvas, sx, sy, "BREAKPOINT", 0.42, TEXT_VALUE, 1)
-    sy += 16
-    draw_text(canvas, sx, sy, "BOARD", 0.42, TEXT_VALUE, 1)
-    sy += 28
+    draw_text(canvas, sx, sy, "BREAKPOINT", 0.42 * scale, TEXT_VALUE, TH(1))
+    sy += S(16)
+    draw_text(canvas, sx, sy, "BOARD", 0.42 * scale, TEXT_VALUE, TH(1))
+    sy += S(28)
     if breakpoint_board is not None:
-        cv2.circle(canvas, (sx + 6, sy - 4), 5, ACCENT, -1, cv2.LINE_AA)
-        draw_text(canvas, sx + 20, sy, f"{breakpoint_board:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+        cv2.circle(canvas, (sx + S(6), sy - S(4)), S(5), ACCENT, -1, cv2.LINE_AA)
+        draw_text(canvas, sx + S(20), sy, f"{breakpoint_board:.1f}", 0.6 * scale, TEXT_VALUE, TH(1), FONT_VALUE)
     else:
-        draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
-    sy += 32
-    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT_DIM, 1, cv2.LINE_AA)
-    sy += 24
+        draw_text(canvas, sx + S(20), sy, "--", 0.6 * scale, TEXT_DIM, TH(1), FONT_VALUE)
+    sy += S(32)
+    cv2.line(canvas, (sx, sy), (sidebar_w - S(16), sy), ACCENT_DIM, TH(1), cv2.LINE_AA)
+    sy += S(24)
 
     # Position at arrows
-    draw_text(canvas, sx, sy, "POSITION AT", 0.42, TEXT_VALUE, 1)
-    sy += 16
-    draw_text(canvas, sx, sy, "ARROWS", 0.42, TEXT_VALUE, 1)
-    sy += 28
+    draw_text(canvas, sx, sy, "POSITION AT", 0.42 * scale, TEXT_VALUE, TH(1))
+    sy += S(16)
+    draw_text(canvas, sx, sy, "ARROWS", 0.42 * scale, TEXT_VALUE, TH(1))
+    sy += S(28)
     if arrow_board is not None:
         tri = np.array([
-            [sx + 6, sy - 10],
-            [sx + 1, sy - 1],
-            [sx + 11, sy - 1],
+            [sx + S(6), sy - S(10)],
+            [sx + S(1), sy - S(1)],
+            [sx + S(11), sy - S(1)],
         ], dtype=np.int32)
         cv2.fillPoly(canvas, [tri], ACCENT)
-        draw_text(canvas, sx + 20, sy, f"{arrow_board:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+        draw_text(canvas, sx + S(20), sy, f"{arrow_board:.1f}", 0.6 * scale, TEXT_VALUE, TH(1), FONT_VALUE)
     else:
-        draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
-    sy += 32
-    cv2.line(canvas, (sx, sy), (sidebar_w - 16, sy), ACCENT_DIM, 1, cv2.LINE_AA)
-    sy += 24
+        draw_text(canvas, sx + S(20), sy, "--", 0.6 * scale, TEXT_DIM, TH(1), FONT_VALUE)
+    sy += S(32)
+    cv2.line(canvas, (sx, sy), (sidebar_w - S(16), sy), ACCENT_DIM, TH(1), cv2.LINE_AA)
+    sy += S(24)
 
     # Entry angle
-    draw_text(canvas, sx, sy, "ENTRY", 0.42, TEXT_VALUE, 1)
-    sy += 16
-    draw_text(canvas, sx, sy, "ANGLE", 0.42, TEXT_VALUE, 1)
-    sy += 28
+    draw_text(canvas, sx, sy, "ENTRY", 0.42 * scale, TEXT_VALUE, TH(1))
+    sy += S(16)
+    draw_text(canvas, sx, sy, "ANGLE", 0.42 * scale, TEXT_VALUE, TH(1))
+    sy += S(28)
     if entry_angle is not None:
-        cv2.line(canvas, (sx + 2, sy - 2), (sx + 10, sy - 10), ACCENT, 2, cv2.LINE_AA)
-        draw_degrees(canvas, sx + 20, sy, f"{entry_angle:.1f}", 0.6, TEXT_VALUE, 1, FONT_VALUE)
+        cv2.line(canvas, (sx + S(2), sy - S(2)), (sx + S(10), sy - S(10)), ACCENT, TH(2), cv2.LINE_AA)
+        draw_degrees(canvas, sx + S(20), sy, f"{entry_angle:.1f}", 0.6 * scale, TEXT_VALUE, TH(1), FONT_VALUE)
     else:
-        draw_text(canvas, sx + 20, sy, "--", 0.6, TEXT_DIM, 1, FONT_VALUE)
+        draw_text(canvas, sx + S(20), sy, "--", 0.6 * scale, TEXT_DIM, TH(1), FONT_VALUE)
 
     # --- Lane diagram ---
 
@@ -1096,10 +1147,10 @@ def draw_lane_view(
     cv2.rectangle(canvas, (lane_left, lane_top),
                   (lane_right, lane_bottom), LV_LANE, -1)
     cv2.rectangle(canvas, (lane_left, lane_top),
-                  (lane_right, lane_bottom), LV_LANE_BORDER, 1, cv2.LINE_AA)
+                  (lane_right, lane_bottom), LV_LANE_BORDER, TH(1), cv2.LINE_AA)
 
     # Gutters
-    gw = 5
+    gw = S(5)
     cv2.rectangle(canvas, (lane_left - gw, lane_top),
                   (lane_left, lane_bottom), LV_GUTTER, -1)
     cv2.rectangle(canvas, (lane_right, lane_top),
@@ -1116,16 +1167,16 @@ def draw_lane_view(
     # Board grid
     for b in range(5, 39, 5):
         bx = board_to_x(b)
-        cv2.line(canvas, (bx, lane_top), (bx, lane_bottom), LV_GRID, 1, cv2.LINE_AA)
-        draw_text(canvas, bx - 6, lane_bottom + 14, str(b), 0.32, TEXT_LABEL, 1)
+        cv2.line(canvas, (bx, lane_top), (bx, lane_bottom), LV_GRID, TH(1), cv2.LINE_AA)
+        draw_text(canvas, bx - S(6), lane_bottom + S(14), str(b), 0.32 * scale, TEXT_LABEL, TH(1))
 
     # Foul line
     fy = feet_to_y(0)
-    cv2.line(canvas, (lane_left, fy), (lane_right, fy), LANE_REF, 2, cv2.LINE_AA)
+    cv2.line(canvas, (lane_left, fy), (lane_right, fy), LANE_REF, TH(2), cv2.LINE_AA)
 
     # Dot line — dashed
     dy = feet_to_y(6)
-    _draw_dashed_line(canvas, (lane_left, dy), (lane_right, dy), LANE_REF, 1, 8, 6)
+    _draw_dashed_line(canvas, (lane_left, dy), (lane_right, dy), LANE_REF, TH(1), S(8), S(6))
 
     # Arrow V
     _arrow_boards = [5, 10, 15, 20, 25, 30, 35]
@@ -1136,18 +1187,18 @@ def draw_lane_view(
         ay2 = feet_to_y(af)
         arrow_pts.append((ax, ay2))
     for i in range(1, len(arrow_pts)):
-        cv2.line(canvas, arrow_pts[i - 1], arrow_pts[i], ACCENT_DIM, 1, cv2.LINE_AA)
+        cv2.line(canvas, arrow_pts[i - 1], arrow_pts[i], ACCENT_DIM, TH(1), cv2.LINE_AA)
     for ax, ay2 in arrow_pts:
         tri = np.array([
-            [ax, ay2 - 4],
-            [ax - 3, ay2 + 3],
-            [ax + 3, ay2 + 3],
+            [ax, ay2 - S(4)],
+            [ax - S(3), ay2 + S(3)],
+            [ax + S(3), ay2 + S(3)],
         ], dtype=np.int32)
         cv2.fillPoly(canvas, [tri], ACCENT)
 
     # Pin line
     py_line = feet_to_y(60)
-    cv2.line(canvas, (lane_left, py_line), (lane_right, py_line), LANE_REF, 2, cv2.LINE_AA)
+    cv2.line(canvas, (lane_left, py_line), (lane_right, py_line), LANE_REF, TH(2), cv2.LINE_AA)
 
     # --- Pins on the deck ---
     # Regulation: head pin (1) centered on the lane at 60 ft; all pins 12 in apart
@@ -1157,20 +1208,20 @@ def draw_lane_view(
     boards_per_6in = (6.0 / LANE_WIDTH_INCHES) * 39.0          # ~5.64 boards
     head_board = 20.0
     pocket_board = head_board - boards_per_6in                 # ~14.4: pocket-side row-2 pin
-    row_dy = 15
-    pin_r = 5
+    row_dy = S(15)
+    pin_r = S(5)
     # offsets (in 6-in steps) from the center board, per row 1..4
     pin_rows = [(0,), (-1, 1), (-2, 0, 2), (-3, -1, 1, 3)]
 
     # Faint deck backing to ground the pins
-    deck_top = py_line - (len(pin_rows) - 1) * row_dy - pin_r - 4
+    deck_top = py_line - (len(pin_rows) - 1) * row_dy - pin_r - S(4)
     cv2.rectangle(canvas, (lane_left, deck_top), (lane_right, py_line), (38, 35, 35), -1)
 
     # Pocket guide: dim dashed line down-lane from the pocket gap (board ~17.5, between
     # head pin and pocket-side pin) so you can see whether the path lined up with it.
     pocket_x = board_to_x(head_board - boards_per_6in / 2.0)
     _draw_dashed_line(canvas, (pocket_x, py_line), (pocket_x, feet_to_y(48)),
-                      ACCENT_DIM, 1, 6, 8)
+                      ACCENT_DIM, TH(1), S(6), S(8))
 
     for ri, offs in enumerate(pin_rows):
         py = py_line - ri * row_dy
@@ -1181,7 +1232,7 @@ def draw_lane_view(
             is_pocket_pin = (ri == 0) or (ri == 1 and off < 0)
             fill = ACCENT if is_pocket_pin else (220, 220, 220)
             cv2.circle(canvas, (px, py), pin_r, fill, -1, cv2.LINE_AA)
-            cv2.circle(canvas, (px, py), pin_r, (40, 40, 40), 1, cv2.LINE_AA)
+            cv2.circle(canvas, (px, py), pin_r, (40, 40, 40), TH(1), cv2.LINE_AA)
 
     # Ball path — orange, thick, smoothed; trim last 2% (pin deck scatter)
     if len(ball_positions) >= 2:
@@ -1203,19 +1254,19 @@ def draw_lane_view(
             pts = [(board_to_x(raw_boards[i]), feet_to_y(raw_feet[i]))
                    for i in range(len(raw_boards))]
         for i in range(1, len(pts)):
-            cv2.line(canvas, pts[i - 1], pts[i], TRAIL_COLOR, 3, cv2.LINE_AA)
+            cv2.line(canvas, pts[i - 1], pts[i], TRAIL_COLOR, TH(3), cv2.LINE_AA)
 
     # Arrow crossing — pill marker
     if arrow_board is not None:
         abx = board_to_x(arrow_board)
         afy = feet_to_y(arrow_feet_at_board(arrow_board))
-        draw_pill_label(canvas, abx, afy, f"{arrow_board:.1f}", icon="triangle", color=ACCENT)
+        draw_pill_label(canvas, abx, afy, f"{arrow_board:.1f}", icon="triangle", color=ACCENT, scale=scale)
 
     # Breakpoint — pill marker
     if breakpoint_board is not None and breakpoint_feet is not None:
         vx = board_to_x(breakpoint_board)
         vy = feet_to_y(breakpoint_feet)
-        draw_pill_label(canvas, vx, vy, f"{breakpoint_board:.1f}", icon="circle", color=BP_MARKER)
+        draw_pill_label(canvas, vx, vy, f"{breakpoint_board:.1f}", icon="circle", color=BP_MARKER, scale=scale)
 
     return canvas
 
