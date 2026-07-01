@@ -19,7 +19,7 @@ struct ClipReviewView: View {
                 }
 
                 VStack(spacing: 12) {
-                    Text("Calibration and analysis come next — for now the clip is just reviewed.")
+                    Text("Next: mark the lane corners so the ball path can be measured.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

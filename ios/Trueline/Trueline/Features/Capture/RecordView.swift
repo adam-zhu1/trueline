@@ -7,6 +7,8 @@ struct RecordView: View {
     var onCancel: () -> Void
 
     var body: some View {
+        // Camera starts here (not in the flow) so an imported-video session
+        // never triggers the permission prompt.
         ZStack {
             Color.black.ignoresSafeArea()
 
@@ -87,6 +89,7 @@ struct RecordView: View {
                 }
             }
         }
+        .task { await camera.start() }
     }
 
     private func statusMessage(

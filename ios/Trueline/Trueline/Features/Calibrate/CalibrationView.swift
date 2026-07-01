@@ -1,0 +1,223 @@
+import AVFoundation
+import SwiftUI
+
+/// The calibration step: a frame from the clip with the four proposed lane corners
+/// overlaid. The user drags each corner onto the lane's actual corners (foul line
+/// near, pin deck far); a loupe magnifies the area under the active handle.
+/// The static default seed is replaced by lane auto-detect in task #4.
+struct CalibrationView: View {
+    let clipURL: URL
+    var onBack: () -> Void
+    var onConfirm: (LaneCorners) -> Void
+
+    @State private var frame: UIImage?
+    @State private var loadFailed = false
+    @State private var corners: LaneCorners = .defaultGuess
+    @State private var activeCorner: LaneCorners.Corner?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let frame {
+                GeometryReader { geo in
+                    let rect = fittedRect(imageSize: frame.size, in: geo.size)
+                    ZStack {
+                        Image(uiImage: frame)
+                            .resizable()
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+
+                        let outline = LaneCorners.Corner.allCases.map { viewPoint(corners[$0], in: rect) }
+                        QuadShape(points: outline)
+                            .fill(Color.accentColor.opacity(0.12))
+                        QuadShape(points: outline)
+                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 5]))
+
+                        ForEach(LaneCorners.Corner.allCases, id: \.self) { corner in
+                            handle(for: corner, in: rect)
+                        }
+
+                        if let activeCorner {
+                            LoupeView(image: frame, normalizedPoint: corners[activeCorner], fittedRect: rect)
+                                .position(loupeCenter(for: activeCorner, in: rect))
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .coordinateSpace(name: "calibration")
+                }
+            } else if loadFailed {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 44))
+                    Text("Couldn't load a frame from the clip.")
+                        .font(.subheadline)
+                }
+                .foregroundStyle(.white)
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+
+            VStack {
+                Text("Drag the corners onto the lane — foul line at the bottom, pin deck at the top.")
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .padding(.top, 8)
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Button {
+                        onBack()
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+
+                    Button {
+                        corners = .defaultGuess
+                    } label: {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+
+                    Button {
+                        onConfirm(corners)
+                    } label: {
+                        Label("Looks Good", systemImage: "checkmark")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(frame == nil)
+                }
+                .controlSize(.large)
+                .padding()
+                .background(.black.opacity(0.6))
+            }
+        }
+        .task { await loadFrame() }
+    }
+
+    private func loadFrame() async {
+        do {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: clipURL))
+            generator.appliesPreferredTrackTransform = true
+            let (cgImage, _) = try await generator.image(at: .zero)
+            frame = UIImage(cgImage: cgImage)
+        } catch {
+            loadFailed = true
+        }
+    }
+
+    private func handle(for corner: LaneCorners.Corner, in rect: CGRect) -> some View {
+        Circle()
+            .fill(.white)
+            .frame(width: 20, height: 20)
+            .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
+            .position(viewPoint(corners[corner], in: rect))
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
+                    .onChanged { value in
+                        activeCorner = corner
+                        corners[corner] = normalizedPoint(value.location, in: rect)
+                    }
+                    .onEnded { _ in activeCorner = nil }
+            )
+    }
+
+    /// Keeps the loupe near the active handle but off the finger — above it when
+    /// there's room, below when the handle is near the top edge.
+    private func loupeCenter(for corner: LaneCorners.Corner, in rect: CGRect) -> CGPoint {
+        let handle = viewPoint(corners[corner], in: rect)
+        let offset: CGFloat = handle.y - rect.minY > 160 ? -110 : 110
+        return CGPoint(
+            x: min(max(handle.x, rect.minX + 70), rect.maxX - 70),
+            y: handle.y + offset
+        )
+    }
+
+    private func fittedRect(imageSize: CGSize, in container: CGSize) -> CGRect {
+        let scale = min(container.width / imageSize.width, container.height / imageSize.height)
+        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(
+            x: (container.width - size.width) / 2,
+            y: (container.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func viewPoint(_ normalized: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(
+            x: rect.minX + normalized.x * rect.width,
+            y: rect.minY + normalized.y * rect.height
+        )
+    }
+
+    private func normalizedPoint(_ location: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(
+            x: min(max((location.x - rect.minX) / rect.width, 0), 1),
+            y: min(max((location.y - rect.minY) / rect.height, 0), 1)
+        )
+    }
+}
+
+private struct QuadShape: Shape {
+    var points: [CGPoint]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard let first = points.first else { return path }
+        path.move(to: first)
+        for point in points.dropFirst() {
+            path.addLine(to: point)
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Magnified view of the frame around the point being dragged, with a crosshair
+/// marking the exact corner position.
+private struct LoupeView: View {
+    let image: UIImage
+    let normalizedPoint: CGPoint
+    let fittedRect: CGRect
+
+    private let diameter: CGFloat = 130
+    private let zoom: CGFloat = 3
+
+    var body: some View {
+        Canvas { context, size in
+            context.clip(to: Path(ellipseIn: CGRect(origin: .zero, size: size)))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black))
+            let drawSize = CGSize(width: fittedRect.width * zoom, height: fittedRect.height * zoom)
+            let origin = CGPoint(
+                x: size.width / 2 - normalizedPoint.x * drawSize.width,
+                y: size.height / 2 - normalizedPoint.y * drawSize.height
+            )
+            context.draw(Image(uiImage: image), in: CGRect(origin: origin, size: drawSize))
+
+            var crosshair = Path()
+            crosshair.move(to: CGPoint(x: size.width / 2 - 12, y: size.height / 2))
+            crosshair.addLine(to: CGPoint(x: size.width / 2 + 12, y: size.height / 2))
+            crosshair.move(to: CGPoint(x: size.width / 2, y: size.height / 2 - 12))
+            crosshair.addLine(to: CGPoint(x: size.width / 2, y: size.height / 2 + 12))
+            context.stroke(crosshair, with: .color(.yellow), lineWidth: 1.5)
+        }
+        .frame(width: diameter, height: diameter)
+        .overlay(Circle().stroke(.white, lineWidth: 2))
+        .shadow(radius: 4)
+    }
+}
