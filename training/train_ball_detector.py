@@ -38,7 +38,7 @@ def _pick_device() -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train PinPoint bowling-ball YOLO")
+    parser = argparse.ArgumentParser(description="Train Trueline bowling-ball YOLO")
     parser.add_argument(
         "--data",
         type=Path,
@@ -110,7 +110,7 @@ def main() -> None:
     weights_dir = Path(save_dir) / "weights"
     print("\nDone. Typical next step:")
     print(f"  mkdir -p models && cp {weights_dir}/best.pt models/ball.pt")
-    print("Then run PinPoint — it will auto-load models/ball.pt if present.\n")
+    print("Then run Trueline — it will auto-load models/ball.pt if present.\n")
 
 
 if __name__ == "__main__":

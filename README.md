@@ -1,4 +1,4 @@
-# PinPoint
+# Trueline
 
 Computer vision on phone video: ball speed, board at arrows, breakpoint, and entry angle — from a single side-mounted camera, no extra hardware. Optional YOLO ball detection.
 
@@ -6,9 +6,9 @@ Computer vision on phone video: ball speed, board at arrows, breakpoint, and ent
 
 ## About
 
-I'm a first-year **Statistics & Machine Learning** student at **Carnegie Mellon University** and I bowled competitively in high school. I started PinPoint because of a problem I keep hitting: after a bad shot, it's genuinely hard to know whether to **move** or to **fix the release** — foul-line board, breakpoint, and shot-to-shot speed blur in memory, so adjustments stay guesswork.
+I'm a first-year **Statistics & Machine Learning** student at **Carnegie Mellon University** and I bowled competitively in high school. I started Trueline because of a problem I keep hitting: after a bad shot, it's genuinely hard to know whether to **move** or to **fix the release** — foul-line board, breakpoint, and shot-to-shot speed blur in memory, so adjustments stay guesswork.
 
-Enterprise lane systems (e.g. **Specto**) cost on the order of **$15k** installed and need hardware on the lane. Apps like **LaneTrax** prove a phone can log a shot; what I want PinPoint to become is the same **no-extra-hardware** setup, with **solid metrics on every delivery** and, down the road, **recommendations** from that data — for league bowlers, high school and college teams, and coaches who want objective feedback without Specto-level pricing.
+Enterprise lane systems (e.g. **Specto**) cost on the order of **$15k** installed and need hardware on the lane. Apps like **LaneTrax** prove a phone can log a shot; what I want Trueline to become is the same **no-extra-hardware** setup, with **solid metrics on every delivery** and, down the road, **recommendations** from that data — for league bowlers, high school and college teams, and coaches who want objective feedback without Specto-level pricing.
 
 The piece of this that excites me technically is **board-level accuracy from a side-mounted phone** over a full lane: boards are on the order of an inch wide across sixty feet, so pulling reliable line and breakpoint out of casual video is a real **CV / ML** problem — and the reason the stack looks the way it does.
 
@@ -40,8 +40,8 @@ All board/feet calculations use a **perspective homography** (`image_to_lane`) b
 
 Two OpenCV windows:
 
-1. **PinPoint** — video with foul/dot/pin lines, ball trail (drawn at the lane contact point), breakpoint marker, and HUD (speed, arrow board, breakpoint, entry angle).
-2. **PinPoint — Lane View** — top-down schematic with smoothed ball path, arrow V, breakpoint dot, and metrics.
+1. **Trueline** — video with foul/dot/pin lines, ball trail (drawn at the lane contact point), breakpoint marker, and HUD (speed, arrow board, breakpoint, entry angle).
+2. **Trueline — Lane View** — top-down schematic with smoothed ball path, arrow V, breakpoint dot, and metrics.
 
 Terminal prints a shot summary after tracking finishes.
 
@@ -56,7 +56,7 @@ Python 3.11+, OpenCV, NumPy; optional PyTorch + Ultralytics for YOLO (`training/
 ## Setup and run
 
 ```bash
-cd /path/to/pinpoint
+cd /path/to/trueline
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -72,9 +72,9 @@ python3 src/main.py
 - **`R`** reuses existing calibration; **`C`** recalibrates.
 - **`Q`** quits the preview or exits the final-frame hold.
 
-**Custom weights:** `export PINPOINT_BALL_MODEL=/path/to/other.pt` to use a checkpoint other than `models/ball.pt`.
+**Custom weights:** `export TRUELINE_BALL_MODEL=/path/to/other.pt` to use a checkpoint other than `models/ball.pt`.
 
-**Other environment variables:** `PINPOINT_DEBUG_TRACK=1` logs whether each frame past 45 ft was measurement-backed or coasting (prediction-only); `PINPOINT_LANE_MARGIN_PX` overrides how far outside the calibrated lane polygon a YOLO detection center may sit (default 22 px).
+**Other environment variables:** `TRUELINE_DEBUG_TRACK=1` logs whether each frame past 45 ft was measurement-backed or coasting (prediction-only); `TRUELINE_LANE_MARGIN_PX` overrides how far outside the calibrated lane polygon a YOLO detection center may sit (default 22 px).
 
 ---
 

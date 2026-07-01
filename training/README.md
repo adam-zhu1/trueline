@@ -1,6 +1,6 @@
 # Training the ball detector (YOLO)
 
-Fine-tune YOLOv8 on labeled frames; PinPoint loads **`models/ball.pt`** at runtime (`src/yolo_ball.py`). Class **0** = `bowling_ball`. Labels: YOLO `cx cy w h` normalized; empty `.txt` = no ball.
+Fine-tune YOLOv8 on labeled frames; Trueline loads **`models/ball.pt`** at runtime (`src/yolo_ball.py`). Class **0** = `bowling_ball`. Labels: YOLO `cx cy w h` normalized; empty `.txt` = no ball.
 
 ---
 
@@ -35,7 +35,7 @@ camera angle; auto-labeling does not.
 ## One-time setup
 
 ```bash
-cd /path/to/pinpoint
+cd /path/to/trueline
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -139,11 +139,11 @@ needed — a reference trajectory is fitted from confident mid-lane detections):
 python3 training/eval_far_lane.py --video data/my-shot.MP4 --model runs/detect/ball/weights/best.pt
 ```
 
-Run the full tracking pipeline headless (metrics + `PINPOINT_DEBUG_TRACK`
+Run the full tracking pipeline headless (metrics + `TRUELINE_DEBUG_TRACK`
 coasting report, no GUI interaction needed):
 
 ```bash
-PINPOINT_DEBUG_TRACK=1 python3 training/eval_track.py --video data/my-shot.MP4
+TRUELINE_DEBUG_TRACK=1 python3 training/eval_track.py --video data/my-shot.MP4
 ```
 
 ---

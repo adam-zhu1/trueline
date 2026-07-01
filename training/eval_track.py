@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Run the full PinPoint tracking pipeline headless and print its console output.
+Run the full Trueline tracking pipeline headless and print its console output.
 
 Used to compare shot metrics (speed / arrows / breakpoint / entry angle) and
-PINPOINT_DEBUG_TRACK coasting behavior before vs after model or tracker changes,
+TRUELINE_DEBUG_TRACK coasting behavior before vs after model or tracker changes,
 without clicking through OpenCV windows.
 
 How: stubs out cv2.imshow/waitKey before importing ball_tracking. track_ball's
 main loop polls waitKey(1) (keep going -> -1) and its final "press Q" screen
 polls waitKey(50) (quit -> 'q'), so the stub keys off the delay argument.
 
-  PINPOINT_DEBUG_TRACK=1 python3 training/eval_track.py --video "data/....MP4"
+  TRUELINE_DEBUG_TRACK=1 python3 training/eval_track.py --video "data/....MP4"
 """
 
 from __future__ import annotations

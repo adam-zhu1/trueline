@@ -19,7 +19,7 @@ def _normalize_user_path(raw: str) -> str:
 
 
 def select_video():
-    print("\n=== PinPoint ===")
+    print("\n=== Trueline ===")
     print("Enter the full path to the video file (paste is fine; do not wrap in quotes):")
     path = _normalize_user_path(input("> "))
     if not path:

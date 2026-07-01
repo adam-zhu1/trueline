@@ -478,12 +478,12 @@ def track_ball(video_path, calibration):
         "  Each video can differ; YouTube downloads often still carry a single FPS value in the file.\n"
     )
 
-    # Optional YOLO: if models/ball.pt exists (or PINPOINT_BALL_MODEL), we skip MOG2 for candidates.
+    # Optional YOLO: if models/ball.pt exists (or TRUELINE_BALL_MODEL), we skip MOG2 for candidates.
     weights_look_here = resolved_ball_weights_path()
     yolo_detector, yolo_fail = load_yolo_ball()
     if yolo_detector is not None:
         print(
-            f"  Ball detection: YOLO ({yolo_detector.weights_path}) — PINPOINT_BALL_MODEL overrides default.\n"
+            f"  Ball detection: YOLO ({yolo_detector.weights_path}) — TRUELINE_BALL_MODEL overrides default.\n"
         )
     else:
         print("  Ball detection: classical MOG2 + Hough.")
@@ -491,7 +491,7 @@ def track_ball(video_path, calibration):
             print(
                 f"    (YOLO skipped: no file at {weights_look_here})\n"
                 "    Put trained weights there:  mkdir -p ../models && cp runs/.../best.pt ../models/ball.pt\n"
-                "    Or: export PINPOINT_BALL_MODEL=/path/to/best.pt\n"
+                "    Or: export TRUELINE_BALL_MODEL=/path/to/best.pt\n"
                 "    Needs: pip install -r ../training/requirements-training.txt\n"
             )
         elif yolo_fail == "import_torch":
@@ -571,7 +571,7 @@ def track_ball(video_path, calibration):
                 entry_angle=entry_angle,
             )
             last_display = frame.copy()
-            cv2.imshow("PinPoint", frame)
+            cv2.imshow("Trueline", frame)
             lane_view = draw_lane_view(
                 ball_positions, calibration,
                 breakpoint=breakpoint,
@@ -581,7 +581,7 @@ def track_ball(video_path, calibration):
                 arrow_board=arrow_board,
                 entry_angle=entry_angle,
             )
-            cv2.imshow("PinPoint — Lane View", lane_view)
+            cv2.imshow("Trueline — Lane View", lane_view)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
             continue
@@ -712,7 +712,7 @@ def track_ball(video_path, calibration):
                 draw_circle = (sx, sy, last_r)
 
         if sx is not None:
-            if os.environ.get("PINPOINT_DEBUG_TRACK"):
+            if os.environ.get("TRUELINE_DEBUG_TRACK"):
                 _, ft_dbg = image_to_lane(sx, sy + last_r, calibration)
                 if ft_dbg is not None and ft_dbg > 45.0:
                     mstat = "yes" if measurement is not None else "COASTING"
@@ -774,7 +774,7 @@ def track_ball(video_path, calibration):
         )
 
         last_display = frame.copy()
-        cv2.imshow("PinPoint", frame)
+        cv2.imshow("Trueline", frame)
 
         lane_view = draw_lane_view(
             ball_positions, calibration,
@@ -785,7 +785,7 @@ def track_ball(video_path, calibration):
             arrow_board=arrow_board,
             entry_angle=entry_angle,
         )
-        cv2.imshow("PinPoint — Lane View", lane_view)
+        cv2.imshow("Trueline — Lane View", lane_view)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
@@ -914,8 +914,8 @@ def track_ball(video_path, calibration):
         )
         print("Final frame on screen — press Q to exit.")
         while True:
-            cv2.imshow("PinPoint", last_display)
-            cv2.imshow("PinPoint — Lane View", final_lane_view)
+            cv2.imshow("Trueline", last_display)
+            cv2.imshow("Trueline — Lane View", final_lane_view)
             if cv2.waitKey(50) & 0xFF == ord("q"):
                 break
 
@@ -1079,7 +1079,7 @@ def draw_lane_view(
     sx = S(16)
     sy = S(40)
 
-    draw_text(canvas, sx, sy, "PINPOINT", 0.55 * scale, TEXT_VALUE, TH(1), FONT_VALUE)
+    draw_text(canvas, sx, sy, "TRUELINE", 0.55 * scale, TEXT_VALUE, TH(1), FONT_VALUE)
     sy += S(16)
     cv2.line(canvas, (sx, sy), (sidebar_w - S(16), sy), ACCENT, TH(2), cv2.LINE_AA)
     sy += S(36)

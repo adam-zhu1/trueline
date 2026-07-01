@@ -1,4 +1,4 @@
-# PinPoint bowling ball dataset (YOLO)
+# Trueline bowling ball dataset (YOLO)
 # No `path:` key — Ultralytics uses this file's folder as the dataset root
 # (train/val paths resolve relative to this file regardless of working directory).
 train: images/train
