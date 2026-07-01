@@ -31,6 +31,5 @@ __pycache__/
 ios/**/xcuserdata/
 ios/**/*.xcuserstate
 ios/**/DerivedData/
-ios/DerivedData/
-ios/build/
+ios/**/build/
 *.xcuserstate
