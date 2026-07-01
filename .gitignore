@@ -26,3 +26,11 @@ dataset/ball_yolo/labels/**/*.cache
 __pycache__/
 *.pyc
 .DS_Store
+
+# Xcode / iOS (app lives under ios/)
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/**/DerivedData/
+ios/DerivedData/
+ios/build/
+*.xcuserstate
