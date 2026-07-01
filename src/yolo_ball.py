@@ -9,9 +9,9 @@ The classical pipeline (MOG2 + Hough + blobs) answers "what moved?" — not
 
 How it plugs in
 ---------------
-If a weights file exists at the default path (or PINPOINT_BALL_MODEL), `ball_tracking.track_ball`
+If a weights file exists at the default path (or TRUELINE_BALL_MODEL), `ball_tracking.track_ball`
 uses this module to produce candidate (x, y, r) each frame and skips background
-subtraction. If the file is missing or Ultralytics is not installed, PinPoint
+subtraction. If the file is missing or Ultralytics is not installed, Trueline
 falls back to the classical pipeline — so the app still runs without optional weights.
 
 Training uses a **single-class** model (class 0 = bowling_ball). Bounding boxes are
@@ -129,11 +129,11 @@ def resolved_ball_weights_path(weights_path: Optional[Path] = None) -> Path:
     """
     Which weights file we would try to load (may not exist).
 
-    Order: explicit argument, env PINPOINT_BALL_MODEL, then models/ball.pt.
+    Order: explicit argument, env TRUELINE_BALL_MODEL, then models/ball.pt.
     """
     if weights_path is not None:
         return Path(weights_path)
-    env = os.environ.get("PINPOINT_BALL_MODEL", "").strip()
+    env = os.environ.get("TRUELINE_BALL_MODEL", "").strip()
     if env:
         return Path(env)
     return default_model_path()

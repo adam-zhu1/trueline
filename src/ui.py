@@ -1,5 +1,5 @@
 """
-Shared drawing primitives and color palette for PinPoint overlays.
+Shared drawing primitives and color palette for Trueline overlays.
 
 All colors are BGR tuples (OpenCV convention).
 """

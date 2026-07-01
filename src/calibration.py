@@ -13,7 +13,7 @@ FOUL_LINE_DISTANCE_FEET = 0.0
 
 # Clicks are never pixel-perfect; the true ball path can sit slightly outside a strict
 # quadrilateral in image space. YOLO gate: accept centers up to this far *outside* the
-# lane poly (signed distance, pixels). Override: PINPOINT_LANE_MARGIN_PX
+# lane poly (signed distance, pixels). Override: TRUELINE_LANE_MARGIN_PX
 LANE_DETECTION_MARGIN_PX = 22.0
 
 # MOG2 path: expand the filled lane mask a few pixels so edge shots are not clipped.
@@ -39,7 +39,7 @@ def detection_center_in_lane(cx: float, cy: float, calibration: dict) -> bool:
     if d is None:
         return False
     try:
-        margin = float(os.environ.get("PINPOINT_LANE_MARGIN_PX", str(LANE_DETECTION_MARGIN_PX)))
+        margin = float(os.environ.get("TRUELINE_LANE_MARGIN_PX", str(LANE_DETECTION_MARGIN_PX)))
     except ValueError:
         margin = LANE_DETECTION_MARGIN_PX
     return d >= -margin
@@ -128,11 +128,11 @@ def calibrate(video_path, save_path):
 
         temp = display.copy()
         draw_instructions(temp, instruction, color)
-        cv2.imshow("PinPoint Calibration", temp)
-        cv2.setMouseCallback("PinPoint Calibration", click)
+        cv2.imshow("Trueline Calibration", temp)
+        cv2.setMouseCallback("Trueline Calibration", click)
 
         while "x" not in result:
-            cv2.imshow("PinPoint Calibration", display)
+            cv2.imshow("Trueline Calibration", display)
             draw_instructions(display, instruction, color)
             if cv2.waitKey(50) & 0xFF == ord("q"):
                 return None
@@ -237,7 +237,7 @@ def calibrate(video_path, save_path):
         "  S = save calibration   Q = cancel (no file written)\n"
     )
     while True:
-        cv2.imshow("PinPoint Calibration", preview)
+        cv2.imshow("Trueline Calibration", preview)
         k = cv2.waitKey(0) & 0xFF
         if k == ord("s"):
             break
