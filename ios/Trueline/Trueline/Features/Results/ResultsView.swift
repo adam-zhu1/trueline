@@ -8,6 +8,7 @@ import SwiftUI
 struct ResultsView: View {
     let clipURL: URL
     let result: ShotResult
+    var session: BowlingSession?
     var onDone: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -17,18 +18,20 @@ struct ResultsView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     if result.videoDisplaySize.height >= result.videoDisplaySize.width {
-                        // Portrait clip: video and lane view side by side.
-                        HStack(alignment: .top, spacing: 12) {
+                        // Portrait clip: video dominant, thin lane view beside it,
+                        // heights matched.
+                        HStack(spacing: 12) {
                             VideoPathView(clipURL: clipURL, result: result)
                             LaneViewCanvas(result: result, compact: true)
-                                .frame(width: 128)
+                                .frame(width: 104)
                         }
-                        .frame(height: 420)
+                        .frame(height: 480)
+                        .frame(maxWidth: .infinity)
                     } else {
-                        // Landscape clip: video on top, lane view below.
+                        // Landscape clip: no room beside it — stack instead.
                         VideoPathView(clipURL: clipURL, result: result)
                         LaneViewCanvas(result: result, compact: true)
-                            .frame(height: 340)
+                            .frame(height: 320)
                     }
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -36,6 +39,13 @@ struct ResultsView: View {
                         MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
                         MetricTile(title: "Breakpoint", value: format(result.breakpointBoard), unit: "board")
                         MetricTile(title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°")
+                    }
+
+                    if result.speedMph == nil {
+                        Text("Speed needs the release in frame — start recording before the throw and keep the foul line visible.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
 
                     if result.trackedFrames < 10 {
@@ -55,7 +65,9 @@ struct ResultsView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        modelContext.insert(SavedShot(result: result))
+                        let shot = SavedShot(result: result)
+                        shot.session = session
+                        modelContext.insert(shot)
                         onDone()
                     }
                     .bold()

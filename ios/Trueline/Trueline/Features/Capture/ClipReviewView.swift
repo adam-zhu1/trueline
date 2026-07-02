@@ -6,6 +6,9 @@ struct ClipReviewView: View {
     let clipURL: URL
     var onRetake: () -> Void
     var onUse: () -> Void
+    /// Present when session corners exist; lets the user redo calibration
+    /// after moving the phone.
+    var onRecalibrate: (() -> Void)?
 
     @State private var player: AVPlayer?
 
@@ -19,7 +22,16 @@ struct ClipReviewView: View {
                 }
 
                 VStack(spacing: 12) {
-                    Text("Next: mark the lane corners so the ball path can be measured.")
+                    if onRecalibrate != nil {
+                        Button("Phone moved? Recalibrate corners") {
+                            onRecalibrate?()
+                        }
+                        .font(.footnote)
+                        .tint(Color.brandMint)
+                    }
+                    Text(onRecalibrate != nil
+                        ? "Corners from this session will be reused."
+                        : "Next: mark the lane corners so the ball path can be measured.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

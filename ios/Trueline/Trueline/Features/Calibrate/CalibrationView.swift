@@ -126,6 +126,8 @@ struct CalibrationView: View {
                         onConfirm(corners)
                     } label: {
                         Label("Looks Good", systemImage: "checkmark")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)

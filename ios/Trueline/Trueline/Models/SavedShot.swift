@@ -14,6 +14,7 @@ final class SavedShot {
     var entryAngleDegrees: Double?
     var pathBoards: [Double]
     var pathFeet: [Double]
+    var session: BowlingSession?
 
     init(date: Date = .now, result: ShotResult) {
         self.date = date
