@@ -40,6 +40,11 @@ struct ResultsView: View {
                         MetricTile(title: "Entry Board", value: format(result.entryBoard), unit: "board")
                         MetricTile(title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°")
                         MetricTile(title: "Breakpoint", value: format(result.breakpointBoard), unit: "board")
+                        MetricTile(
+                            title: "Breakpoint Distance",
+                            value: result.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
+                            unit: "ft"
+                        )
                     }
 
                     if result.speedMph == nil {

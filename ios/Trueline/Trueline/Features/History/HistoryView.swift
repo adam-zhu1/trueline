@@ -98,6 +98,11 @@ struct ShotDetailView: View {
                     MetricTile(title: "Entry Board", value: format(shot.entryBoard), unit: "board")
                     MetricTile(title: "Entry Angle", value: format(shot.entryAngleDegrees), unit: "°")
                     MetricTile(title: "Breakpoint", value: format(shot.breakpointBoard), unit: "board")
+                    MetricTile(
+                        title: "Breakpoint Distance",
+                        value: shot.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
+                        unit: "ft"
+                    )
                 }
             }
             .padding()
