@@ -15,6 +15,8 @@ struct LaneGeometry {
     static let laneLengthFeet = 60.0
     static let laneWidthInches = 41.5
     static let dotDistanceFeet = 6.0
+    /// Where Specto reads entry board — just ahead of the head pin.
+    static let entryBoardFeet = 59.5
     /// Detections may sit slightly outside an imperfect quad; accept centers up
     /// to this far outside the lane polygon (pixels, matches Python).
     static let laneMarginPx = 22.0

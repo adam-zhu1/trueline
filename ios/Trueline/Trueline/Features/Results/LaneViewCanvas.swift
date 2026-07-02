@@ -237,6 +237,7 @@ struct LaneViewCanvas: View {
         breakpointBoard: 6.8,
         breakpointFeet: 42,
         entryAngleDegrees: 4.1,
+        entryBoard: 17.3,
         path: stride(from: 0.0, through: 58.0, by: 1.0).map { ft in
             let t = ft / 58.0
             return (board: 18 - 11 * t + 8 * t * t, feet: ft)
