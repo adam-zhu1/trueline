@@ -16,7 +16,7 @@ struct BowlHomeView: View {
                 Image(systemName: "figure.bowling")
                     .font(.system(size: 72))
                     .foregroundStyle(.tint)
-                Text("Trueline")
+                Text("TrueLine")
                     .font(.largeTitle.bold())
                 Text("Record a throw to get your line, speed, breakpoint, and entry angle.")
                     .font(.subheadline)
