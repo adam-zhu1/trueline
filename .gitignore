@@ -1,7 +1,8 @@
-# ignore video and output files
-data/
-output/
-runs/
+# ignore video and output files (root folders only — unanchored `data/` would
+# also swallow the Data/ directory inside .mlpackage bundles)
+/data/
+/output/
+/runs/
 
 # large learned weights (copy best.pt to models/ball.pt locally)
 models/*.pt
