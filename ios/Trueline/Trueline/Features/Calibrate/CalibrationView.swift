@@ -13,6 +13,8 @@ struct CalibrationView: View {
     @State private var frame: UIImage?
     @State private var loadFailed = false
     @State private var corners: LaneCorners = .defaultGuess
+    @State private var proposal: LaneCorners?
+    @State private var isDetecting = true
     @State private var activeCorner: LaneCorners.Corner?
 
     var body: some View {
@@ -60,7 +62,23 @@ struct CalibrationView: View {
             }
 
             VStack {
-                Text("Drag the corners onto the lane — foul line at the bottom, pin deck at the top.")
+                if isDetecting {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                        Text("Finding the lane…")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .padding(.top, 8)
+                } else {
+                    Text(proposal != nil
+                        ? "We found the lane — drag the corners to fine-tune if needed."
+                        : "Drag the corners onto the lane — foul line at the bottom, pin deck at the top.")
                     .font(.footnote)
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
@@ -68,6 +86,7 @@ struct CalibrationView: View {
                     .padding(.vertical, 6)
                     .background(.black.opacity(0.55), in: Capsule())
                     .padding(.top, 8)
+                }
 
                 Spacer()
 
@@ -82,7 +101,7 @@ struct CalibrationView: View {
                     .tint(.white)
 
                     Button {
-                        corners = .defaultGuess
+                        corners = proposal ?? .defaultGuess
                     } label: {
                         Label("Reset", systemImage: "arrow.counterclockwise")
                             .frame(maxWidth: .infinity)
@@ -113,8 +132,18 @@ struct CalibrationView: View {
             generator.appliesPreferredTrackTransform = true
             let (cgImage, _) = try await generator.image(at: .zero)
             frame = UIImage(cgImage: cgImage)
+            // Propose corners via lane auto-detect; the user adjusts from there.
+            let detected = await Task.detached(priority: .userInitiated) {
+                LaneAutoDetector.detectLaneCorners(in: cgImage)
+            }.value
+            if let detected {
+                proposal = detected
+                corners = detected
+            }
+            isDetecting = false
         } catch {
             loadFailed = true
+            isDetecting = false
         }
     }
 

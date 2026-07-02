@@ -27,6 +27,10 @@ def _candidate_lines(frame):
         return []
     lines = []
     for x1, y1, x2, y2 in segs[:, 0]:
+        # Video borders produce strong artificial vertical edges; a segment
+        # hugging the frame edge is never a gutter.
+        if (x1 <= 3 and x2 <= 3) or (x1 >= w - 4 and x2 >= w - 4):
+            continue
         dy = y2 - y1
         if abs(dy) < 1:
             continue
