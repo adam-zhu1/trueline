@@ -22,17 +22,24 @@ and exact numeric parity is not expected.
 
 | Clip | Speed Py/iOS (mph) | Arrows | Breakpoint | Entry (°) |
 |------|--------------------|--------|------------|-----------|
-| test 06-15 (held out) | -- / -- | 14.8 / 14.3 | 6.9 / 6.5 | 13.9 / 8.3 |
-| 06-10 15-50 | 11.2 / 11.4 | 14.9 / 14.0 | 12.3 / 12.2 | 9.8 / 8.7 |
+| test 06-15 (held out) | -- / 18.2 | 14.8 / 14.3 | 6.9 / 6.5 | 13.9 / 8.3 |
+| 06-10 15-50 | 11.2 / 11.3 | 14.9 / 14.0 | 12.3 / 12.2 | 9.8 / 8.7 |
 | 06-10 15-52 | -- / -- | 35.5 / 32.1 | 29.5 / 28.8 | -0.2 / -1.2 |
-| 06-10 15-53 | -- / -- | 15.0 / 14.3 | 6.7 / 6.4 | -- / 8.1 |
-| 03-30 (stale calibration) | -- / 23.8 | 28.0 / 29.6 | 25.3 / 26.2 | 2.3 / 2.9 |
+| 06-10 15-53 | -- / 18.6 | 15.0 / 14.3 | 6.7 / 6.4 | -- / 8.1 |
+| 03-30 (stale calibration) | -- / 27.4 | 28.0 / 29.6 | 25.3 / 26.2 | 2.3 / 2.9 |
 
 **Conclusions**
 
 - Arrows / breakpoint: within ~1 board everywhere; primary metrics are at parity.
-- Speed: within 2% where both compute. Crossings must be timed on the RAW feet
-  series (smoothing first shifted speed by ~10%).
+- Speed (2026-07-02 rework): iOS times the earliest 6 ft the track covers
+  instead of requiring foul-line → dot-row coverage, so lofted releases and
+  late track locks still get a launch speed; the window must start ≤ 15 ft
+  (deeper reads aren't launch speeds — the ball sheds 2–3 mph down-lane).
+  Where the Python foul→dot number exists (15-50) the two agree within 1%;
+  clips the old gate rejected now read plausible league speeds (18.2, 18.6).
+  15-52's track never covers a front-lane 6 ft span — correctly refused by
+  both pipelines. 03-30 remains garbage-in-garbage-out on its stale
+  calibration (27.4, was 23.8 under the old gate).
 - Entry angle is the tail-slope of the track and is the most
   detector-sensitive metric: ±1.2° on most clips but 13.9 vs 8.3 on the test
   clip, and each pipeline computes it once where the other can't. Re-baseline
@@ -42,3 +49,12 @@ and exact numeric parity is not expected.
   passes both timing marks — not a guard bug, just a different (equally
   miscalibrated) track.
 - Runtime: full clip in ~1.2 s at -O on M4 Max.
+
+## Entry board (2026-07-02, iOS-only — no Python counterpart)
+
+Board at 59.5 ft, projected from the entry-angle tail slope because the track
+stops ~2% short of the pins; requires the track to reach 50 ft. On the
+matched-calibration clips: 20.2 (test 06-15), -- (15-50, track ends early —
+guard working), 28.5 (15-52, the garbage-boards clip, consistent with its
+track), 19.4 (15-53). Inherits entry angle's detector sensitivity — re-baseline
+against known pocket hits on real in-app footage before trusting absolutes.

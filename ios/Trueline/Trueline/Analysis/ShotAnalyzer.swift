@@ -11,6 +11,8 @@ struct ShotResult {
     var breakpointBoard: Double?
     var breakpointFeet: Double?
     var entryAngleDegrees: Double?
+    /// Board at 59.5 ft (Specto's entry board; 17.5 is flush pocket).
+    var entryBoard: Double?
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
     /// Smoothed ball-contact points in display-oriented normalized coordinates,
@@ -235,8 +237,8 @@ struct ShotAnalyzer {
 
         var result = ShotResult(
             speedMph: nil, arrowBoard: nil, breakpointBoard: nil,
-            breakpointFeet: nil, entryAngleDegrees: nil, path: [],
-            videoPath: [], videoDisplaySize: displaySize,
+            breakpointFeet: nil, entryAngleDegrees: nil, entryBoard: nil,
+            path: [], videoPath: [], videoDisplaySize: displaySize,
             trackedFrames: positions.count
         )
         guard boards.count >= 3 else { return result }
@@ -264,20 +266,25 @@ struct ShotAnalyzer {
         let sfPath = savgolSmooth(pf, window: 41)
         result.path = zip(sbPath, sfPath).map { (board: $0, feet: $1) }
 
-        // Speed: regulation 6 ft between the foul line and dot row, timed from
-        // interpolated crossings of the feet series (replaces the prototype's
-        // clicked-line pixel tests). Like the prototype (30 px ≈ 0.7 ft there),
-        // the track must actually pass near BOTH marks — a partial track that
-        // starts mid-approach or ends early must not produce a speed.
-        // Crossings run on the RAW feet series — the prototype's line tests use
-        // raw positions, and smoothing first shifts the timing measurably.
-        let crossingTolFt = 0.7
-        if feet.min()! <= crossingTolFt,
-           feet.map({ abs($0 - LaneGeometry.dotDistanceFeet) }).min()! <= crossingTolFt,
-           let t0 = crossingFrame(feet: feet, frames: frames, target: 0.05, requireStartBelow: 0.5),
-           let t6 = crossingFrame(feet: feet, frames: frames, target: LaneGeometry.dotDistanceFeet, requireStartBelow: 3.0),
-           t6 > t0 {
-            let seconds = (t6 - t0) / fps
+        // Launch speed: the earliest 6 ft the track covers, timed from
+        // interpolated crossings of the feet series. The prototype required
+        // foul-line → dot-row specifically, but a lofted release or a late
+        // track lock never crosses the first mark and speed came out empty —
+        // the homography times any span equally well, so anchor the window
+        // where tracking actually starts. It must still begin in the front
+        // part of the lane (≤ 15 ft): the ball sheds 2–3 mph down-lane, and a
+        // mid-lane reading isn't a launch speed. A track starting at the foul
+        // line reduces to the prototype's foul → dot measurement.
+        // Crossings run on the RAW feet series — the prototype's line tests
+        // use raw positions, and smoothing first shifts the timing measurably.
+        let settleSkip = min(3, feet.count - 1)
+        let f0 = max(feet[settleSkip], 0.05)
+        let f1 = f0 + LaneGeometry.dotDistanceFeet
+        if f0 <= 15.0,
+           let t0 = crossingFrame(feet: feet, frames: frames, target: f0, requireStartBelow: f0 + 0.5),
+           let t1 = crossingFrame(feet: feet, frames: frames, target: f1, requireStartBelow: f0 + 0.5),
+           t1 > t0 {
+            let seconds = (t1 - t0) / fps
             if seconds > 0 {
                 result.speedMph = (LaneGeometry.dotDistanceFeet / seconds) * 0.681818
             }
@@ -328,6 +335,16 @@ struct ShotAnalyzer {
                         let dfIn = df * 12.0
                         let angle = atan2(dbIn, dfIn) * 180 / .pi
                         result.entryAngleDegrees = (angle * 10).rounded() / 10
+                        // Entry board: the track stops ~2% short of the pins,
+                        // so project the same tail slope out to 59.5 ft. Deep
+                        // tracks only — a short one would extrapolate half the
+                        // lane.
+                        let lastB = smooth[smooth.count - 1]
+                        let lastF = sfWin[sfWin.count - 1]
+                        if lastF >= 50 {
+                            let projected = lastB + (db / df) * (LaneGeometry.entryBoardFeet - lastF)
+                            result.entryBoard = (min(max(projected, 1), 39) * 10).rounded() / 10
+                        }
                     }
                 }
             } else if let minIdx = wb.indices.min(by: { wb[$0] < wb[$1] }) {

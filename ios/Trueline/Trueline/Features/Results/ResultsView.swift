@@ -37,12 +37,24 @@ struct ResultsView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         MetricTile(title: "Speed", value: format(result.speedMph), unit: "mph")
                         MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
+                        MetricTile(
+                            title: "Entry Board", value: format(result.entryBoard), unit: "board",
+                            numeric: result.entryBoard, ideal: 17...18
+                        )
+                        MetricTile(
+                            title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°",
+                            numeric: result.entryAngleDegrees, ideal: 4...6
+                        )
                         MetricTile(title: "Breakpoint", value: format(result.breakpointBoard), unit: "board")
-                        MetricTile(title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°")
+                        MetricTile(
+                            title: "Breakpoint Distance",
+                            value: result.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
+                            unit: "ft"
+                        )
                     }
 
                     if result.speedMph == nil {
-                        Text("Speed needs the release in frame — start recording before the throw and keep the foul line visible.")
+                        Text("Speed needs the ball tracked through the front of the lane — start recording before the throw.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
