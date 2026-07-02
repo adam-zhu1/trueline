@@ -16,8 +16,6 @@ struct RecordView: View {
             case .previewing:
                 CameraPreview(session: camera.session)
                     .ignoresSafeArea()
-                LaneFramingGuide()
-                    .ignoresSafeArea()
             case .denied:
                 statusMessage(
                     icon: "video.slash",
@@ -70,7 +68,7 @@ struct RecordView: View {
                 if camera.status == .previewing {
                     VStack(spacing: 16) {
                         if !camera.isRecording {
-                            Text("Line up the lane inside the guide, then record and bowl.")
+                            Text("Aim the camera down the lane, record, and bowl.")
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.8))
                                 .padding(.horizontal, 12)
@@ -111,27 +109,6 @@ struct RecordView: View {
         }
         .foregroundStyle(.white)
         .padding(32)
-    }
-}
-
-/// Dashed trapezoid hinting where the lane should sit in frame — narrower at the
-/// top to match the perspective of a behind-the-approach, down-lane view.
-private struct LaneFramingGuide: View {
-    var body: some View {
-        Canvas { context, size in
-            var path = Path()
-            path.move(to: CGPoint(x: size.width * 0.15, y: size.height * 0.95))
-            path.addLine(to: CGPoint(x: size.width * 0.38, y: size.height * 0.35))
-            path.addLine(to: CGPoint(x: size.width * 0.62, y: size.height * 0.35))
-            path.addLine(to: CGPoint(x: size.width * 0.85, y: size.height * 0.95))
-            path.closeSubpath()
-            context.stroke(
-                path,
-                with: .color(.white.opacity(0.7)),
-                style: StrokeStyle(lineWidth: 2, dash: [8, 6])
-            )
-        }
-        .allowsHitTesting(false)
     }
 }
 

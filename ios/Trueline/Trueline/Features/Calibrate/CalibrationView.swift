@@ -18,50 +18,10 @@ struct CalibrationView: View {
     @State private var activeCorner: LaneCorners.Corner?
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            if let frame {
-                GeometryReader { geo in
-                    let rect = fittedRect(imageSize: frame.size, in: geo.size)
-                    ZStack {
-                        Image(uiImage: frame)
-                            .resizable()
-                            .frame(width: rect.width, height: rect.height)
-                            .position(x: rect.midX, y: rect.midY)
-
-                        let outline = LaneCorners.Corner.allCases.map { viewPoint(corners[$0], in: rect) }
-                        QuadShape(points: outline)
-                            .fill(Color.accentColor.opacity(0.12))
-                        QuadShape(points: outline)
-                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 5]))
-
-                        ForEach(LaneCorners.Corner.allCases, id: \.self) { corner in
-                            handle(for: corner, in: rect)
-                        }
-
-                        if let activeCorner {
-                            LoupeView(image: frame, normalizedPoint: corners[activeCorner], fittedRect: rect)
-                                .position(loupeCenter(for: activeCorner, in: rect))
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .coordinateSpace(name: "calibration")
-                }
-            } else if loadFailed {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 44))
-                    Text("Couldn't load a frame from the clip.")
-                        .font(.subheadline)
-                }
-                .foregroundStyle(.white)
-            } else {
-                ProgressView()
-                    .tint(.white)
-            }
-
-            VStack {
+        // Hint, image, and buttons stack vertically so the controls never cover
+        // the corner handles (near corners sit at the bottom of the frame).
+        VStack(spacing: 0) {
+            Group {
                 if isDetecting {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -87,10 +47,57 @@ struct CalibrationView: View {
                     .background(.black.opacity(0.55), in: Capsule())
                     .padding(.top, 8)
                 }
+            }
+            .frame(minHeight: 44)
 
-                Spacer()
+            Group {
+                if let frame {
+                    GeometryReader { geo in
+                        let rect = fittedRect(imageSize: frame.size, in: geo.size)
+                        ZStack {
+                            Image(uiImage: frame)
+                                .resizable()
+                                .frame(width: rect.width, height: rect.height)
+                                .position(x: rect.midX, y: rect.midY)
 
-                HStack(spacing: 12) {
+                            let outline = LaneCorners.Corner.allCases.map { viewPoint(corners[$0], in: rect) }
+                            QuadShape(points: outline)
+                                .fill(Color.accentColor.opacity(0.12))
+                            QuadShape(points: outline)
+                                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 5]))
+
+                            ForEach(LaneCorners.Corner.allCases, id: \.self) { corner in
+                                handle(for: corner, in: rect)
+                            }
+
+                            if let activeCorner {
+                                LoupeView(image: frame, normalizedPoint: corners[activeCorner], fittedRect: rect)
+                                    .position(loupeCenter(for: activeCorner, in: rect))
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                        .coordinateSpace(name: "calibration")
+                    }
+                    // Breathing room so edge handles stay under the finger, not
+                    // clipped against the hint or button rows.
+                    .padding(.vertical, 24)
+                } else if loadFailed {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 44))
+                        Text("Couldn't load a frame from the clip.")
+                            .font(.subheadline)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .foregroundStyle(.white)
+                } else {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+
+            HStack(spacing: 12) {
                     Button {
                         onBack()
                     } label: {
@@ -117,12 +124,11 @@ struct CalibrationView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(frame == nil)
-                }
-                .controlSize(.large)
-                .padding()
-                .background(.black.opacity(0.6))
             }
+            .controlSize(.large)
+            .padding()
         }
+        .background(Color.black.ignoresSafeArea())
         .task { await loadFrame() }
     }
 
