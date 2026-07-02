@@ -25,12 +25,19 @@ struct CaptureFlowView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var camera = CameraModel()
     @State private var step: Step
+    /// Corners from the first calibration of this session; later throws reuse
+    /// them (the phone doesn't move between throws).
+    @State private var sessionCorners: LaneCorners?
+    @State private var session: BowlingSession?
+    private let isImported: Bool
 
     /// Pass an imported clip to skip recording and start at review.
     init(importedClipURL: URL? = nil) {
         _step = State(initialValue: importedClipURL.map(Step.review) ?? .record)
+        isImported = importedClipURL != nil
     }
 
     var body: some View {
@@ -49,6 +56,13 @@ struct CaptureFlowView: View {
                         step = .record
                     },
                     onUse: {
+                        if let corners = sessionCorners {
+                            step = .analyze(clipURL, corners)
+                        } else {
+                            step = .calibrate(clipURL)
+                        }
+                    },
+                    onRecalibrate: sessionCorners == nil ? nil : {
                         step = .calibrate(clipURL)
                     }
                 )
@@ -59,6 +73,7 @@ struct CaptureFlowView: View {
                         step = .review(clipURL)
                     },
                     onConfirm: { corners in
+                        sessionCorners = corners
                         step = .analyze(clipURL, corners)
                     }
                 )
@@ -76,9 +91,15 @@ struct CaptureFlowView: View {
                     }
                 )
             case .results(let clipURL, let result):
-                ResultsView(clipURL: clipURL, result: result) {
-                    camera.stop()
-                    dismiss()
+                ResultsView(clipURL: clipURL, result: result, session: liveSession()) {
+                    if isImported {
+                        camera.stop()
+                        dismiss()
+                    } else {
+                        // Back to record for the next throw of this session.
+                        camera.discardClip()
+                        step = .record
+                    }
                 }
             case .trackingFailed(let clipURL):
                 TrackingFailedView(
@@ -93,6 +114,17 @@ struct CaptureFlowView: View {
         .onChange(of: camera.finishedClipURL) { _, clipURL in
             if let clipURL { step = .review(clipURL) }
         }
+    }
+
+    /// The session shots get saved into — created lazily, only for live
+    /// recording flows (imported one-off clips stay sessionless).
+    private func liveSession() -> BowlingSession? {
+        if isImported { return nil }
+        if let session { return session }
+        let new = BowlingSession()
+        modelContext.insert(new)
+        session = new
+        return new
     }
 }
 

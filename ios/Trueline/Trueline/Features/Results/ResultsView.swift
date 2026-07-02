@@ -8,6 +8,7 @@ import SwiftUI
 struct ResultsView: View {
     let clipURL: URL
     let result: ShotResult
+    var session: BowlingSession?
     var onDone: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -64,7 +65,9 @@ struct ResultsView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        modelContext.insert(SavedShot(result: result))
+                        let shot = SavedShot(result: result)
+                        shot.session = session
+                        modelContext.insert(shot)
                         onDone()
                     }
                     .bold()

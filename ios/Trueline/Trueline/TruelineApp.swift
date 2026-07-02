@@ -43,7 +43,7 @@ private struct DemoAnalysisFlow: View {
             if failed {
                 Text("Demo failed").foregroundStyle(.red)
             } else if let result {
-                ResultsView(clipURL: clipURL, result: result) {}
+                ResultsView(clipURL: clipURL, result: result, session: nil) {}
             } else if let corners {
                 AnalysisView(
                     clipURL: clipURL,

@@ -17,14 +17,18 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        ForEach(shots) { shot in
-                            NavigationLink(value: shot.persistentModelID) {
-                                row(for: shot)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for offset in offsets {
-                                modelContext.delete(shots[offset])
+                        ForEach(groupedShots, id: \.title) { group in
+                            Section(group.title) {
+                                ForEach(group.shots) { shot in
+                                    NavigationLink(value: shot.persistentModelID) {
+                                        row(for: shot)
+                                    }
+                                }
+                                .onDelete { offsets in
+                                    for offset in offsets {
+                                        modelContext.delete(group.shots[offset])
+                                    }
+                                }
                             }
                         }
                     }
@@ -37,6 +41,22 @@ struct HistoryView: View {
                 }
             }
         }
+    }
+
+    /// Shots grouped by session (newest session first); imported one-offs
+    /// fall into a "Single shots" group.
+    private var groupedShots: [(title: String, shots: [SavedShot])] {
+        let bySession = Dictionary(grouping: shots) { $0.session?.persistentModelID }
+        var groups: [(date: Date, title: String, shots: [SavedShot])] = []
+        for (_, group) in bySession {
+            if let session = group.first?.session {
+                let title = "Session — \(session.date.formatted(date: .abbreviated, time: .shortened)) (\(group.count))"
+                groups.append((session.date, title, group))
+            } else {
+                groups.append((group.first?.date ?? .distantPast, "Single shots", group))
+            }
+        }
+        return groups.sorted { $0.date > $1.date }.map { ($0.title, $0.shots) }
     }
 
     private func row(for shot: SavedShot) -> some View {
