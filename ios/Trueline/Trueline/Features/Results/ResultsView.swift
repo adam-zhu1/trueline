@@ -1,5 +1,6 @@
 import AVKit
 import CoreML
+import SwiftData
 import SwiftUI
 
 /// Shot results: the throw video with the tracked path drawn on it, a compact
@@ -8,6 +9,8 @@ struct ResultsView: View {
     let clipURL: URL
     let result: ShotResult
     var onDone: () -> Void
+
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         NavigationStack {
@@ -47,8 +50,15 @@ struct ResultsView: View {
             .navigationTitle("Shot Result")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard") { onDone() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { onDone() }
+                    Button("Save") {
+                        modelContext.insert(SavedShot(result: result))
+                        onDone()
+                    }
+                    .bold()
                 }
             }
         }

@@ -5,11 +5,14 @@ import SwiftUI
 struct TruelineApp: App {
     var body: some Scene {
         WindowGroup {
-            if let demoURL = Self.calibrationDemoURL {
-                DemoAnalysisFlow(clipURL: demoURL)
-            } else {
-                ContentView()
+            Group {
+                if let demoURL = Self.calibrationDemoURL {
+                    DemoAnalysisFlow(clipURL: demoURL)
+                } else {
+                    ContentView()
+                }
             }
+            .modelContainer(for: SavedShot.self)
         }
     }
 
