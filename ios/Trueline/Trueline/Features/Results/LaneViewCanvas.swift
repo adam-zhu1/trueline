@@ -22,6 +22,17 @@ struct LaneViewCanvas: View {
     private let deckFill = Color(red: 35 / 255, green: 35 / 255, blue: 38 / 255)
 
     var body: some View {
+        // aspectRatio(nil, .fit) doesn't skip fitting — it fits the canvas's
+        // ideal (square) ratio, collapsing the side panel. Compact mode must
+        // fill whatever frame the caller gives it, so no modifier at all.
+        if compact {
+            laneCanvas
+        } else {
+            laneCanvas.aspectRatio(0.62, contentMode: .fit)
+        }
+    }
+
+    private var laneCanvas: some View {
         Canvas { context, size in
             let inset: CGFloat = compact ? 12 : 22
             let topExtra: CGFloat = compact ? 8 : 44
@@ -168,7 +179,6 @@ struct LaneViewCanvas: View {
         }
         .background(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .aspectRatio(compact ? nil : 0.62, contentMode: .fit)
     }
 
     private func marker(_ context: inout GraphicsContext, at pt: CGPoint, label: String, triangle: Bool) {
