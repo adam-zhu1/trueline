@@ -1,15 +1,28 @@
 import SwiftData
 import SwiftUI
 
-/// Past shots, newest first.
+/// Past sessions (each opens its consistency summary), then imported one-off
+/// shots. Newest first.
 struct HistoryView: View {
     @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
+    @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
     @Environment(\.modelContext) private var modelContext
+
+    /// A session row appears once it has a saved shot — the capture flow
+    /// creates the session object before the first Save, so discard-only
+    /// sessions exist but stay empty.
+    private var activeSessions: [BowlingSession] {
+        sessions.filter { !$0.shots.isEmpty }
+    }
+
+    private var singleShots: [SavedShot] {
+        shots.filter { $0.session == nil }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if shots.isEmpty {
+                if activeSessions.isEmpty && singleShots.isEmpty {
                     ContentUnavailableView(
                         "No shots yet",
                         systemImage: "figure.bowling",
@@ -17,16 +30,34 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        ForEach(groupedShots, id: \.title) { group in
-                            Section(group.title) {
-                                ForEach(group.shots) { shot in
+                        if !activeSessions.isEmpty {
+                            Section("Sessions") {
+                                ForEach(activeSessions) { session in
+                                    NavigationLink(value: session.persistentModelID) {
+                                        sessionRow(for: session)
+                                    }
+                                }
+                                .onDelete { offsets in
+                                    for offset in offsets {
+                                        let session = activeSessions[offset]
+                                        for shot in session.shots {
+                                            modelContext.delete(shot)
+                                        }
+                                        modelContext.delete(session)
+                                    }
+                                }
+                            }
+                        }
+                        if !singleShots.isEmpty {
+                            Section("Single shots") {
+                                ForEach(singleShots) { shot in
                                     NavigationLink(value: shot.persistentModelID) {
                                         row(for: shot)
                                     }
                                 }
                                 .onDelete { offsets in
                                     for offset in offsets {
-                                        modelContext.delete(group.shots[offset])
+                                        modelContext.delete(singleShots[offset])
                                     }
                                 }
                             }
@@ -38,25 +69,27 @@ struct HistoryView: View {
             .navigationDestination(for: PersistentIdentifier.self) { id in
                 if let shot = modelContext.model(for: id) as? SavedShot {
                     ShotDetailView(shot: shot)
+                } else if let session = modelContext.model(for: id) as? BowlingSession {
+                    SessionDetailView(session: session)
                 }
             }
         }
     }
 
-    /// Shots grouped by session (newest session first); imported one-offs
-    /// fall into a "Single shots" group.
-    private var groupedShots: [(title: String, shots: [SavedShot])] {
-        let bySession = Dictionary(grouping: shots) { $0.session?.persistentModelID }
-        var groups: [(date: Date, title: String, shots: [SavedShot])] = []
-        for (_, group) in bySession {
-            if let session = group.first?.session {
-                let title = "Session — \(session.date.formatted(date: .abbreviated, time: .shortened)) (\(group.count))"
-                groups.append((session.date, title, group))
-            } else {
-                groups.append((group.first?.date ?? .distantPast, "Single shots", group))
+    private func sessionRow(for session: BowlingSession) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.date, style: .date)
+                    .font(.headline)
+                Text(session.date, style: .time)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            Spacer()
+            Text("\(session.shots.count) throw\(session.shots.count == 1 ? "" : "s")")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
-        return groups.sorted { $0.date > $1.date }.map { ($0.title, $0.shots) }
     }
 
     private func row(for shot: SavedShot) -> some View {
