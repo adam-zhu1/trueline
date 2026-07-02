@@ -148,6 +148,35 @@ TRUELINE_DEBUG_TRACK=1 python3 training/eval_track.py --video data/my-shot.MP4
 
 ---
 
+## Core ML export (iOS)
+
+The iOS app bundles the detector as **`ios/Trueline/Trueline/ML/ball.mlpackage`**
+(committed; Xcode compiles it into the app). Regenerate after retraining:
+
+```bash
+python3 - <<'PY'
+from ultralytics import YOLO
+YOLO("models/ball.pt").export(format="coreml", nms=True, half=True, imgsz=640)
+PY
+cp -R models/ball.mlpackage ios/Trueline/Trueline/ML/
+```
+
+`nms=True` bakes non-max suppression into the model so Vision's
+`VNCoreMLRequest` returns ready-to-use `VNRecognizedObjectObservation` boxes.
+
+### Baseline metrics (ball.pt of 2026-06-16, recorded 2026-07-01)
+
+| Model | mAP50 | mAP50-95 | P | R |
+|-------|-------|----------|---|---|
+| ball.pt (PyTorch) | 0.985 | 0.881 | 0.976 | 0.998 |
+| ball.mlpackage (fp16 + NMS) | 0.964 | 0.848 | 0.976 | 0.976 |
+
+Far-lane recall on the held-out test clip (`eval_far_lane.py`, conf≥0.35):
+100% in every bin from 10–60 ft; 87% at 0–10 ft (release motion blur).
+The iOS pipeline (task #7 parity) should reproduce the mlpackage numbers.
+
+---
+
 ## `data.yaml`
 
 The dataset descriptor is **`dataset/ball_yolo/data.yaml`**. If Ultralytics fails to

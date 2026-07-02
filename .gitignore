@@ -1,11 +1,14 @@
-# ignore video and output files
-data/
-output/
-runs/
+# ignore video and output files (root folders only — unanchored `data/` would
+# also swallow the Data/ directory inside .mlpackage bundles)
+/data/
+/output/
+/runs/
 
 # large learned weights (copy best.pt to models/ball.pt locally)
 models/*.pt
 models/*.onnx
+# Core ML export artifact; the committed copy lives in ios/Trueline/Trueline/ML/
+models/*.mlpackage
 
 # Ultralytics may download base weights into the repo root
 yolov8n.pt
