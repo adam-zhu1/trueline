@@ -15,7 +15,11 @@ struct CalibrationView: View {
     @State private var corners: LaneCorners = .defaultGuess
     @State private var proposal: LaneCorners?
     @State private var isDetecting = true
+    /// Once the user drags a corner, a late-arriving auto-detect proposal must
+    /// not overwrite their adjustment.
+    @State private var userAdjusted = false
     @State private var activeCorner: LaneCorners.Corner?
+    @State private var dragStartCorner: CGPoint?
 
     var body: some View {
         // Hint, image, and buttons stack vertically so the controls never cover
@@ -77,6 +81,8 @@ struct CalibrationView: View {
                             }
                         }
                         .coordinateSpace(name: "calibration")
+                        .contentShape(Rectangle())
+                        .gesture(cornerDragGesture(in: rect))
                     }
                     // Breathing room so edge handles stay under the finger, not
                     // clipped against the hint or button rows.
@@ -144,7 +150,9 @@ struct CalibrationView: View {
             }.value
             if let detected {
                 proposal = detected
-                corners = detected
+                if !userAdjusted {
+                    corners = detected
+                }
             }
             isDetecting = false
         } catch {
@@ -153,22 +161,54 @@ struct CalibrationView: View {
         }
     }
 
+    /// Visual dot only — dragging is handled by the shared gesture below, so the
+    /// user never has to hit the dot exactly.
     private func handle(for corner: LaneCorners.Corner, in rect: CGRect) -> some View {
         Circle()
             .fill(.white)
             .frame(width: 20, height: 20)
             .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
-            .frame(width: 44, height: 44)
-            .contentShape(Circle())
+            .scaleEffect(activeCorner == corner ? 1.35 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: activeCorner == corner)
             .position(viewPoint(corners[corner], in: rect))
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
-                    .onChanged { value in
-                        activeCorner = corner
-                        corners[corner] = normalizedPoint(value.location, in: rect)
+            .allowsHitTesting(false)
+    }
+
+    /// Document-scanner style adjustment: touch anywhere near a corner to grab
+    /// it, then the corner moves by the drag *delta* (not to the finger), so the
+    /// point stays visible and precise placement doesn't need a precise grab.
+    private func cornerDragGesture(in rect: CGRect) -> some Gesture {
+        let grabRadius: CGFloat = 70
+        return DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
+            .onChanged { value in
+                if activeCorner == nil {
+                    let nearest = LaneCorners.Corner.allCases.min { a, b in
+                        distance(viewPoint(corners[a], in: rect), value.startLocation)
+                            < distance(viewPoint(corners[b], in: rect), value.startLocation)
                     }
-                    .onEnded { _ in activeCorner = nil }
-            )
+                    guard let nearest,
+                          distance(viewPoint(corners[nearest], in: rect), value.startLocation) <= grabRadius
+                    else { return }
+                    activeCorner = nearest
+                    dragStartCorner = corners[nearest]
+                }
+                guard let corner = activeCorner, let start = dragStartCorner else { return }
+                userAdjusted = true
+                let dx = (value.location.x - value.startLocation.x) / rect.width
+                let dy = (value.location.y - value.startLocation.y) / rect.height
+                corners[corner] = CGPoint(
+                    x: min(max(start.x + dx, 0), 1),
+                    y: min(max(start.y + dy, 0), 1)
+                )
+            }
+            .onEnded { _ in
+                activeCorner = nil
+                dragStartCorner = nil
+            }
+    }
+
+    private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        hypot(a.x - b.x, a.y - b.y)
     }
 
     /// Keeps the loupe near the active handle but off the finger — above it when

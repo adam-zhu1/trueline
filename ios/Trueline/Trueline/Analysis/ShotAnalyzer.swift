@@ -13,7 +13,17 @@ struct ShotResult {
     var entryAngleDegrees: Double?
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
+    /// Smoothed ball-contact points in display-oriented normalized coordinates,
+    /// for drawing the trail over the source video.
+    var videoPath: [CGPoint]
+    /// Video dimensions as displayed (orientation applied).
+    var videoDisplaySize: CGSize
     var trackedFrames: Int
+
+    /// A usable track: enough samples to draw a path and trust the metrics.
+    var isReliable: Bool {
+        trackedFrames >= 10 && path.count >= 2
+    }
 }
 
 /// Offline analysis of a recorded throw — port of track_ball in
@@ -194,14 +204,25 @@ struct ShotAnalyzer {
             }
         }
 
-        return Self.postProcess(positions: positions, geometry: geometry, fps: fpsSafe)
+        return Self.postProcess(
+            positions: positions, geometry: geometry, fps: fpsSafe,
+            rawSize: naturalSize, orientation: orientation
+        )
     }
 
     // MARK: - Post-processing (metrics from the tracked path)
 
     private static func postProcess(
-        positions: [Sample], geometry: LaneGeometry, fps: Double
+        positions: [Sample], geometry: LaneGeometry, fps: Double,
+        rawSize: CGSize, orientation: CGImagePropertyOrientation
     ) -> ShotResult {
+        let displaySize: CGSize
+        switch orientation {
+        case .right, .left:
+            displaySize = CGSize(width: rawSize.height, height: rawSize.width)
+        default:
+            displaySize = rawSize
+        }
         var boards: [Double] = []
         var feet: [Double] = []
         var frames: [Double] = []
@@ -215,9 +236,21 @@ struct ShotAnalyzer {
         var result = ShotResult(
             speedMph: nil, arrowBoard: nil, breakpointBoard: nil,
             breakpointFeet: nil, entryAngleDegrees: nil, path: [],
+            videoPath: [], videoDisplaySize: displaySize,
             trackedFrames: positions.count
         )
         guard boards.count >= 3 else { return result }
+
+        // Video-overlay trail: smoothed contact points (window 15, like the
+        // prototype's display smoothing) mapped into display-normalized coords.
+        let smoothX = savgolSmooth(positions.map(\.x), window: 15)
+        let smoothY = savgolSmooth(positions.map(\.y), window: 15)
+        result.videoPath = (0..<positions.count).map { i in
+            let rx = smoothX[i] / Double(rawSize.width)
+            let ry = (smoothY[i] + positions[i].radius) / Double(rawSize.height)
+            let (u, v) = BallDetector.rawToOriented(rx: rx, ry: ry, orientation: orientation)
+            return CGPoint(x: u, y: v)
+        }
 
         // Lane-view path: smooth hard (window 41) and trim the last 2% (pin scatter).
         var pb = boards
@@ -233,10 +266,16 @@ struct ShotAnalyzer {
 
         // Speed: regulation 6 ft between the foul line and dot row, timed from
         // interpolated crossings of the feet series (replaces the prototype's
-        // clicked-line pixel tests).
-        let sfAll = savgolSmooth(feet, window: 11)
-        if let t0 = crossingFrame(feet: sfAll, frames: frames, target: 0.05, requireStartBelow: 0.5),
-           let t6 = crossingFrame(feet: sfAll, frames: frames, target: LaneGeometry.dotDistanceFeet, requireStartBelow: 3.0),
+        // clicked-line pixel tests). Like the prototype (30 px ≈ 0.7 ft there),
+        // the track must actually pass near BOTH marks — a partial track that
+        // starts mid-approach or ends early must not produce a speed.
+        // Crossings run on the RAW feet series — the prototype's line tests use
+        // raw positions, and smoothing first shifts the timing measurably.
+        let crossingTolFt = 0.7
+        if feet.min()! <= crossingTolFt,
+           feet.map({ abs($0 - LaneGeometry.dotDistanceFeet) }).min()! <= crossingTolFt,
+           let t0 = crossingFrame(feet: feet, frames: frames, target: 0.05, requireStartBelow: 0.5),
+           let t6 = crossingFrame(feet: feet, frames: frames, target: LaneGeometry.dotDistanceFeet, requireStartBelow: 3.0),
            t6 > t0 {
             let seconds = (t6 - t0) / fps
             if seconds > 0 {
@@ -247,6 +286,7 @@ struct ShotAnalyzer {
         // Arrow board: first crossing of the arrow V on the smoothed series,
         // linearly interpolated (port of arrow_board_from_path).
         let sbAll = savgolSmooth(boards, window: 11)
+        let sfAll = savgolSmooth(feet, window: 11)
         var prevG = sfAll[0] - arrowFeet(atBoard: sbAll[0])
         for i in 1..<sbAll.count {
             let g = sfAll[i] - arrowFeet(atBoard: sbAll[i])

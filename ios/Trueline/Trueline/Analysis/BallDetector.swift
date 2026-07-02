@@ -87,6 +87,17 @@ final class BallDetector {
         }
     }
 
+    /// Inverse of orientedToRaw: raw-buffer normalized point → display-oriented.
+    static func rawToOriented(rx: Double, ry: Double, orientation: CGImagePropertyOrientation) -> (Double, Double) {
+        switch orientation {
+        case .up: return (rx, ry)
+        case .down: return (1 - rx, 1 - ry)
+        case .right: return (1 - ry, rx)
+        case .left: return (ry, 1 - rx)
+        default: return (rx, ry)
+        }
+    }
+
     static func orientedSizeToRaw(w: Double, h: Double, orientation: CGImagePropertyOrientation) -> (Double, Double) {
         switch orientation {
         case .right, .left: return (h, w)

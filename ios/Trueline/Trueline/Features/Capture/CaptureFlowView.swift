@@ -9,6 +9,7 @@ struct CaptureFlowView: View {
         case calibrate(URL)
         case analyze(URL, LaneCorners)
         case results(URL, ShotResult)
+        case trackingFailed(URL)
 
         static func == (lhs: Step, rhs: Step) -> Bool {
             switch (lhs, rhs) {
@@ -17,6 +18,7 @@ struct CaptureFlowView: View {
             case (.calibrate(let a), .calibrate(let b)): a == b
             case (.analyze(let a, let c), .analyze(let b, let d)): a == b && c == d
             case (.results(let a, _), .results(let b, _)): a == b
+            case (.trackingFailed(let a), .trackingFailed(let b)): a == b
             default: false
             }
         }
@@ -65,23 +67,32 @@ struct CaptureFlowView: View {
                     clipURL: clipURL,
                     corners: corners,
                     onComplete: { result in
-                        step = .results(clipURL, result)
+                        step = result.isReliable
+                            ? .results(clipURL, result)
+                            : .trackingFailed(clipURL)
                     },
                     onFailed: {
-                        step = .calibrate(clipURL)
+                        step = .trackingFailed(clipURL)
                     }
                 )
-            case .results(_, let result):
-                ResultsView(result: result) {
+            case .results(let clipURL, let result):
+                ResultsView(clipURL: clipURL, result: result) {
                     camera.stop()
                     dismiss()
                 }
+            case .trackingFailed(let clipURL):
+                TrackingFailedView(
+                    onAdjustCorners: { step = .calibrate(clipURL) },
+                    onDiscard: {
+                        camera.stop()
+                        dismiss()
+                    }
+                )
             }
         }
         .onChange(of: camera.finishedClipURL) { _, clipURL in
             if let clipURL { step = .review(clipURL) }
         }
-        .statusBarHidden()
     }
 }
 

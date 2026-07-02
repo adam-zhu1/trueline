@@ -5,11 +5,14 @@ import SwiftUI
 struct TruelineApp: App {
     var body: some Scene {
         WindowGroup {
-            if let demoURL = Self.calibrationDemoURL {
-                DemoAnalysisFlow(clipURL: demoURL)
-            } else {
-                ContentView()
+            Group {
+                if let demoURL = Self.calibrationDemoURL {
+                    DemoAnalysisFlow(clipURL: demoURL)
+                } else {
+                    ContentView()
+                }
             }
+            .modelContainer(for: SavedShot.self)
         }
     }
 
@@ -40,7 +43,7 @@ private struct DemoAnalysisFlow: View {
             if failed {
                 Text("Demo failed").foregroundStyle(.red)
             } else if let result {
-                ResultsView(result: result) {}
+                ResultsView(clipURL: clipURL, result: result) {}
             } else if let corners {
                 AnalysisView(
                     clipURL: clipURL,
