@@ -10,6 +10,9 @@ struct LaneViewCanvas: View {
     /// Compact mode shrinks insets/markers so the diagram works as a narrow
     /// side panel next to the video.
     var compact = false
+    /// Earlier paths from the same session, oldest first, drawn dim beneath
+    /// the primary path so a mid-session line change reads at a glance.
+    var overlayPaths: [[(board: Double, feet: Double)]] = []
 
     // Neutrals from src/ui.py; accents are the TrueLine mint brand palette.
     private let accent = Color.brandMint
@@ -158,6 +161,23 @@ struct LaneViewCanvas: View {
                     context.fill(Path(ellipseIn: rect), with: .color(isPocket ? accent : Color(white: 0.86)))
                     context.stroke(Path(ellipseIn: rect), with: .color(Color(white: 0.16)), lineWidth: 1)
                 }
+            }
+
+            // Earlier session paths, dimmer the older they are (0.14–0.34)
+            // so the sequence of line adjustments stays readable.
+            for (i, overlay) in overlayPaths.enumerated() where overlay.count >= 2 {
+                var path = Path()
+                for (j, sample) in overlay.enumerated() {
+                    let pt = CGPoint(x: boardX(sample.board), y: feetY(sample.feet))
+                    if j == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+                }
+                let recency = overlayPaths.count > 1
+                    ? Double(i) / Double(overlayPaths.count - 1)
+                    : 1.0
+                context.stroke(
+                    path, with: .color(accent.opacity(0.14 + 0.20 * recency)),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                )
             }
 
             // Ball path (already smoothed + trimmed by the analyzer)
