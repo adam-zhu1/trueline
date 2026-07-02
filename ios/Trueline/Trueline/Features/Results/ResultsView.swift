@@ -11,25 +11,32 @@ struct ResultsView: View {
     var onDone: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @State private var pane: Pane = .video
+
+    private enum Pane {
+        case video, lane
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    if result.videoDisplaySize.height >= result.videoDisplaySize.width {
-                        // Portrait clip: video and lane view side by side.
-                        HStack(alignment: .top, spacing: 12) {
-                            VideoPathView(clipURL: clipURL, result: result)
-                            LaneViewCanvas(result: result, compact: true)
-                                .frame(width: 128)
-                        }
-                        .frame(height: 420)
-                    } else {
-                        // Landscape clip: video on top, lane view below.
-                        VideoPathView(clipURL: clipURL, result: result)
-                        LaneViewCanvas(result: result, compact: true)
-                            .frame(height: 340)
+                    Picker("View", selection: $pane) {
+                        Text("Video").tag(Pane.video)
+                        Text("Lane View").tag(Pane.lane)
                     }
+                    .pickerStyle(.segmented)
+
+                    Group {
+                        switch pane {
+                        case .video:
+                            VideoPathView(clipURL: clipURL, result: result)
+                        case .lane:
+                            LaneViewCanvas(result: result)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 470)
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         MetricTile(title: "Speed", value: format(result.speedMph), unit: "mph")

@@ -17,9 +17,3 @@ struct VideoFile: Transferable {
         }
     }
 }
-
-/// Identifiable wrapper so an imported clip can drive a fullScreenCover.
-struct ImportedClip: Identifiable {
-    let id = UUID()
-    let url: URL
-}

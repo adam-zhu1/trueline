@@ -4,9 +4,23 @@ import SwiftUI
 /// The primary tab: an entry point that launches the capture flow, either from a
 /// live recording or an existing video (useful without lane access).
 struct BowlHomeView: View {
-    @State private var showCapture = false
+    /// One presentation path for both entry points — two fullScreenCover
+    /// modifiers racing the Photos picker's dismissal can end up half-presented
+    /// with the home screen showing through.
+    private enum CapturePresentation: Identifiable {
+        case record
+        case imported(URL)
+
+        var id: String {
+            switch self {
+            case .record: "record"
+            case .imported(let url): url.absoluteString
+            }
+        }
+    }
+
+    @State private var presentation: CapturePresentation?
     @State private var pickerItem: PhotosPickerItem?
-    @State private var importedClip: ImportedClip?
     @State private var isImporting = false
 
     var body: some View {
@@ -24,7 +38,7 @@ struct BowlHomeView: View {
                     .multilineTextAlignment(.center)
                 Spacer()
                 Button {
-                    showCapture = true
+                    presentation = .record
                 } label: {
                     Label("Start Session", systemImage: "record.circle")
                         .frame(maxWidth: .infinity)
@@ -45,21 +59,27 @@ struct BowlHomeView: View {
             }
             .padding()
             .navigationTitle("Bowl")
-            .fullScreenCover(isPresented: $showCapture) {
-                CaptureFlowView()
-            }
-            .fullScreenCover(item: $importedClip) { clip in
-                CaptureFlowView(importedClipURL: clip.url)
+            .fullScreenCover(item: $presentation) { presentation in
+                switch presentation {
+                case .record:
+                    CaptureFlowView()
+                case .imported(let url):
+                    CaptureFlowView(importedClipURL: url)
+                }
             }
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
                 isImporting = true
                 Task {
-                    if let file = try? await item.loadTransferable(type: VideoFile.self) {
-                        importedClip = ImportedClip(url: file.url)
-                    }
+                    let file = try? await item.loadTransferable(type: VideoFile.self)
                     pickerItem = nil
+                    // Let the picker sheet finish dismissing before presenting
+                    // the cover, or the presentation can break mid-flight.
+                    try? await Task.sleep(for: .milliseconds(450))
                     isImporting = false
+                    if let file {
+                        self.presentation = .imported(file.url)
+                    }
                 }
             }
         }
