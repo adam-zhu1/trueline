@@ -94,7 +94,7 @@ private struct VideoPathView: View {
                     }
                     context.stroke(
                         path,
-                        with: .color(Color(red: 1.0, green: 140 / 255, blue: 0)),
+                        with: .color(.brandMint),
                         style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
                     )
                 }
@@ -144,7 +144,7 @@ struct AnalysisView: View {
             Color.black.ignoresSafeArea()
             VStack(spacing: 20) {
                 ProgressView(value: progress)
-                    .tint(.orange)
+                    .tint(.brandMint)
                     .frame(maxWidth: 240)
                 Text("Tracking the ball…")
                     .font(.subheadline)

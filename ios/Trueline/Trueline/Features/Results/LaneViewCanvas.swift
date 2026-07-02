@@ -11,14 +11,14 @@ struct LaneViewCanvas: View {
     /// side panel next to the video.
     var compact = false
 
-    // Palette (from src/ui.py, BGR→RGB).
-    private let accent = Color(red: 1.0, green: 140 / 255, blue: 0)
-    private let accentDim = Color(red: 200 / 255, green: 100 / 255, blue: 0)
+    // Neutrals from src/ui.py; accents are the TrueLine mint brand palette.
+    private let accent = Color.brandMint
+    private let accentDim = Color.brandMintDim
     private let laneFill = Color(red: 55 / 255, green: 55 / 255, blue: 60 / 255)
     private let laneBorder = Color(red: 70 / 255, green: 75 / 255, blue: 80 / 255)
     private let gridColor = Color(red: 65 / 255, green: 70 / 255, blue: 75 / 255)
     private let gutterColor = Color(red: 38 / 255, green: 38 / 255, blue: 40 / 255)
-    private let refLine = Color(red: 180 / 255, green: 100 / 255, blue: 0)
+    private let refLine = Color.brandMintDim
     private let deckFill = Color(red: 35 / 255, green: 35 / 255, blue: 38 / 255)
 
     var body: some View {
