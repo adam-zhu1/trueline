@@ -71,8 +71,8 @@ struct CaptureFlowView: View {
                         step = .calibrate(clipURL)
                     }
                 )
-            case .results(_, let result):
-                ResultsView(result: result) {
+            case .results(let clipURL, let result):
+                ResultsView(clipURL: clipURL, result: result) {
                     camera.stop()
                     dismiss()
                 }
@@ -81,7 +81,6 @@ struct CaptureFlowView: View {
         .onChange(of: camera.finishedClipURL) { _, clipURL in
             if let clipURL { step = .review(clipURL) }
         }
-        .statusBarHidden()
     }
 }
 
