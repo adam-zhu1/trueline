@@ -261,10 +261,16 @@ struct ShotAnalyzer {
 
         // Speed: regulation 6 ft between the foul line and dot row, timed from
         // interpolated crossings of the feet series (replaces the prototype's
-        // clicked-line pixel tests).
-        let sfAll = savgolSmooth(feet, window: 11)
-        if let t0 = crossingFrame(feet: sfAll, frames: frames, target: 0.05, requireStartBelow: 0.5),
-           let t6 = crossingFrame(feet: sfAll, frames: frames, target: LaneGeometry.dotDistanceFeet, requireStartBelow: 3.0),
+        // clicked-line pixel tests). Like the prototype (30 px ≈ 0.7 ft there),
+        // the track must actually pass near BOTH marks — a partial track that
+        // starts mid-approach or ends early must not produce a speed.
+        // Crossings run on the RAW feet series — the prototype's line tests use
+        // raw positions, and smoothing first shifts the timing measurably.
+        let crossingTolFt = 0.7
+        if feet.min()! <= crossingTolFt,
+           feet.map({ abs($0 - LaneGeometry.dotDistanceFeet) }).min()! <= crossingTolFt,
+           let t0 = crossingFrame(feet: feet, frames: frames, target: 0.05, requireStartBelow: 0.5),
+           let t6 = crossingFrame(feet: feet, frames: frames, target: LaneGeometry.dotDistanceFeet, requireStartBelow: 3.0),
            t6 > t0 {
             let seconds = (t6 - t0) / fps
             if seconds > 0 {
@@ -275,6 +281,7 @@ struct ShotAnalyzer {
         // Arrow board: first crossing of the arrow V on the smoothed series,
         // linearly interpolated (port of arrow_board_from_path).
         let sbAll = savgolSmooth(boards, window: 11)
+        let sfAll = savgolSmooth(feet, window: 11)
         var prevG = sfAll[0] - arrowFeet(atBoard: sbAll[0])
         for i in 1..<sbAll.count {
             let g = sfAll[i] - arrowFeet(atBoard: sbAll[i])
