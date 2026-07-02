@@ -37,8 +37,14 @@ struct ResultsView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         MetricTile(title: "Speed", value: format(result.speedMph), unit: "mph")
                         MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
-                        MetricTile(title: "Entry Board", value: format(result.entryBoard), unit: "board")
-                        MetricTile(title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°")
+                        MetricTile(
+                            title: "Entry Board", value: format(result.entryBoard), unit: "board",
+                            numeric: result.entryBoard, ideal: 17...18
+                        )
+                        MetricTile(
+                            title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°",
+                            numeric: result.entryAngleDegrees, ideal: 4...6
+                        )
                         MetricTile(title: "Breakpoint", value: format(result.breakpointBoard), unit: "board")
                         MetricTile(
                             title: "Breakpoint Distance",

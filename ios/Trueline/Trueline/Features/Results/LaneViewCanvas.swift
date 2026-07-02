@@ -127,6 +127,16 @@ struct LaneViewCanvas: View {
             pinLine.addLine(to: CGPoint(x: laneRect.maxX, y: pinLineY))
             context.stroke(pinLine, with: .color(refLine), lineWidth: 2)
 
+            // Entry-board target zone: boards 17–18 over the last stretch of
+            // lane (17.5 ≈ flush pocket; hand-normalized boards, so valid for
+            // lefties too). Faint fill — a nudge, not a lane marking.
+            let zoneRect = CGRect(
+                x: boardX(18), y: feetY(60),
+                width: boardX(17) - boardX(18),
+                height: feetY(48) - feetY(60)
+            )
+            context.fill(Path(zoneRect), with: .color(accent.opacity(0.14)))
+
             // Pocket guide: dashed line down-lane from the pocket gap (~board 17.2)
             let pocketX = boardX(headBoard - boardsPer6In / 2.0)
             var pocket = Path()

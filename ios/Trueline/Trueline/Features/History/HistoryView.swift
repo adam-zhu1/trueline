@@ -95,8 +95,14 @@ struct ShotDetailView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     MetricTile(title: "Speed", value: format(shot.speedMph), unit: "mph")
                     MetricTile(title: "Board at Arrows", value: format(shot.arrowBoard), unit: "board")
-                    MetricTile(title: "Entry Board", value: format(shot.entryBoard), unit: "board")
-                    MetricTile(title: "Entry Angle", value: format(shot.entryAngleDegrees), unit: "°")
+                    MetricTile(
+                        title: "Entry Board", value: format(shot.entryBoard), unit: "board",
+                        numeric: shot.entryBoard, ideal: 17...18
+                    )
+                    MetricTile(
+                        title: "Entry Angle", value: format(shot.entryAngleDegrees), unit: "°",
+                        numeric: shot.entryAngleDegrees, ideal: 4...6
+                    )
                     MetricTile(title: "Breakpoint", value: format(shot.breakpointBoard), unit: "board")
                     MetricTile(
                         title: "Breakpoint Distance",
