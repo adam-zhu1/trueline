@@ -19,6 +19,11 @@ struct ShotResult {
     /// Video dimensions as displayed (orientation applied).
     var videoDisplaySize: CGSize
     var trackedFrames: Int
+
+    /// A usable track: enough samples to draw a path and trust the metrics.
+    var isReliable: Bool {
+        trackedFrames >= 10 && path.count >= 2
+    }
 }
 
 /// Offline analysis of a recorded throw — port of track_ball in
