@@ -7,6 +7,9 @@ import SwiftUI
 /// prototype's 2× raster scaling.
 struct LaneViewCanvas: View {
     var result: ShotResult
+    /// Compact mode shrinks insets/markers so the diagram works as a narrow
+    /// side panel next to the video.
+    var compact = false
 
     // Palette (from src/ui.py, BGR→RGB).
     private let accent = Color(red: 1.0, green: 140 / 255, blue: 0)
@@ -20,11 +23,12 @@ struct LaneViewCanvas: View {
 
     var body: some View {
         Canvas { context, size in
-            let inset: CGFloat = 22
+            let inset: CGFloat = compact ? 12 : 22
+            let topExtra: CGFloat = compact ? 8 : 44
             let laneRect = CGRect(
-                x: inset, y: inset + 44,
+                x: inset, y: inset + topExtra,
                 width: size.width - inset * 2,
-                height: size.height - inset * 2 - 44 - 18
+                height: size.height - inset * 2 - topExtra - (compact ? 12 : 18)
             )
 
             func boardX(_ board: Double) -> CGFloat {
@@ -55,10 +59,12 @@ struct LaneViewCanvas: View {
                 line.move(to: CGPoint(x: x, y: laneRect.minY))
                 line.addLine(to: CGPoint(x: x, y: laneRect.maxY))
                 context.stroke(line, with: .color(gridColor), lineWidth: 1)
-                context.draw(
-                    Text("\(b)").font(.system(size: 9)).foregroundStyle(.secondary),
-                    at: CGPoint(x: x, y: laneRect.maxY + 9)
-                )
+                if !compact || b % 10 == 0 {
+                    context.draw(
+                        Text("\(b)").font(.system(size: compact ? 7 : 9)).foregroundStyle(.secondary),
+                        at: CGPoint(x: x, y: laneRect.maxY + (compact ? 7 : 9))
+                    )
+                }
             }
 
             // Foul line (0 ft) and dashed dot line (6 ft)
@@ -97,8 +103,8 @@ struct LaneViewCanvas: View {
             let boardsPer6In = (6.0 / LaneGeometry.laneWidthInches) * 39.0
             let headBoard = 20.0
             let pinLineY = feetY(60)
-            let rowDY: CGFloat = 16
-            let pinR: CGFloat = 5
+            let rowDY: CGFloat = compact ? 9 : 16
+            let pinR: CGFloat = compact ? 3 : 5
             let pinRows: [[Double]] = [[0], [-1, 1], [-2, 0, 2], [-3, -1, 1, 3]]
             let deckTop = pinLineY - CGFloat(pinRows.count - 1) * rowDY - pinR - 4
             context.fill(
@@ -162,10 +168,32 @@ struct LaneViewCanvas: View {
         }
         .background(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .aspectRatio(0.62, contentMode: .fit)
+        .aspectRatio(compact ? nil : 0.62, contentMode: .fit)
     }
 
     private func marker(_ context: inout GraphicsContext, at pt: CGPoint, label: String, triangle: Bool) {
+        if compact {
+            // No room for pills in the side-panel — just the marker dot/triangle.
+            let r: CGFloat = 4
+            if triangle {
+                var tri = Path()
+                tri.move(to: CGPoint(x: pt.x, y: pt.y - r))
+                tri.addLine(to: CGPoint(x: pt.x - r, y: pt.y + r - 1))
+                tri.addLine(to: CGPoint(x: pt.x + r, y: pt.y + r - 1))
+                tri.closeSubpath()
+                context.fill(tri, with: .color(accent))
+            } else {
+                context.fill(
+                    Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
+                    with: .color(accent)
+                )
+                context.stroke(
+                    Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
+                    with: .color(.white), lineWidth: 1
+                )
+            }
+            return
+        }
         if triangle {
             var tri = Path()
             tri.move(to: CGPoint(x: pt.x, y: pt.y - 5))
@@ -203,6 +231,8 @@ struct LaneViewCanvas: View {
             let t = ft / 58.0
             return (board: 18 - 11 * t + 8 * t * t, feet: ft)
         },
+        videoPath: [],
+        videoDisplaySize: CGSize(width: 1080, height: 1920),
         trackedFrames: 120
     ))
     .padding()

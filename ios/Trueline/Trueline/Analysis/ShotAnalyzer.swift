@@ -13,6 +13,11 @@ struct ShotResult {
     var entryAngleDegrees: Double?
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
+    /// Smoothed ball-contact points in display-oriented normalized coordinates,
+    /// for drawing the trail over the source video.
+    var videoPath: [CGPoint]
+    /// Video dimensions as displayed (orientation applied).
+    var videoDisplaySize: CGSize
     var trackedFrames: Int
 }
 
@@ -194,14 +199,25 @@ struct ShotAnalyzer {
             }
         }
 
-        return Self.postProcess(positions: positions, geometry: geometry, fps: fpsSafe)
+        return Self.postProcess(
+            positions: positions, geometry: geometry, fps: fpsSafe,
+            rawSize: naturalSize, orientation: orientation
+        )
     }
 
     // MARK: - Post-processing (metrics from the tracked path)
 
     private static func postProcess(
-        positions: [Sample], geometry: LaneGeometry, fps: Double
+        positions: [Sample], geometry: LaneGeometry, fps: Double,
+        rawSize: CGSize, orientation: CGImagePropertyOrientation
     ) -> ShotResult {
+        let displaySize: CGSize
+        switch orientation {
+        case .right, .left:
+            displaySize = CGSize(width: rawSize.height, height: rawSize.width)
+        default:
+            displaySize = rawSize
+        }
         var boards: [Double] = []
         var feet: [Double] = []
         var frames: [Double] = []
@@ -215,9 +231,21 @@ struct ShotAnalyzer {
         var result = ShotResult(
             speedMph: nil, arrowBoard: nil, breakpointBoard: nil,
             breakpointFeet: nil, entryAngleDegrees: nil, path: [],
+            videoPath: [], videoDisplaySize: displaySize,
             trackedFrames: positions.count
         )
         guard boards.count >= 3 else { return result }
+
+        // Video-overlay trail: smoothed contact points (window 15, like the
+        // prototype's display smoothing) mapped into display-normalized coords.
+        let smoothX = savgolSmooth(positions.map(\.x), window: 15)
+        let smoothY = savgolSmooth(positions.map(\.y), window: 15)
+        result.videoPath = (0..<positions.count).map { i in
+            let rx = smoothX[i] / Double(rawSize.width)
+            let ry = (smoothY[i] + positions[i].radius) / Double(rawSize.height)
+            let (u, v) = BallDetector.rawToOriented(rx: rx, ry: ry, orientation: orientation)
+            return CGPoint(x: u, y: v)
+        }
 
         // Lane-view path: smooth hard (window 41) and trim the last 2% (pin scatter).
         var pb = boards
