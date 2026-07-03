@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("bowlingHand") private var bowlingHand = "right"
     @AppStorage("speedUnit") private var speedUnit = "mph"
+    @State private var showHowItWorks = false
 
     var body: some View {
         NavigationStack {
@@ -20,8 +21,14 @@ struct SettingsView: View {
                         Text("km/h").tag("kmh")
                     }
                 }
+                Section {
+                    Button("How TrueLine works") { showHowItWorks = true }
+                }
             }
             .navigationTitle("Settings")
+            .fullScreenCover(isPresented: $showHowItWorks) {
+                OnboardingView { showHowItWorks = false }
+            }
         }
     }
 }

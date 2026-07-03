@@ -24,6 +24,25 @@ struct SessionDetailView: View {
                 consistencyRow(title: "Entry Board", unit: "board", keyPath: \.entryBoard, tightWithin: nil)
             }
 
+            if let latest = shots.last {
+                Section {
+                    LaneViewCanvas(
+                        result: latest.laneViewResult,
+                        overlayPaths: shots.dropLast().map { shot in
+                            zip(shot.pathBoards, shot.pathFeet).map { (board: $0, feet: $1) }
+                        }
+                    )
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                } header: {
+                    Text("Lines")
+                } footer: {
+                    if shots.count > 1 {
+                        Text("All throws on one lane — brighter is more recent, the latest in full mint.")
+                    }
+                }
+            }
+
             Section("Throws") {
                 ForEach(Array(shots.enumerated()), id: \.element.persistentModelID) { index, shot in
                     NavigationLink(value: shot.persistentModelID) {
