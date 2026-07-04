@@ -4,88 +4,77 @@ import SwiftUI
 /// The primary tab: an entry point that launches the capture flow, either from a
 /// live recording or an existing video (useful without lane access).
 struct BowlHomeView: View {
-    /// One presentation path for both entry points — two fullScreenCover
-    /// modifiers racing the Photos picker's dismissal can end up half-presented
-    /// with the home screen showing through.
-    private enum CapturePresentation: Identifiable {
-        case record
-        case imported(URL)
-
-        var id: String {
-            switch self {
-            case .record: "record"
-            case .imported(let url): url.absoluteString
-            }
-        }
-    }
-
-    @State private var presentation: CapturePresentation?
+    /// Owned by ContentView, which renders the capture flow as a root overlay.
+    @Binding var capture: CaptureRoute?
     @State private var pickerItem: PhotosPickerItem?
     @State private var isImporting = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
-                Image(systemName: "figure.bowling")
-                    .font(.system(size: 72))
-                    .foregroundStyle(.tint)
-                Text("TrueLine")
-                    .font(.largeTitle.bold())
-                Text("Record a throw to get your line, speed, breakpoint, and entry angle.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Spacer()
-                Button {
-                    presentation = .record
-                } label: {
-                    Label("Start Session", systemImage: "record.circle")
-                        .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: "figure.bowling")
+                        .font(.title3)
+                        .foregroundStyle(Color.brandMint)
+                    Text("TrueLine")
+                        .font(.headline)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .padding(.top, 8)
 
-                PhotosPicker(selection: $pickerItem, matching: .videos) {
-                    Label(
-                        isImporting ? "Importing…" : "Analyze Existing Video",
-                        systemImage: "photo.on.rectangle"
-                    )
-                    .frame(maxWidth: .infinity)
+                Text("Every throw,\nmeasured.")
+                    .font(.system(size: 40, weight: .bold))
+                    .padding(.top, 28)
+
+                Text("Prop your phone behind the approach and bowl. Speed, line, breakpoint, and entry angle for every shot.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 12)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button {
+                        present(.record)
+                    } label: {
+                        Label("Start Session", systemImage: "record.circle.fill")
+                    }
+                    .buttonStyle(.primaryAction)
+
+                    PhotosPicker(selection: $pickerItem, matching: .videos) {
+                        Label(
+                            isImporting ? "Importing…" : "Analyze Existing Video",
+                            systemImage: "photo.on.rectangle"
+                        )
+                    }
+                    .buttonStyle(.secondaryAction)
+                    .disabled(isImporting)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .disabled(isImporting)
             }
-            .padding()
-            .navigationTitle("Bowl")
-            .fullScreenCover(item: $presentation) { presentation in
-                switch presentation {
-                case .record:
-                    CaptureFlowView()
-                case .imported(let url):
-                    CaptureFlowView(importedClipURL: url)
-                }
-            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
                 isImporting = true
                 Task {
                     let file = try? await item.loadTransferable(type: VideoFile.self)
                     pickerItem = nil
-                    // Let the picker sheet finish dismissing before presenting
-                    // the cover, or the presentation can break mid-flight.
-                    try? await Task.sleep(for: .milliseconds(450))
                     isImporting = false
+                    // The overlay can appear while the picker sheet is still
+                    // animating away — the sheet just slides off to reveal it.
+                    // No presentation to race, so no grace timer.
                     if let file {
-                        self.presentation = .imported(file.url)
+                        present(.imported(file.url))
                     }
                 }
             }
         }
     }
+
+    private func present(_ route: CaptureRoute) {
+        withAnimation(.easeInOut(duration: 0.25)) { capture = route }
+    }
 }
 
 #Preview {
-    BowlHomeView()
+    BowlHomeView(capture: .constant(nil))
 }

@@ -7,6 +7,7 @@ struct HistoryView: View {
     @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
     @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("speedUnit") private var speedUnit = "mph"
 
     /// A session row appears once it has a saved shot — the capture flow
     /// creates the session object before the first Save, so discard-only
@@ -104,7 +105,7 @@ struct HistoryView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 if let speed = shot.speedMph {
-                    Text("\(speed, specifier: "%.1f") mph")
+                    Text("\(SpeedUnit.value(speed, unit: speedUnit), specifier: "%.1f") \(SpeedUnit.label(speedUnit))")
                         .font(.subheadline.monospacedDigit())
                 }
                 if let arrows = shot.arrowBoard {
@@ -121,12 +122,18 @@ struct HistoryView: View {
 struct ShotDetailView: View {
     let shot: SavedShot
 
+    @AppStorage("speedUnit") private var speedUnit = "mph"
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 LaneViewCanvas(result: shot.laneViewResult)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    MetricTile(title: "Speed", value: format(shot.speedMph), unit: "mph")
+                    MetricTile(
+                        title: "Speed",
+                        value: format(shot.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
+                        unit: SpeedUnit.label(speedUnit)
+                    )
                     MetricTile(title: "Board at Arrows", value: format(shot.arrowBoard), unit: "board")
                     MetricTile(
                         title: "Entry Board", value: format(shot.entryBoard), unit: "board",

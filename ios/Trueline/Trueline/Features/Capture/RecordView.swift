@@ -27,7 +27,7 @@ struct RecordView: View {
                             UIApplication.shared.open(url)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primaryAction)
                 }
             case .failed:
                 statusMessage(

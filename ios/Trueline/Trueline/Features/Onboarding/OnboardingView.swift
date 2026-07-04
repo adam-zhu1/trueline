@@ -75,10 +75,8 @@ struct OnboardingView: View {
                     }
                 } label: {
                     Text(page == pages.count - 1 ? "Start Bowling" : "Continue")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.primaryAction)
                 .padding()
             }
         }

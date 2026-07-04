@@ -25,15 +25,12 @@ struct TrackingFailedView: View {
                     onAdjustCorners()
                 } label: {
                     Label("Adjust Corners", systemImage: "arrow.uturn.backward")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.primaryAction)
                 Button("Discard", role: .cancel) {
                     onDiscard()
                 }
-                .controlSize(.large)
-                .tint(.white)
+                .buttonStyle(.secondaryAction)
             }
             .foregroundStyle(.white)
             .padding()

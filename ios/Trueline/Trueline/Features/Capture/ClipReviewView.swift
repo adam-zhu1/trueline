@@ -4,6 +4,9 @@ import SwiftUI
 /// The review step: play back the recorded throw, then keep it or retake.
 struct ClipReviewView: View {
     let clipURL: URL
+    /// Imported clips came from the Photos picker, so "retake" means picking a
+    /// different video, not opening the camera.
+    var isImported = false
     var onRetake: () -> Void
     var onUse: () -> Void
     /// Present when session corners exist; lets the user redo calibration
@@ -39,20 +42,19 @@ struct ClipReviewView: View {
                         Button {
                             onRetake()
                         } label: {
-                            Label("Retake", systemImage: "arrow.counterclockwise")
-                                .frame(maxWidth: .infinity)
+                            Label(
+                                isImported ? "Pick Another" : "Retake",
+                                systemImage: isImported ? "photo.on.rectangle" : "arrow.counterclockwise"
+                            )
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
+                        .buttonStyle(.secondaryAction)
 
                         Button {
                             onUse()
                         } label: {
                             Label("Use Throw", systemImage: "checkmark")
-                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        .buttonStyle(.primaryAction)
                     }
                 }
                 .padding()

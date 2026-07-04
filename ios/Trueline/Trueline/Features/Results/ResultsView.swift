@@ -12,6 +12,7 @@ struct ResultsView: View {
     var onDone: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("speedUnit") private var speedUnit = "mph"
 
     var body: some View {
         NavigationStack {
@@ -19,13 +20,14 @@ struct ResultsView: View {
                 VStack(spacing: 16) {
                     if result.videoDisplaySize.height >= result.videoDisplaySize.width {
                         // Portrait clip: video dominant, thin lane view beside it,
-                        // heights matched.
+                        // heights matched to a share of the screen so small
+                        // phones still see the metrics without scrolling far.
                         HStack(spacing: 12) {
                             VideoPathView(clipURL: clipURL, result: result)
                             LaneViewCanvas(result: result, compact: true)
                                 .frame(width: 104)
                         }
-                        .frame(height: 480)
+                        .containerRelativeFrame(.vertical) { length, _ in length * 0.52 }
                         .frame(maxWidth: .infinity)
                     } else {
                         // Landscape clip: no room beside it — stack instead.
@@ -35,7 +37,11 @@ struct ResultsView: View {
                     }
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        MetricTile(title: "Speed", value: format(result.speedMph), unit: "mph")
+                        MetricTile(
+                            title: "Speed",
+                            value: format(result.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
+                            unit: SpeedUnit.label(speedUnit)
+                        )
                         MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
                         MetricTile(
                             title: "Entry Board", value: format(result.entryBoard), unit: "board",
@@ -71,19 +77,24 @@ struct ResultsView: View {
             }
             .navigationTitle("Shot Result")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 12) {
                     Button("Discard") { onDone() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                        .buttonStyle(.secondaryAction)
+                        .frame(maxWidth: 130)
+                    Button {
                         let shot = SavedShot(result: result)
                         shot.session = session
                         modelContext.insert(shot)
                         onDone()
+                    } label: {
+                        Label("Save Shot", systemImage: "checkmark")
                     }
-                    .bold()
+                    .buttonStyle(.primaryAction)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.bar)
             }
         }
     }
@@ -94,65 +105,6 @@ struct ResultsView: View {
     }
 }
 
-/// The source video, looping, with the smoothed ball path drawn on top.
-private struct VideoPathView: View {
-    let clipURL: URL
-    let result: ShotResult
-
-    @State private var player: AVPlayer?
-    @State private var looper: Any?
-
-    var body: some View {
-        ZStack {
-            if let player {
-                VideoPlayer(player: player)
-            }
-            // The container has the video's aspect ratio, so normalized display
-            // coordinates map straight onto the view.
-            if result.videoPath.count >= 2 {
-                Canvas { context, size in
-                    var path = Path()
-                    for (i, p) in result.videoPath.enumerated() {
-                        let pt = CGPoint(x: p.x * size.width, y: p.y * size.height)
-                        if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
-                    }
-                    context.stroke(
-                        path,
-                        with: .color(.brandMint),
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
-                    )
-                }
-                .allowsHitTesting(false)
-            }
-        }
-        .aspectRatio(
-            result.videoDisplaySize.width / max(result.videoDisplaySize.height, 1),
-            contentMode: .fit
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .onAppear {
-            let player = AVPlayer(url: clipURL)
-            player.isMuted = true
-            self.player = player
-            looper = NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime,
-                object: player.currentItem,
-                queue: .main
-            ) { _ in
-                player.seek(to: .zero)
-                player.play()
-            }
-            player.play()
-        }
-        .onDisappear {
-            player?.pause()
-            if let looper {
-                NotificationCenter.default.removeObserver(looper)
-            }
-        }
-    }
-}
-
 /// Runs the analyzer over the clip with a progress bar, then hands the result up.
 struct AnalysisView: View {
     let clipURL: URL
@@ -160,26 +112,26 @@ struct AnalysisView: View {
     var onComplete: (ShotResult) -> Void
     var onFailed: () -> Void
 
+    /// One detector per process. The Core ML load is the slow part and used to
+    /// run synchronously on the main actor, freezing the UI at the start of
+    /// every analysis — now it happens once, off the main actor, and every
+    /// later throw in a session reuses it.
+    private static let detectorTask = Task.detached(priority: .userInitiated) {
+        try BallDetector(model: ball(configuration: MLModelConfiguration()).model)
+    }
+
     @AppStorage("bowlingHand") private var bowlingHand = "right"
     @State private var progress = 0.0
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(spacing: 20) {
-                ProgressView(value: progress)
-                    .tint(.brandMint)
-                    .frame(maxWidth: 240)
-                Text("Tracking the ball…")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
+            AnalysisProgressView(progress: progress)
         }
         .task {
             do {
-                let model = try ball(configuration: MLModelConfiguration()).model
                 let analyzer = ShotAnalyzer(
-                    detector: try BallDetector(model: model),
+                    detector: try await Self.detectorTask.value,
                     corners: corners,
                     hand: bowlingHand == "left" ? .left : .right
                 )

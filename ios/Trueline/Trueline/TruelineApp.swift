@@ -6,7 +6,12 @@ struct TruelineApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let demoURL = Self.calibrationDemoURL {
+                if let progress = Self.progressPreviewValue {
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        AnalysisProgressView(progress: progress)
+                    }
+                } else if let demoURL = Self.calibrationDemoURL {
                     DemoAnalysisFlow(clipURL: demoURL)
                 } else {
                     ContentView()
@@ -14,6 +19,18 @@ struct TruelineApp: App {
             }
             .modelContainer(for: SavedShot.self)
         }
+    }
+
+    /// Debug hook: launch with `-progressPreview <0–1>` to pin the analysis
+    /// progress view at a fixed value — the real analysis is too fast in the
+    /// simulator to inspect visually.
+    private static var progressPreviewValue: Double? {
+        #if DEBUG
+        UserDefaults.standard.object(forKey: "progressPreview")
+            .map { _ in UserDefaults.standard.double(forKey: "progressPreview") }
+        #else
+        nil
+        #endif
     }
 
     /// Debug hook: launch with `-calibrationDemo <path>` to run the real

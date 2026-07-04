@@ -108,19 +108,15 @@ struct CalibrationView: View {
                         onBack()
                     } label: {
                         Label("Back", systemImage: "chevron.left")
-                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
+                    .buttonStyle(.secondaryAction)
 
                     Button {
                         corners = proposal ?? .defaultGuess
                     } label: {
                         Label("Reset", systemImage: "arrow.counterclockwise")
-                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
+                    .buttonStyle(.secondaryAction)
 
                     Button {
                         onConfirm(corners)
@@ -128,12 +124,10 @@ struct CalibrationView: View {
                         Label("Looks Good", systemImage: "checkmark")
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
-                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primaryAction)
                     .disabled(frame == nil)
             }
-            .controlSize(.large)
             .padding()
         }
         .background(Color.black.ignoresSafeArea())
