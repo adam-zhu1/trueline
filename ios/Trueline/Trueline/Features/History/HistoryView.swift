@@ -121,53 +121,20 @@ struct HistoryView: View {
     }
 }
 
-/// One shot's lane view and metrics.
+/// One saved shot, in the exact layout of the fresh Shot Result screen.
 struct ShotDetailView: View {
     let shot: SavedShot
 
-    @AppStorage("speedUnit") private var speedUnit = "mph"
-
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                // Replay with the tracked line, when the video was kept.
-                if let videoURL = shot.videoURL, shot.videoWidth > 0 {
-                    VideoPathView(clipURL: videoURL, result: shot.laneViewResult)
-                        .frame(maxHeight: 420)
-                }
-                LaneViewCanvas(result: shot.laneViewResult)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    MetricTile(
-                        title: "Speed",
-                        value: format(shot.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
-                        unit: SpeedUnit.label(speedUnit)
-                    )
-                    MetricTile(title: "Board at Arrows", value: format(shot.arrowBoard), unit: "board")
-                    MetricTile(
-                        title: "Entry Board", value: format(shot.entryBoard), unit: "board",
-                        numeric: shot.entryBoard, ideal: 17...18
-                    )
-                    MetricTile(
-                        title: "Entry Angle", value: format(shot.entryAngleDegrees), unit: "°",
-                        numeric: shot.entryAngleDegrees, ideal: 4...6
-                    )
-                    MetricTile(title: "Breakpoint", value: format(shot.breakpointBoard), unit: "board")
-                    MetricTile(
-                        title: "Breakpoint Distance",
-                        value: shot.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
-                        unit: "ft"
-                    )
-                }
-            }
+            ShotResultContent(
+                result: shot.laneViewResult,
+                clipURL: shot.videoWidth > 0 ? shot.videoURL : nil
+            )
             .padding()
         }
         .navigationTitle(shot.date.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func format(_ value: Double?) -> String {
-        guard let value else { return "--" }
-        return String(format: "%.1f", value)
     }
 }
 
