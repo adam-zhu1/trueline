@@ -21,6 +21,10 @@ struct ShotResult {
     /// Video dimensions as displayed (orientation applied).
     var videoDisplaySize: CGSize
     var trackedFrames: Int
+    /// Where the tracked throw sits in the source clip (seconds) — drives the
+    /// replay trim on save. Nil when nothing was tracked.
+    var throwStartSeconds: Double? = nil
+    var throwEndSeconds: Double? = nil
 
     /// A usable track: enough samples to draw a path and trust the metrics.
     var isReliable: Bool {
@@ -245,6 +249,10 @@ struct ShotAnalyzer {
             path: [], videoPath: [], videoDisplaySize: displaySize,
             trackedFrames: positions.count
         )
+        if let first = positions.first, let last = positions.last {
+            result.throwStartSeconds = Double(first.frame - 1) / fps
+            result.throwEndSeconds = Double(last.frame) / fps
+        }
         guard boards.count >= 3 else { return result }
 
         // Video-overlay trail: smoothed contact points (window 15, like the
