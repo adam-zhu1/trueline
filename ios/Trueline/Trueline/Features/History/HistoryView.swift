@@ -42,6 +42,7 @@ struct HistoryView: View {
                                     for offset in offsets {
                                         let session = activeSessions[offset]
                                         for shot in session.shots {
+                                            ShotVideoStore.delete(name: shot.videoFileName)
                                             modelContext.delete(shot)
                                         }
                                         modelContext.delete(session)
@@ -58,7 +59,9 @@ struct HistoryView: View {
                                 }
                                 .onDelete { offsets in
                                     for offset in offsets {
-                                        modelContext.delete(singleShots[offset])
+                                        let shot = singleShots[offset]
+                                        ShotVideoStore.delete(name: shot.videoFileName)
+                                        modelContext.delete(shot)
                                     }
                                 }
                             }
@@ -127,6 +130,11 @@ struct ShotDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                // Replay with the tracked line, when the video was kept.
+                if let videoURL = shot.videoURL, shot.videoWidth > 0 {
+                    VideoPathView(clipURL: videoURL, result: shot.laneViewResult)
+                        .frame(maxHeight: 420)
+                }
                 LaneViewCanvas(result: shot.laneViewResult)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     MetricTile(

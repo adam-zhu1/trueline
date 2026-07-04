@@ -13,6 +13,7 @@ struct ResultsView: View {
 
     @Environment(\.modelContext) private var modelContext
     @AppStorage("speedUnit") private var speedUnit = "mph"
+    @AppStorage("saveShotVideos") private var saveShotVideos = true
 
     var body: some View {
         NavigationStack {
@@ -85,6 +86,11 @@ struct ResultsView: View {
                     Button {
                         let shot = SavedShot(result: result)
                         shot.session = session
+                        if saveShotVideos {
+                            // Move (not copy) — the flow is done with the temp
+                            // clip once the shot is saved.
+                            shot.videoFileName = ShotVideoStore.store(clipURL: clipURL)
+                        }
                         modelContext.insert(shot)
                         onDone()
                     } label: {

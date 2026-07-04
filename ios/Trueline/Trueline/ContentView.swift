@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// What the full-screen capture overlay is showing.
@@ -14,6 +15,7 @@ enum CaptureRoute: Equatable {
 /// UIKit presentation machinery to wedge.
 struct ContentView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @Environment(\.modelContext) private var modelContext
     @State private var showOnboarding = false
     @State private var capture: CaptureRoute?
     /// Cold-start brand moment; once per process.
@@ -48,6 +50,16 @@ struct ContentView: View {
             OnboardingView {
                 hasSeenOnboarding = true
                 showOnboarding = false
+            }
+        }
+        .task {
+            // Orphan sweep: drop replay files no shot references (crash
+            // between file move and model save, failed delete, etc.).
+            let names = ((try? modelContext.fetch(FetchDescriptor<SavedShot>())) ?? [])
+                .compactMap(\.videoFileName)
+            let keep = Set(names)
+            Task.detached(priority: .background) {
+                ShotVideoStore.sweepOrphans(keeping: keep)
             }
         }
     }
