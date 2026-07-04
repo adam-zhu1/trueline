@@ -8,6 +8,7 @@ struct SessionDetailView: View {
     let session: BowlingSession
 
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("speedUnit") private var speedUnit = "mph"
 
     private var shots: [SavedShot] {
         session.shots.sorted { $0.date < $1.date }
@@ -18,10 +19,15 @@ struct SessionDetailView: View {
             Section("Consistency — \(shots.count) throws") {
                 // Pros hold speed within 0.5 mph shot to shot — the one
                 // spread with a published benchmark, so the one that earns
-                // a mint tint when met.
-                consistencyRow(title: "Speed", unit: "mph", keyPath: \.speedMph, tightWithin: 0.5)
-                consistencyRow(title: "Board at Arrows", unit: "board", keyPath: \.arrowBoard, tightWithin: nil)
-                consistencyRow(title: "Entry Board", unit: "board", keyPath: \.entryBoard, tightWithin: nil)
+                // a mint tint when met. Both the values and the benchmark
+                // convert together when the unit preference is km/h.
+                consistencyRow(
+                    title: "Speed", unit: SpeedUnit.label(speedUnit),
+                    values: shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } },
+                    tightWithin: SpeedUnit.value(0.5, unit: speedUnit)
+                )
+                consistencyRow(title: "Board at Arrows", unit: "board", values: shots.compactMap(\.arrowBoard), tightWithin: nil)
+                consistencyRow(title: "Entry Board", unit: "board", values: shots.compactMap(\.entryBoard), tightWithin: nil)
             }
 
             if let latest = shots.last {
@@ -62,10 +68,9 @@ struct SessionDetailView: View {
 
     private func consistencyRow(
         title: String, unit: String,
-        keyPath: KeyPath<SavedShot, Double?>, tightWithin: Double?
+        values: [Double], tightWithin: Double?
     ) -> some View {
-        let values = shots.compactMap { $0[keyPath: keyPath] }
-        return HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                 // A metric can be missing on some throws (short track, no
@@ -112,7 +117,7 @@ struct SessionDetailView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 if let speed = shot.speedMph {
-                    Text("\(speed, specifier: "%.1f") mph")
+                    Text("\(SpeedUnit.value(speed, unit: speedUnit), specifier: "%.1f") \(SpeedUnit.label(speedUnit))")
                         .font(.subheadline.monospacedDigit())
                 }
                 if let arrows = shot.arrowBoard {
