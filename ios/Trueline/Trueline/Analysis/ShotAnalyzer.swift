@@ -92,7 +92,9 @@ struct ShotAnalyzer {
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { continue }
-            if trackFinished { continue }
+            // The rest of the clip is the bowler walking back to the phone —
+            // decoding it buys nothing once the track is frozen.
+            if trackFinished { break }
             frameNumber += 1
             if frameNumber % 10 == 0 {
                 progress?(min(Double(frameNumber) / Double(totalFrames), 1.0))
@@ -205,6 +207,8 @@ struct ShotAnalyzer {
                 }
             }
         }
+
+        if reader.status == .reading { reader.cancelReading() }
 
         return Self.postProcess(
             positions: positions, geometry: geometry, fps: fpsSafe,
