@@ -30,10 +30,22 @@ struct ResultsView: View {
                     Button {
                         let shot = SavedShot(result: result)
                         shot.session = session
-                        if saveShotVideos {
-                            // Move (not copy) — the flow is done with the temp
-                            // clip once the shot is saved.
-                            shot.videoFileName = ShotVideoStore.store(clipURL: clipURL)
+                        if saveShotVideos,
+                           let rawName = ShotVideoStore.store(clipURL: clipURL) {
+                            // Claim the clip synchronously (move) so the flow's
+                            // cleanup can't delete it mid-export, then compact
+                            // it in the background: trimmed to the throw and
+                            // re-encoded at 720p. Failure keeps the raw.
+                            shot.videoFileName = rawName
+                            Task {
+                                if let compact = await ShotVideoStore.compress(
+                                    rawName: rawName,
+                                    throwStart: result.throwStartSeconds,
+                                    throwEnd: result.throwEndSeconds
+                                ) {
+                                    shot.videoFileName = compact
+                                }
+                            }
                         }
                         modelContext.insert(shot)
                         onDone()

@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 /// Where saved shots' replay videos live: Application Support/ShotVideos.
@@ -27,6 +28,41 @@ enum ShotVideoStore {
 
     static func url(forName name: String) -> URL {
         directory.appendingPathComponent(name)
+    }
+
+    /// Re-encode a stored raw clip down to just the throw (±1 s padding) at
+    /// 720p — the raw recording is mostly the walk back to the phone, so this
+    /// is a 10–20× size cut. Returns the compact file's name and deletes the
+    /// raw on success; nil means the export failed and the raw stays.
+    static func compress(rawName: String, throwStart: Double?, throwEnd: Double?) async -> String? {
+        let rawURL = url(forName: rawName)
+        let asset = AVURLAsset(url: rawURL)
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1280x720) else {
+            return nil
+        }
+        let outName = "shot-\(UUID().uuidString).mp4"
+        let outURL = url(forName: outName)
+        export.outputURL = outURL
+        export.outputFileType = .mp4
+        if let throwStart, let throwEnd,
+           let duration = try? await asset.load(.duration) {
+            let pad = 1.0
+            let start = max(0, throwStart - pad)
+            let end = min(duration.seconds, throwEnd + pad)
+            if end > start {
+                export.timeRange = CMTimeRange(
+                    start: CMTime(seconds: start, preferredTimescale: 600),
+                    end: CMTime(seconds: end, preferredTimescale: 600)
+                )
+            }
+        }
+        await export.export()
+        guard export.status == .completed else {
+            try? FileManager.default.removeItem(at: outURL)
+            return nil
+        }
+        try? FileManager.default.removeItem(at: rawURL)
+        return outName
     }
 
     static func delete(name: String?) {
