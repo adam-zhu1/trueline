@@ -57,7 +57,9 @@ struct SessionDetailView: View {
                 }
                 .onDelete { offsets in
                     for offset in offsets {
-                        modelContext.delete(shots[offset])
+                        let shot = shots[offset]
+                        ShotVideoStore.delete(name: shot.videoFileName)
+                        modelContext.delete(shot)
                     }
                 }
             }
