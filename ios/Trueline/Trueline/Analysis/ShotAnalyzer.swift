@@ -99,6 +99,9 @@ struct ShotAnalyzer {
         let laneCentroid = geometry.laneCentroid
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
+            // A cancelled analysis (user backed out) must stop decoding, not
+            // grind through the rest of the clip.
+            try Task.checkCancellation()
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { continue }
             // The rest of the clip is the bowler walking back to the phone —
             // decoding it buys nothing once the track is frozen.
