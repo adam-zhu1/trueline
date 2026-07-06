@@ -8,6 +8,7 @@ struct BowlHomeView: View {
     @Binding var capture: CaptureRoute?
     @State private var pickerItem: PhotosPickerItem?
     @State private var isImporting = false
+    @State private var importFailed = false
 
     var body: some View {
         NavigationStack {
@@ -64,8 +65,16 @@ struct BowlHomeView: View {
                     // No presentation to race, so no grace timer.
                     if let file {
                         present(.imported(file.url))
+                    } else {
+                        // Silent failure reads as a broken button.
+                        importFailed = true
                     }
                 }
+            }
+            .alert("Couldn't load that video", isPresented: $importFailed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Try a different video — it may still be downloading from iCloud.")
             }
         }
     }

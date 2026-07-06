@@ -111,6 +111,9 @@ struct CaptureFlowView: View {
                     },
                     onFailed: {
                         step = .trackingFailed(clipURL)
+                    },
+                    onCancel: {
+                        step = .review(clipURL)
                     }
                 )
             case .results(let clipURL, let result):

@@ -70,6 +70,9 @@ struct AnalysisView: View {
     let corners: LaneCorners
     var onComplete: (ShotResult) -> Void
     var onFailed: () -> Void
+    /// Present when the flow offers a way back out mid-analysis (a long
+    /// imported clip shouldn't trap the user on a progress screen).
+    var onCancel: (() -> Void)? = nil
 
     /// One detector per process. The Core ML load is the slow part and used to
     /// run synchronously on the main actor, freezing the UI at the start of
@@ -86,6 +89,24 @@ struct AnalysisView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             AnalysisProgressView(progress: progress)
+            if let onCancel {
+                VStack {
+                    HStack {
+                        Button {
+                            onCancel()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.headline)
+                                .padding(12)
+                                .background(.white.opacity(0.12), in: Circle())
+                                .foregroundStyle(.white)
+                        }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding()
+            }
         }
         .task {
             do {
@@ -98,6 +119,8 @@ struct AnalysisView: View {
                     Task { @MainActor in progress = p }
                 }
                 onComplete(result)
+            } catch is CancellationError {
+                // The user backed out; the flow already navigated away.
             } catch {
                 onFailed()
             }
