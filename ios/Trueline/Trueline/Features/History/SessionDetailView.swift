@@ -5,7 +5,7 @@ import SwiftUI
 /// for the numbers a drill repeats (speed, arrows, entry board), then the
 /// individual shots. Spread is the sample standard deviation.
 struct SessionDetailView: View {
-    let session: BowlingSession
+    @Bindable var session: BowlingSession
 
     @Environment(\.modelContext) private var modelContext
     @AppStorage("speedUnit") private var speedUnit = "mph"
@@ -28,6 +28,9 @@ struct SessionDetailView: View {
                 )
                 consistencyRow(title: "Board at Arrows", unit: "board", values: shots.compactMap(\.arrowBoard), tightWithin: nil)
                 consistencyRow(title: "Entry Board", unit: "board", values: shots.compactMap(\.entryBoard), tightWithin: nil)
+                if let target = session.targetBoard {
+                    accuracyRow(target: target)
+                }
             }
 
             if let latest = shots.last {
@@ -49,6 +52,29 @@ struct SessionDetailView: View {
                 }
             }
 
+            // LaneTalk-style session tags plus the practice target; editable
+            // after the fact so old sessions can be labeled too.
+            Section("Session") {
+                LabeledContent("Ball") {
+                    TextField("e.g. Phaze II", text: $session.ball)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Center") {
+                    TextField("Bowling center", text: $session.center)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Pattern") {
+                    TextField("e.g. House", text: $session.oilPattern)
+                        .multilineTextAlignment(.trailing)
+                }
+                Picker("Target board", selection: $session.targetBoard) {
+                    Text("None").tag(Optional<Double>.none)
+                    ForEach(1...39, id: \.self) { b in
+                        Text("Board \(b)").tag(Optional(Double(b)))
+                    }
+                }
+            }
+
             Section("Throws") {
                 ForEach(Array(shots.enumerated()), id: \.element.persistentModelID) { index, shot in
                     NavigationLink(value: shot.persistentModelID) {
@@ -66,6 +92,33 @@ struct SessionDetailView: View {
         }
         .navigationTitle(session.date.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Target-line accuracy: average miss off the target board, plus how many
+    /// throws landed within one board of it.
+    private func accuracyRow(target: Double) -> some View {
+        let misses = shots.compactMap { $0.arrowBoard.map { $0 - target } }
+        let meanAbs = misses.isEmpty ? nil : misses.map(abs).reduce(0, +) / Double(misses.count)
+        let within = misses.filter { abs($0) <= 1.0 }.count
+        return HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("vs Target \(Int(target))")
+                if !misses.isEmpty {
+                    Text("\(within) of \(misses.count) within 1 board")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if let meanAbs {
+                (Text(String(format: "%.1f", meanAbs))
+                    .font(.body.monospacedDigit().bold())
+                    .foregroundStyle(meanAbs <= 1.0 ? Color.brandMint : Color.primary)
+                    + Text(" avg miss").font(.caption).foregroundStyle(Color.secondary))
+            } else {
+                Text("--").foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func consistencyRow(

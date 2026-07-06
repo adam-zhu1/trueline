@@ -9,6 +9,8 @@ struct ResultsView: View {
     let clipURL: URL
     let result: ShotResult
     var session: BowlingSession?
+    /// Target-line practice target, when the session has one.
+    var targetBoard: Double? = nil
     var onDone: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -17,7 +19,7 @@ struct ResultsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                ShotResultContent(result: result, clipURL: clipURL)
+                ShotResultContent(result: result, clipURL: clipURL, targetBoard: targetBoard)
                     .padding()
             }
             .navigationTitle("Shot Result")
