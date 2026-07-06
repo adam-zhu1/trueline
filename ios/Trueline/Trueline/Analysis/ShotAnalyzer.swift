@@ -13,6 +13,10 @@ struct ShotResult {
     var entryAngleDegrees: Double?
     /// Board at 59.5 ft (Specto's entry board; 17.5 is flush pocket).
     var entryBoard: Double?
+    /// Direction the ball leaves the hand, from the first tracked stretch.
+    /// Positive = launched toward the gutter (a righty playing outside
+    /// launches positive and hooks back at a positive entry angle).
+    var launchAngleDegrees: Double? = nil
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
     /// Smoothed ball-contact points in display-oriented normalized coordinates,
@@ -321,6 +325,24 @@ struct ShotAnalyzer {
                 break
             }
             prevG = g
+        }
+
+        // Launch angle: slope of the first tracked stretch on the smoothed
+        // series. Same geometry as entry angle, opposite end and sign — and
+        // like speed it must start in the front of the lane (a mid-lane lock
+        // isn't a launch).
+        let skipHead = min(3, sbAll.count - 1)
+        if feet[skipHead] <= 15.0 {
+            let head = min(max(5, sbAll.count / 6), sbAll.count - 1 - skipHead)
+            if head >= 2 {
+                let db = sbAll[skipHead + head] - sbAll[skipHead]
+                let df = sfAll[skipHead + head] - sfAll[skipHead]
+                if df > 0.5 {
+                    let dbIn = db * (LaneGeometry.laneWidthInches / 39.0)
+                    let angle = -atan2(dbIn, df * 12.0) * 180 / .pi
+                    result.launchAngleDegrees = (angle * 10).rounded() / 10
+                }
+            }
         }
 
         // Breakpoint: min board over the trimmed window (skip first third —

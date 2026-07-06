@@ -58,3 +58,11 @@ matched-calibration clips: 20.2 (test 06-15), -- (15-50, track ends early —
 guard working), 28.5 (15-52, the garbage-boards clip, consistent with its
 track), 19.4 (15-53). Inherits entry angle's detector sensitivity — re-baseline
 against known pocket hits on real in-app footage before trusting absolutes.
+
+## Launch angle (2026-07-06, iOS-only — no Python counterpart)
+
+Slope of the first tracked stretch, positive = launched toward the gutter;
+same tail-slope geometry as entry angle, opposite end and sign. Requires the
+track to start ≤ 15 ft like speed. On the matched-calibration clips: 2.1°
+(test 06-15), 1.5° (15-50), -- (15-52, mid-lane lock — guard working), 2.1°
+(15-53). Existing metrics unchanged on all clips after the addition.

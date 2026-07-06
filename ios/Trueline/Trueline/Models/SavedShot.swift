@@ -14,6 +14,7 @@ final class SavedShot {
     var breakpointFeet: Double?
     var entryAngleDegrees: Double?
     var entryBoard: Double?
+    var launchAngleDegrees: Double?
     var pathBoards: [Double]
     var pathFeet: [Double]
     var session: BowlingSession?
@@ -34,6 +35,7 @@ final class SavedShot {
         breakpointFeet = result.breakpointFeet
         entryAngleDegrees = result.entryAngleDegrees
         entryBoard = result.entryBoard
+        launchAngleDegrees = result.launchAngleDegrees
         pathBoards = result.path.map(\.board)
         pathFeet = result.path.map(\.feet)
         videoPathX = result.videoPath.map { Double($0.x) }
@@ -58,6 +60,7 @@ final class SavedShot {
             breakpointFeet: breakpointFeet,
             entryAngleDegrees: entryAngleDegrees,
             entryBoard: entryBoard,
+            launchAngleDegrees: launchAngleDegrees,
             path: zip(pathBoards, pathFeet).map { (board: $0, feet: $1) },
             videoPath: zip(videoPathX, videoPathY).map { CGPoint(x: $0, y: $1) },
             videoDisplaySize: CGSize(width: videoWidth, height: videoHeight),

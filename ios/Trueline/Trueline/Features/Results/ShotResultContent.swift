@@ -8,6 +8,9 @@ struct ShotResultContent: View {
     let result: ShotResult
     /// Replay video to play behind the tracked line, when one exists.
     var clipURL: URL?
+    /// Target-line practice: the session's target board at the arrows, when
+    /// set — adds a per-throw miss tile.
+    var targetBoard: Double? = nil
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
 
@@ -42,6 +45,16 @@ struct ShotResultContent: View {
                     unit: SpeedUnit.label(speedUnit)
                 )
                 MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
+                if let targetBoard {
+                    let miss = result.arrowBoard.map { $0 - targetBoard }
+                    MetricTile(
+                        title: "vs Target \(Int(targetBoard))",
+                        value: miss.map { String(format: "%+.1f", $0) } ?? "--",
+                        unit: "boards",
+                        numeric: miss, ideal: -1...1
+                    )
+                }
+                MetricTile(title: "Launch Angle", value: format(result.launchAngleDegrees), unit: "°")
                 MetricTile(
                     title: "Entry Board", value: format(result.entryBoard), unit: "board",
                     numeric: result.entryBoard, ideal: 17...18
