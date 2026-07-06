@@ -4,7 +4,12 @@ import SwiftUI
 /// and an elapsed timer while recording.
 struct RecordView: View {
     var camera: CameraModel
+    /// Target-line practice: the board the bowler is aiming over at the
+    /// arrows, shared with the capture flow so results can score the miss.
+    @Binding var targetBoard: Double?
     var onCancel: () -> Void
+
+    @State private var showTargetPicker = false
 
     var body: some View {
         // Camera starts here (not in the flow) so an imported-video session
@@ -59,6 +64,20 @@ struct RecordView: View {
                             .padding(.vertical, 6)
                             .background(.red, in: Capsule())
                             .foregroundStyle(.white)
+                    } else if camera.status == .previewing {
+                        Button {
+                            showTargetPicker = true
+                        } label: {
+                            Label(
+                                targetBoard.map { "Target \(Int($0))" } ?? "Set Target",
+                                systemImage: "scope"
+                            )
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.black.opacity(0.5), in: Capsule())
+                            .foregroundStyle(targetBoard == nil ? .white : Color.brandMint)
+                        }
                     }
                 }
                 .padding()
@@ -88,6 +107,10 @@ struct RecordView: View {
             }
         }
         .task { await camera.start() }
+        .sheet(isPresented: $showTargetPicker) {
+            TargetPickerSheet(targetBoard: $targetBoard)
+                .presentationDetents([.height(320)])
+        }
     }
 
     private func statusMessage(
@@ -109,6 +132,54 @@ struct RecordView: View {
         }
         .foregroundStyle(.white)
         .padding(32)
+    }
+}
+
+/// Wheel picker for the target board at the arrows (hand-normalized: board 1
+/// is the outside board, 20 the center arrow).
+private struct TargetPickerSheet: View {
+    @Binding var targetBoard: Double?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var board = 17
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Target board at the arrows")
+                .font(.headline)
+                .padding(.top, 20)
+            Text("Every throw gets scored against it — aim over one board all session.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            Picker("Target board", selection: $board) {
+                ForEach(1...39, id: \.self) { b in
+                    Text("Board \(b)").tag(b)
+                }
+            }
+            .pickerStyle(.wheel)
+            HStack(spacing: 12) {
+                if targetBoard != nil {
+                    Button("Clear") {
+                        targetBoard = nil
+                        dismiss()
+                    }
+                    .buttonStyle(.secondaryAction)
+                }
+                Button("Set Target") {
+                    targetBoard = Double(board)
+                    dismiss()
+                }
+                .buttonStyle(.primaryAction)
+            }
+            .padding([.horizontal, .bottom])
+        }
+        .onAppear {
+            if let targetBoard {
+                board = Int(targetBoard)
+            }
+        }
     }
 }
 

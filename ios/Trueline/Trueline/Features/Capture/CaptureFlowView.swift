@@ -31,6 +31,9 @@ struct CaptureFlowView: View {
     /// them (the phone doesn't move between throws).
     @State private var sessionCorners: LaneCorners?
     @State private var session: BowlingSession?
+    /// Target-line practice: set from the record screen, scored on results,
+    /// persisted onto the session.
+    @State private var targetBoard: Double?
     private let isImported: Bool
     /// Closes the root overlay this flow renders in (there is no presentation
     /// to dismiss).
@@ -47,7 +50,7 @@ struct CaptureFlowView: View {
         Group {
             switch step {
             case .record:
-                RecordView(camera: camera) {
+                RecordView(camera: camera, targetBoard: $targetBoard) {
                     camera.stop()
                     onExit()
                 }
@@ -105,7 +108,7 @@ struct CaptureFlowView: View {
                     }
                 )
             case .results(let clipURL, let result):
-                ResultsView(clipURL: clipURL, result: result, session: session) {
+                ResultsView(clipURL: clipURL, result: result, session: session, targetBoard: targetBoard) {
                     if isImported {
                         try? FileManager.default.removeItem(at: clipURL)
                         camera.stop()
@@ -142,10 +145,15 @@ struct CaptureFlowView: View {
     /// model while SwiftUI is evaluating a body is a state-mutation-during-
     /// update, which is exactly the kind of thing that breaks presentations.
     private func ensureSession() {
-        guard !isImported, session == nil else { return }
-        let new = BowlingSession()
-        modelContext.insert(new)
-        session = new
+        guard !isImported else { return }
+        if session == nil {
+            let new = BowlingSession()
+            modelContext.insert(new)
+            session = new
+        }
+        // Keep the session's target in step with the record-screen chip, so
+        // History scores throws against what was actually aimed at.
+        session?.targetBoard = targetBoard
     }
 }
 

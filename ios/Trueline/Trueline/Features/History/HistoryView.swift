@@ -81,13 +81,18 @@ struct HistoryView: View {
     }
 
     private func sessionRow(for session: BowlingSession) -> some View {
-        HStack {
+        // Tag line (ball · center · pattern) when set; time otherwise.
+        let tags = [session.ball, session.center, session.oilPattern]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+        return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.date, style: .date)
                     .font(.headline)
-                Text(session.date, style: .time)
+                Text(tags.isEmpty ? session.date.formatted(date: .omitted, time: .shortened) : tags)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             Text("\(session.shots.count) throw\(session.shots.count == 1 ? "" : "s")")
@@ -129,7 +134,8 @@ struct ShotDetailView: View {
         ScrollView {
             ShotResultContent(
                 result: shot.laneViewResult,
-                clipURL: shot.videoWidth > 0 ? shot.videoURL : nil
+                clipURL: shot.videoWidth > 0 ? shot.videoURL : nil,
+                targetBoard: shot.session?.targetBoard
             )
             .padding()
         }
