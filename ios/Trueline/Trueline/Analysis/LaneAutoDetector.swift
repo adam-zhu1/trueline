@@ -63,6 +63,7 @@ enum LaneAutoDetector {
         var b: Double
         var length: Double
         var xBot: Double   // x at y = h
+        var yBot: Double   // bottom-most extent of the segment
     }
 
     private static func corners(from segments: [(Int, Int, Int, Int)], width w: Int, height h: Int) -> PixelCorners? {
@@ -84,7 +85,11 @@ enum LaneAutoDetector {
             let angle = atan2(abs(dy), abs(Double(x2 - x1))) * 180 / .pi
             guard angle >= 35 else { continue }  // too horizontal to be a gutter
             let length = (Double(x2 - x1) * Double(x2 - x1) + dy * dy).squareRoot()
-            lines.append(Line(a: a, b: b, length: length, xBot: a * hd + b))
+            lines.append(Line(
+                a: a, b: b, length: length,
+                xBot: a * hd + b,
+                yBot: Double(max(y1, y2))
+            ))
         }
 
         // Left gutter crosses the bottom left of center leaning right going up;
@@ -103,11 +108,28 @@ enum LaneAutoDetector {
 
         func xAt(_ l: Line, _ y: Double) -> Double { l.a * y + l.b }
 
-        let yNear = 0.92 * hd
+        // Foul row: where the gutter edges actually end at the bottom — an
+        // assumed fraction of the frame plants the foul corners in the UI
+        // chrome of screen recordings, 500 px off. Colinear segments (the
+        // gutter split by compression) extend the chosen line's reach.
+        func bottomReach(of chosen: Line) -> Double {
+            var reach = chosen.yBot
+            for l in lines
+            where abs(l.a - chosen.a) <= 0.12 && abs(xAt(l, l.yBot) - xAt(chosen, l.yBot)) <= 14 {
+                reach = max(reach, l.yBot)
+            }
+            return reach
+        }
+        let yNear = min(max(max(bottomReach(of: left), bottomReach(of: right)), 0.30 * hd), 0.96 * hd)
+
         let sepNear = abs(xAt(right, yNear) - xAt(left, yNear))
-        var yFar = yNear
+        // Lanes aren't slivers; a tiny separation means we latched onto the
+        // wrong pair of edges.
+        guard sepNear > 0.08 * Double(w) else { return nil }
+
         // Far row: where the gutters have converged to ~18% of the near separation
         // (approx the pin deck; avoids running to the vanishing point).
+        var yFar: Double?
         let steps = 200
         for i in 0..<steps {
             let y = yNear * (1 - Double(i) / Double(steps - 1))
@@ -116,6 +138,10 @@ enum LaneAutoDetector {
                 break
             }
         }
+        // No convergence inside the frame → not a usable lane read. A
+        // degenerate quad silently poisons every metric, so fail and let the
+        // calibration screen show the honest drag-the-corners default.
+        guard let yFar, yNear - yFar >= 0.15 * hd else { return nil }
 
         return PixelCorners(
             foulLeft: CGPoint(x: xAt(left, yNear), y: yNear),

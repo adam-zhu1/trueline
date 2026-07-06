@@ -83,10 +83,16 @@ struct CaptureFlowView: View {
             case .calibrate(let clipURL):
                 CalibrationView(
                     clipURL: clipURL,
+                    preferSavedCalibration: !isImported,
                     onBack: {
                         step = .review(clipURL)
                     },
                     onConfirm: { corners in
+                        // Imported clips come from arbitrary cameras — only a
+                        // live placement is worth remembering for next time.
+                        if !isImported {
+                            corners.saveAsLastConfirmed()
+                        }
                         sessionCorners = corners
                         step = .analyze(clipURL, corners)
                     }

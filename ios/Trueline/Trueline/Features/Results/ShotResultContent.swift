@@ -71,6 +71,15 @@ struct ShotResultContent: View {
                 )
             }
 
+            if looksMiscalibrated {
+                Label(
+                    "These numbers are outside typical ranges — if the phone moved during the session, recalibrate the corners on your next throw.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+
             if result.speedMph == nil {
                 Text("Speed needs the ball tracked through the front of the lane — start recording before the throw.")
                     .font(.footnote)
@@ -85,6 +94,15 @@ struct ShotResultContent: View {
                     .multilineTextAlignment(.center)
             }
         }
+    }
+
+    /// Stale or wrong calibration produces numbers that look like data (a
+    /// miscalibrated test clip read 27 mph over board 30) — flag anything
+    /// outside plausible league ranges instead of presenting it deadpan.
+    private var looksMiscalibrated: Bool {
+        if let speed = result.speedMph, speed > 24 || speed < 6 { return true }
+        if let arrows = result.arrowBoard, arrows >= 30 { return true }
+        return false
     }
 
     private func format(_ value: Double?) -> String {
