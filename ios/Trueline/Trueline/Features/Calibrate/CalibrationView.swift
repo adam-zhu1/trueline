@@ -6,7 +6,14 @@ import SwiftUI
 /// near, pin deck far); a loupe magnifies the area under the active handle.
 /// The static default seed is replaced by lane auto-detect in task #4.
 struct CalibrationView: View {
+    private enum ProposalSource {
+        case saved, detected, none
+    }
+
     let clipURL: URL
+    /// Live sessions seed from the last human-confirmed calibration (same
+    /// phone placement usually); imported clips always auto-detect.
+    var preferSavedCalibration = false
     var onBack: () -> Void
     var onConfirm: (LaneCorners) -> Void
 
@@ -14,6 +21,7 @@ struct CalibrationView: View {
     @State private var loadFailed = false
     @State private var corners: LaneCorners = .defaultGuess
     @State private var proposal: LaneCorners?
+    @State private var proposalSource: ProposalSource = .none
     @State private var isDetecting = true
     /// Once the user drags a corner, a late-arriving auto-detect proposal must
     /// not overwrite their adjustment.
@@ -40,9 +48,7 @@ struct CalibrationView: View {
                     .background(.black.opacity(0.55), in: Capsule())
                     .padding(.top, 8)
                 } else {
-                    Text(proposal != nil
-                        ? "We found the lane — drag the corners to fine-tune if needed."
-                        : "Drag the corners onto the lane — foul line at the bottom, pin deck at the top.")
+                    Text(hintText)
                     .font(.footnote)
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
@@ -134,18 +140,41 @@ struct CalibrationView: View {
         .task { await loadFrame() }
     }
 
+    private var hintText: String {
+        switch proposalSource {
+        case .saved:
+            "Corners from your last session — adjust if the phone moved."
+        case .detected:
+            "We found the lane — drag the corners to fine-tune if needed."
+        case .none:
+            "Drag the corners onto the lane — foul line at the bottom, pin deck at the top."
+        }
+    }
+
     private func loadFrame() async {
         do {
             let generator = AVAssetImageGenerator(asset: AVURLAsset(url: clipURL))
             generator.appliesPreferredTrackTransform = true
             let (cgImage, _) = try await generator.image(at: .zero)
             frame = UIImage(cgImage: cgImage)
-            // Propose corners via lane auto-detect; the user adjusts from there.
+            // A human-confirmed calibration from the last session beats any
+            // detector proposal — same placement means one confirming tap.
+            if preferSavedCalibration, let saved = LaneCorners.loadLastConfirmed() {
+                proposal = saved
+                proposalSource = .saved
+                if !userAdjusted {
+                    corners = saved
+                }
+                isDetecting = false
+                return
+            }
+            // Otherwise propose via lane auto-detect; the user adjusts from there.
             let detected = await Task.detached(priority: .userInitiated) {
                 LaneAutoDetector.detectLaneCorners(in: cgImage)
             }.value
             if let detected {
                 proposal = detected
+                proposalSource = .detected
                 if !userAdjusted {
                     corners = detected
                 }

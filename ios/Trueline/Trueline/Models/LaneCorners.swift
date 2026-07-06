@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// The four lane corners in normalized image coordinates (0–1, origin top-left).
 /// Near = foul line, far = pin deck. This quad defines the perspective transform
@@ -31,6 +32,35 @@ struct LaneCorners: Equatable {
             case .nearLeft: nearLeft = newValue
             }
         }
+    }
+
+    private static let lastConfirmedKey = "lastCalibration"
+
+    /// The last human-confirmed calibration from a live session. Normalized
+    /// coordinates, so it applies to any recording from the same placement —
+    /// the next session starts from it and usually needs one confirming tap.
+    static func loadLastConfirmed() -> LaneCorners? {
+        guard let v = UserDefaults.standard.array(forKey: lastConfirmedKey) as? [Double],
+              v.count == 8
+        else { return nil }
+        return LaneCorners(
+            farLeft: CGPoint(x: v[0], y: v[1]),
+            farRight: CGPoint(x: v[2], y: v[3]),
+            nearRight: CGPoint(x: v[4], y: v[5]),
+            nearLeft: CGPoint(x: v[6], y: v[7])
+        )
+    }
+
+    func saveAsLastConfirmed() {
+        UserDefaults.standard.set(
+            [
+                Double(farLeft.x), Double(farLeft.y),
+                Double(farRight.x), Double(farRight.y),
+                Double(nearRight.x), Double(nearRight.y),
+                Double(nearLeft.x), Double(nearLeft.y),
+            ],
+            forKey: Self.lastConfirmedKey
+        )
     }
 
     /// Same trapezoid as the record screen's framing guide — a sensible seed until
