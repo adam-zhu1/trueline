@@ -6,6 +6,7 @@ import SwiftUI
 struct OnboardingView: View {
     var onDone: () -> Void
 
+    @AppStorage("bowlingHand") private var bowlingHand = "right"
     @State private var page = 0
 
     private struct Page {
@@ -41,7 +42,7 @@ struct OnboardingView: View {
                     Button("Skip") { onDone() }
                         .foregroundStyle(.secondary)
                         .padding()
-                        .opacity(page == pages.count - 1 ? 0 : 1)
+                        .opacity(page == pages.count ? 0 : 1)
                 }
 
                 TabView(selection: $page) {
@@ -63,24 +64,74 @@ struct OnboardingView: View {
                         .padding(.bottom, 48)
                         .tag(i)
                     }
+                    handPage
+                        .tag(pages.count)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
 
                 Button {
-                    if page == pages.count - 1 {
+                    if page == pages.count {
                         onDone()
                     } else {
                         withAnimation { page += 1 }
                     }
                 } label: {
-                    Text(page == pages.count - 1 ? "Start Bowling" : "Continue")
+                    Text(page == pages.count ? "Start Bowling" : "Continue")
                 }
                 .buttonStyle(.primaryAction)
                 .padding()
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Final page: bowling hand. Boards are numbered from the bowler's side,
+    /// so a wrong hand silently mirrors every board number — worth one tap up
+    /// front instead of a setting nobody finds.
+    private var handPage: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "figure.bowling")
+                .font(.system(size: 72))
+                .foregroundStyle(.tint)
+            Text("Which hand do you bowl with?")
+                .font(.title2.bold())
+                .multilineTextAlignment(.center)
+            Text("Board numbers count from your side of the lane, so this keeps every number true. You can change it later in Settings.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+            HStack(spacing: 12) {
+                handCard("Left", tag: "left")
+                handCard("Right", tag: "right")
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 48)
+    }
+
+    private func handCard(_ label: String, tag: String) -> some View {
+        Button {
+            bowlingHand = tag
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 28))
+                    .scaleEffect(x: tag == "left" ? -1 : 1)
+                Text(label)
+                    .font(.headline)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 96)
+            .foregroundStyle(bowlingHand == tag ? Color.brandMint : .secondary)
+            .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(bowlingHand == tag ? Color.brandMint : .clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
