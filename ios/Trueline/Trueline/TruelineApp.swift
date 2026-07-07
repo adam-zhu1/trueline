@@ -13,6 +13,10 @@ struct TruelineApp: App {
                     }
                 } else if let demoURL = Self.calibrationDemoURL {
                     DemoAnalysisFlow(clipURL: demoURL)
+                } else if Self.shareCardPreview {
+                    #if DEBUG
+                    ShareCardPreview()
+                    #endif
                 } else {
                     ContentView()
                 }
@@ -33,6 +37,17 @@ struct TruelineApp: App {
         #endif
     }
 
+    /// Debug hook: launch with `-shareCardPreview` to show the share card with
+    /// sample data — the card is only ever rendered off-screen in production,
+    /// so this is the way to eyeball it in the simulator.
+    private static var shareCardPreview: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "shareCardPreview")
+        #else
+        false
+        #endif
+    }
+
     /// Debug hook: launch with `-calibrationDemo <path>` to run the real
     /// calibrate → analyze → results sequence on a local clip — lets the
     /// simulator (no camera) exercise the whole pipeline.
@@ -47,6 +62,33 @@ struct TruelineApp: App {
 }
 
 #if DEBUG
+/// Shows the ImageRenderer output — the exact bitmap the share sheet gets —
+/// not the live view, so a screenshot verifies the real share pipeline.
+private struct ShareCardPreview: View {
+    @State private var card: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if let card {
+                Image(uiImage: card)
+                    .resizable()
+                    .scaledToFit()
+                    .padding()
+            }
+        }
+        .onAppear {
+            let renderer = ImageRenderer(content: ShareCardView(
+                result: .sampleCard,
+                date: .now,
+                tags: ["Phaze II", "Kingpin Lanes", "House"]
+            ))
+            renderer.scale = 3
+            card = renderer.uiImage
+        }
+    }
+}
+
 /// Auto-advances through the pipeline (no taps — the simulator can't be tapped
 /// from the CLI): auto-detect corners on the first frame, analyze, show results.
 private struct DemoAnalysisFlow: View {

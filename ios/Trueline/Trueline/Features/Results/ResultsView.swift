@@ -24,6 +24,11 @@ struct ResultsView: View {
             }
             .navigationTitle("Shot Result")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShotShareButton(result: result, date: .now, tags: sessionTags)
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 12) {
                     Button("Discard") { onDone() }
@@ -61,6 +66,11 @@ struct ResultsView: View {
                 .background(.bar)
             }
         }
+    }
+
+    private var sessionTags: [String] {
+        guard let session else { return [] }
+        return [session.ball, session.center, session.oilPattern].filter { !$0.isEmpty }
     }
 }
 
