@@ -141,6 +141,16 @@ struct ShotDetailView: View {
         }
         .navigationTitle(shot.date.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShotShareButton(result: shot.laneViewResult, date: shot.date, tags: sessionTags)
+            }
+        }
+    }
+
+    private var sessionTags: [String] {
+        guard let session = shot.session else { return [] }
+        return [session.ball, session.center, session.oilPattern].filter { !$0.isEmpty }
     }
 }
 
