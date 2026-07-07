@@ -97,7 +97,8 @@ struct OnboardingView: View {
     /// front instead of a setting nobody finds.
     private var handPage: some View {
         VStack(spacing: 24) {
-            OnboardingArtView(art: .pocket)
+            OnboardingArtView(art: .pocket, mirrored: bowlingHand == "left")
+                .animation(.easeInOut(duration: 0.4), value: bowlingHand)
             Text("Which hand do you bowl with?")
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)

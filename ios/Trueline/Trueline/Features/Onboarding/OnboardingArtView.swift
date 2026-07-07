@@ -17,6 +17,10 @@ struct OnboardingArtView: View {
     }
 
     let art: Art
+    /// Flip for left-handers — the mirror image is physically exact (1–2
+    /// pocket, hook breaking right). The hand page binds this to the live
+    /// selection so the diagram previews what the choice means.
+    var mirrored = false
 
     private let laneFill = Color(red: 55 / 255, green: 55 / 255, blue: 60 / 255)
     private let laneBorder = Color(red: 70 / 255, green: 75 / 255, blue: 80 / 255)
@@ -32,6 +36,7 @@ struct OnboardingArtView: View {
             }
         }
         .frame(width: 230, height: art == .pocket ? 120 : 200)
+        .scaleEffect(x: mirrored ? -1 : 1)
     }
 
     // MARK: Perspective lane (setup / calibrate / metrics)
@@ -95,15 +100,17 @@ struct OnboardingArtView: View {
     }
 
     /// Ten pins seen from the approach — head pin nearest, back row deepest.
+    /// Lateral positions are true: pins sit 12 in apart on a 41.5 in lane, so
+    /// the back row spans almost gutter to gutter. Row depth is exaggerated
+    /// (real rows are 10.4 in apart — invisible at this scale).
     private func drawPins(_ context: GraphicsContext) {
-        let rows: [(depth: CGFloat, count: Int)] = [
-            (0.88, 1), (0.91, 2), (0.94, 3), (0.97, 4),
+        let sixInches = 6.0 / LaneGeometry.laneWidthInches
+        let rows: [(depth: CGFloat, offsets: [Double])] = [
+            (0.88, [0]), (0.91, [-1, 1]), (0.94, [-2, 0, 2]), (0.97, [-3, -1, 1, 3]),
         ]
         for row in rows {
-            for i in 0..<row.count {
-                let spread = CGFloat(row.count - 1) * 0.11
-                let f = 0.5 - spread / 2 + CGFloat(i) * (row.count > 1 ? spread / CGFloat(row.count - 1) : 0)
-                let pt = point(depth: row.depth, across: f)
+            for off in row.offsets {
+                let pt = point(depth: row.depth, across: 0.5 + off * sixInches)
                 context.fill(
                     Path(ellipseIn: CGRect(x: pt.x - 2, y: pt.y - 2, width: 4, height: 4)),
                     with: .color(Color(white: 0.86))
@@ -220,12 +227,29 @@ struct OnboardingArtView: View {
                 context.stroke(Path(ellipseIn: pin), with: .color(Color(white: 0.16)), lineWidth: 1)
             }
         }
-        // Ball curving in from the right toward the 1–3 gap, stopped short of
-        // the deck so the ball doesn't merge into the pin cluster
-        let ball = CGPoint(x: center.x + dx / 2 + 4, y: center.y + 2 * dy + 16)
+        // Ball finishing its hook into the 1–3 gap. A right-hander's ball
+        // turns left the whole way and is turning hardest at the pins, so the
+        // tail starts near-vertical and finishes angled in — entry-angle
+        // shaped, slightly exaggerated so it reads at this size. The dashed
+        // projection through the gap makes the target unambiguous (the solid
+        // line alone read as head-pin-bound).
+        let headPin = CGPoint(x: center.x, y: center.y + 2 * dy)
+        let gap = CGPoint(x: headPin.x + dx / 4, y: headPin.y - dy / 2)
+        let ball = CGPoint(x: headPin.x + 9, y: headPin.y + 14)
+        var projection = Path()
+        projection.move(to: ball)
+        projection.addLine(to: gap)
+        context.stroke(
+            projection, with: .color(Color.brandMint.opacity(0.55)),
+            style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
+        )
+        // Vertical start tangent, ~20° left at the ball: the tangent must
+        // rotate counterclockwise (a righty's ball keeps turning left, J
+        // shaped) — an earlier version rotated it the other way and read as
+        // the wrong hand's hook.
         var path = Path()
-        path.move(to: CGPoint(x: center.x + 58, y: 118))
-        path.addQuadCurve(to: ball, control: CGPoint(x: center.x + 54, y: 78))
+        path.move(to: CGPoint(x: ball.x + 8, y: 118))
+        path.addQuadCurve(to: ball, control: CGPoint(x: ball.x + 8, y: ball.y + 20))
         context.stroke(
             path, with: .color(Color.brandMint),
             style: StrokeStyle(lineWidth: 2.5, lineCap: .round)

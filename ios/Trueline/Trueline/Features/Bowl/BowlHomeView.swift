@@ -145,12 +145,15 @@ private struct LaneHeroView: View {
                 context.fill(tri, with: .color(Color.brandMintDim))
             }
 
-            // Pin triangle, head pin toward the bowler
+            // Pin triangle, head pin toward the bowler. True lateral spacing —
+            // pins are 12 in apart, so the back row nearly spans the lane
+            // (LaneViewCanvas does the same); row depth stays schematic.
             let pinBase = 0.94
+            let boardsPer6In = (6.0 / LaneGeometry.laneWidthInches) * 39.0
             for row in 0...3 {
                 for i in 0...row {
-                    let board = 20.0 + (Double(i) - Double(row) / 2) * 5.2
-                    let pt = CGPoint(x: x(pinBase + Double(row) * 0.018), y: y(board))
+                    let board = 20.0 + (Double(i) - Double(row) / 2) * 2 * boardsPer6In
+                    let pt = CGPoint(x: x(pinBase + Double(row) * 0.016), y: y(board))
                     let isPocket = row == 0 || (row == 1 && i == 0)
                     let pin = CGRect(x: pt.x - 3, y: pt.y - 3, width: 6, height: 6)
                     context.fill(Path(ellipseIn: pin), with: .color(isPocket ? Color.brandMint : Color(white: 0.86)))
