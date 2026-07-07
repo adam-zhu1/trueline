@@ -7,27 +7,35 @@ struct OnboardingView: View {
     var onDone: () -> Void
 
     @AppStorage("bowlingHand") private var bowlingHand = "right"
-    @State private var page = 0
+    // Debug hook: `-onboardingPage <n>` opens on that page (screenshots — the
+    // simulator can't swipe from the CLI). Key absent in production: starts at 0.
+    @State private var page: Int = {
+        #if DEBUG
+        UserDefaults.standard.integer(forKey: "onboardingPage")
+        #else
+        0
+        #endif
+    }()
 
     private struct Page {
-        let icon: String
+        let art: OnboardingArtView.Art
         let title: String
         let text: String
     }
 
     private let pages: [Page] = [
         Page(
-            icon: "iphone",
+            art: .setup,
             title: "Set up behind the approach",
             text: "Prop your phone on the ball return or a table behind the approach, looking straight down your lane. Get the whole lane in frame — foul line to pins — and don't move the phone between throws."
         ),
         Page(
-            icon: "viewfinder",
+            art: .calibrate,
             title: "Your first throw calibrates",
             text: "Record a throw, then drag the four corners onto the lane — TrueLine finds them for you, you just fine-tune. Every following throw reuses that calibration: just bowl."
         ),
         Page(
-            icon: "chart.line.uptrend.xyaxis",
+            art: .metrics,
             title: "Every throw, measured",
             text: "Speed, board at the arrows, breakpoint, and where the ball enters the pocket — plus how consistent they are across the session. The numbers a coach would give you."
         ),
@@ -48,9 +56,7 @@ struct OnboardingView: View {
                 TabView(selection: $page) {
                     ForEach(pages.indices, id: \.self) { i in
                         VStack(spacing: 24) {
-                            Image(systemName: pages[i].icon)
-                                .font(.system(size: 72))
-                                .foregroundStyle(.tint)
+                            OnboardingArtView(art: pages[i].art)
                             Text(pages[i].title)
                                 .font(.title2.bold())
                                 .multilineTextAlignment(.center)
@@ -91,9 +97,7 @@ struct OnboardingView: View {
     /// front instead of a setting nobody finds.
     private var handPage: some View {
         VStack(spacing: 24) {
-            Image(systemName: "figure.bowling")
-                .font(.system(size: 72))
-                .foregroundStyle(.tint)
+            OnboardingArtView(art: .pocket)
             Text("Which hand do you bowl with?")
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)

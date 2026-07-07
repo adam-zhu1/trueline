@@ -13,14 +13,9 @@ struct BowlHomeView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Image(systemName: "figure.bowling")
-                        .font(.title3)
-                        .foregroundStyle(Color.brandMint)
-                    Text("TrueLine")
-                        .font(.headline)
-                }
-                .padding(.top, 8)
+                (Text("True").foregroundStyle(.white) + Text("Line").foregroundStyle(Color.brandMint))
+                    .font(.headline)
+                    .padding(.top, 8)
 
                 Text("Every throw,\nmeasured.")
                     .font(.system(size: 40, weight: .bold))
@@ -30,6 +25,11 @@ struct BowlHomeView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.top, 12)
+
+                Spacer()
+
+                LaneHeroView()
+                    .frame(height: 168)
 
                 Spacer()
 
@@ -81,6 +81,107 @@ struct BowlHomeView: View {
 
     private func present(_ route: CaptureRoute) {
         withAnimation(.easeInOut(duration: 0.25)) { capture = route }
+    }
+}
+
+/// Home-screen hero: a lane on its side — foul line left, pins right — with
+/// the brand hook rolling into the pocket. Same neutrals as LaneViewCanvas;
+/// decoration, not data.
+private struct LaneHeroView: View {
+    private let laneFill = Color(red: 55 / 255, green: 55 / 255, blue: 60 / 255)
+    private let laneBorder = Color(red: 70 / 255, green: 75 / 255, blue: 80 / 255)
+    private let gridColor = Color(red: 65 / 255, green: 70 / 255, blue: 75 / 255)
+    private let gutterColor = Color(red: 38 / 255, green: 38 / 255, blue: 40 / 255)
+
+    var body: some View {
+        Canvas { context, size in
+            let inset: CGFloat = 14
+            let gw: CGFloat = 7
+            let lane = CGRect(
+                x: inset, y: inset + gw,
+                width: size.width - inset * 2,
+                height: size.height - (inset + gw) * 2
+            )
+            // Board 1 is the bottom edge (a right-hander's view rotated to
+            // horizontal); u runs foul line → pins, left → right.
+            func x(_ u: Double) -> CGFloat { lane.minX + lane.width * u }
+            func y(_ board: Double) -> CGFloat { lane.maxY - lane.height * (board - 1) / 38.0 }
+
+            // Gutters + surface
+            context.fill(
+                Path(CGRect(x: lane.minX, y: lane.minY - gw, width: lane.width, height: gw)),
+                with: .color(gutterColor)
+            )
+            context.fill(
+                Path(CGRect(x: lane.minX, y: lane.maxY, width: lane.width, height: gw)),
+                with: .color(gutterColor)
+            )
+            context.fill(Path(lane), with: .color(laneFill))
+            context.stroke(Path(lane), with: .color(laneBorder), lineWidth: 1)
+
+            // Board seams
+            for b in stride(from: 5.0, through: 35.0, by: 5.0) {
+                var seam = Path()
+                seam.move(to: CGPoint(x: lane.minX, y: y(b)))
+                seam.addLine(to: CGPoint(x: lane.maxX, y: y(b)))
+                context.stroke(seam, with: .color(gridColor), lineWidth: 1)
+            }
+
+            // Foul line
+            var foul = Path()
+            foul.move(to: CGPoint(x: x(0), y: lane.minY))
+            foul.addLine(to: CGPoint(x: x(0), y: lane.maxY))
+            context.stroke(foul, with: .color(Color.brandMintDim), lineWidth: 2)
+
+            // Arrows: the V at 15 ft, center arrow (board 20) deepest
+            for board in stride(from: 5.0, through: 35.0, by: 5.0) {
+                let u = 0.25 + 0.045 * (1 - abs(board - 20) / 15)
+                let pt = CGPoint(x: x(u), y: y(board))
+                var tri = Path()
+                tri.move(to: CGPoint(x: pt.x + 4.5, y: pt.y))
+                tri.addLine(to: CGPoint(x: pt.x - 3, y: pt.y - 4))
+                tri.addLine(to: CGPoint(x: pt.x - 3, y: pt.y + 4))
+                tri.closeSubpath()
+                context.fill(tri, with: .color(Color.brandMintDim))
+            }
+
+            // Pin triangle, head pin toward the bowler
+            let pinBase = 0.94
+            for row in 0...3 {
+                for i in 0...row {
+                    let board = 20.0 + (Double(i) - Double(row) / 2) * 5.2
+                    let pt = CGPoint(x: x(pinBase + Double(row) * 0.018), y: y(board))
+                    let isPocket = row == 0 || (row == 1 && i == 0)
+                    let pin = CGRect(x: pt.x - 3, y: pt.y - 3, width: 6, height: 6)
+                    context.fill(Path(ellipseIn: pin), with: .color(isPocket ? Color.brandMint : Color(white: 0.86)))
+                    context.stroke(Path(ellipseIn: pin), with: .color(Color(white: 0.16)), lineWidth: 1)
+                }
+            }
+
+            // The brand hook, rolling out to the breakpoint and back to the pocket
+            var hook = Path()
+            for step in 0...40 {
+                let u = Double(step) / 40
+                let pt = CGPoint(x: x(u * pinBase), y: y(HookCurve.board(at: u)))
+                if step == 0 { hook.move(to: pt) } else { hook.addLine(to: pt) }
+            }
+            context.stroke(
+                hook, with: .color(Color.brandMint),
+                style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+            )
+            let ballU = HookCurve.breakpoint
+            let ball = CGPoint(x: x(ballU * pinBase), y: y(HookCurve.board(at: ballU)))
+            context.fill(
+                Path(ellipseIn: CGRect(x: ball.x - 4.5, y: ball.y - 4.5, width: 9, height: 9)),
+                with: .color(Color.brandMint)
+            )
+            context.stroke(
+                Path(ellipseIn: CGRect(x: ball.x - 4.5, y: ball.y - 4.5, width: 9, height: 9)),
+                with: .color(.white), lineWidth: 1
+            )
+        }
+        .background(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
