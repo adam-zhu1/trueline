@@ -6,8 +6,10 @@ struct SettingsView: View {
     @AppStorage("bowlingHand") private var bowlingHand = "right"
     @AppStorage("speedUnit") private var speedUnit = "mph"
     @AppStorage("saveShotVideos") private var saveShotVideos = true
+    @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
     @State private var showHowItWorks = false
+    @State private var showPaywall = false
     @State private var videoBytes: Int64 = 0
     @State private var confirmDeleteVideos = false
 
@@ -42,12 +44,41 @@ struct SettingsView: View {
                     Text("Metrics and lane views are always kept — deleting videos only removes the replays.")
                 }
                 Section {
+                    if store.isUnlocked {
+                        LabeledContent("TrueLine Unlimited", value: "Unlocked")
+                    } else {
+                        LabeledContent(
+                            "Free throws left",
+                            value: "\(store.freeThrowsLeft) of \(TruelineStore.freeThrowLimit)"
+                        )
+                        Button("Unlock TrueLine Unlimited") { showPaywall = true }
+                            .foregroundStyle(Color.brandMint)
+                        Button("Restore Purchases") {
+                            Task { await store.restore() }
+                        }
+                    }
+                } header: {
+                    Text("Unlimited")
+                } footer: {
+                    if !store.isUnlocked {
+                        Text("One-time purchase — every throw analyzed, forever. Only successful analyses count against free throws.")
+                    }
+                }
+                Section {
                     Button("How TrueLine works") { showHowItWorks = true }
                 }
+                #if DEBUG
+                Section("Debug") {
+                    Button("Reset Free Throws") { store.resetFreeThrows() }
+                }
+                #endif
             }
             .navigationTitle("Settings")
             .fullScreenCover(isPresented: $showHowItWorks) {
                 OnboardingView { showHowItWorks = false }
+            }
+            .fullScreenCover(isPresented: $showPaywall) {
+                PaywallView { showPaywall = false }
             }
             .confirmationDialog(
                 "Delete all shot videos?",
@@ -76,4 +107,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .modelContainer(for: SavedShot.self, inMemory: true)
+        .environment(TruelineStore())
 }

@@ -87,4 +87,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environment(TruelineStore())
 }

@@ -6,9 +6,11 @@ import SwiftUI
 struct BowlHomeView: View {
     /// Owned by ContentView, which renders the capture flow as a root overlay.
     @Binding var capture: CaptureRoute?
+    @Environment(TruelineStore.self) private var store
     @State private var pickerItem: PhotosPickerItem?
     @State private var isImporting = false
     @State private var importFailed = false
+    @State private var showPaywall = false
 
     var body: some View {
         NavigationStack {
@@ -35,20 +37,32 @@ struct BowlHomeView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        present(.record)
+                        if store.canAnalyze {
+                            present(.record)
+                        } else {
+                            showPaywall = true
+                        }
                     } label: {
                         Label("Start Session", systemImage: "record.circle.fill")
                     }
                     .buttonStyle(.primaryAction)
 
-                    PhotosPicker(selection: $pickerItem, matching: .videos) {
-                        Label(
-                            isImporting ? "Importing…" : "Analyze Existing Video",
-                            systemImage: "photo.on.rectangle"
-                        )
+                    // Out of free throws: the picker would just funnel into a
+                    // gate anyway, so go straight to the paywall.
+                    if store.canAnalyze {
+                        PhotosPicker(selection: $pickerItem, matching: .videos) {
+                            importLabel
+                        }
+                        .buttonStyle(.secondaryAction)
+                        .disabled(isImporting)
+                    } else {
+                        Button {
+                            showPaywall = true
+                        } label: {
+                            importLabel
+                        }
+                        .buttonStyle(.secondaryAction)
                     }
-                    .buttonStyle(.secondaryAction)
-                    .disabled(isImporting)
                 }
             }
             .padding(20)
@@ -76,7 +90,17 @@ struct BowlHomeView: View {
             } message: {
                 Text("Try a different video — it may still be downloading from iCloud.")
             }
+            .fullScreenCover(isPresented: $showPaywall) {
+                PaywallView { showPaywall = false }
+            }
         }
+    }
+
+    private var importLabel: some View {
+        Label(
+            isImporting ? "Importing…" : "Analyze Existing Video",
+            systemImage: "photo.on.rectangle"
+        )
     }
 
     private func present(_ route: CaptureRoute) {
@@ -190,4 +214,5 @@ private struct LaneHeroView: View {
 
 #Preview {
     BowlHomeView(capture: .constant(nil))
+        .environment(TruelineStore())
 }
