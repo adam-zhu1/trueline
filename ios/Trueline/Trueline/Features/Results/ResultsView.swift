@@ -16,6 +16,11 @@ struct ResultsView: View {
     @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
     @AppStorage("saveShotVideos") private var saveShotVideos = true
+    /// Sticky across throws and launches — league bowlers throw the same ball
+    /// all night, so the tag should survive without a tap.
+    @AppStorage("lastBall") private var selectedBall = ""
+    @State private var newBallName = ""
+    @State private var askNewBall = false
 
     var body: some View {
         NavigationStack {
@@ -32,12 +37,16 @@ struct ResultsView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 8) {
-                    if !store.isUnlocked {
-                        // Keep the limit visible from throw one — the gate
-                        // should never feel like an ambush.
-                        Text("\(store.freeThrowsLeft) of \(TruelineStore.freeThrowLimit) free throws left")
-                            .font(.footnote)
-                            .foregroundStyle(store.freeThrowsLeft <= 2 ? Color.brandMint : .secondary)
+                    HStack {
+                        ballMenu
+                        Spacer()
+                        if !store.isUnlocked {
+                            // Keep the limit visible from throw one — the gate
+                            // should never feel like an ambush.
+                            Text("\(store.freeThrowsLeft) of \(TruelineStore.freeThrowLimit) free throws left")
+                                .font(.footnote)
+                                .foregroundStyle(store.freeThrowsLeft <= 2 ? Color.brandMint : .secondary)
+                        }
                     }
                     resultButtons
                 }
@@ -45,6 +54,36 @@ struct ResultsView: View {
                 .padding(.vertical, 8)
                 .background(.bar)
             }
+            .alert("Ball name", isPresented: $askNewBall) {
+                TextField("e.g. Phaze II", text: $newBallName)
+                Button("Add") {
+                    selectedBall = newBallName.trimmingCharacters(in: .whitespaces)
+                    newBallName = ""
+                }
+                Button("Cancel", role: .cancel) { newBallName = "" }
+            } message: {
+                Text("Tag this shot's ball to compare equipment in Stats.")
+            }
+        }
+    }
+
+    /// Quick ball tag: recent balls one tap away, new ones by name. Stored on
+    /// the shot at save time (and onto an untagged session), which is how
+    /// imported one-offs make it into per-ball stats.
+    private var ballMenu: some View {
+        Menu {
+            ForEach(RecentBalls.load(), id: \.self) { ball in
+                Button(ball) { selectedBall = ball }
+            }
+            Divider()
+            Button("New Ball…") { askNewBall = true }
+            if !selectedBall.isEmpty {
+                Button("No Ball") { selectedBall = "" }
+            }
+        } label: {
+            Label(selectedBall.isEmpty ? "Tag Ball" : selectedBall, systemImage: "circle.circle")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(selectedBall.isEmpty ? Color.secondary : Color.brandMint)
         }
     }
 
@@ -56,6 +95,13 @@ struct ResultsView: View {
             Button {
                 let shot = SavedShot(result: result)
                 shot.session = session
+                shot.ball = selectedBall
+                RecentBalls.noteUsed(selectedBall)
+                // A live session inherits the first tagged ball so its
+                // detail screen and tags line stay populated.
+                if let session, session.ball.isEmpty {
+                    session.ball = selectedBall
+                }
                 if saveShotVideos,
                    let rawName = ShotVideoStore.store(clipURL: clipURL) {
                     // Claim the clip synchronously (move) so the flow's
@@ -83,7 +129,9 @@ struct ResultsView: View {
     }
 
     private var sessionTags: [String] {
-        guard let session else { return [] }
+        guard let session else {
+            return selectedBall.isEmpty ? [] : [selectedBall]
+        }
         return [session.ball, session.center, session.oilPattern].filter { !$0.isEmpty }
     }
 }

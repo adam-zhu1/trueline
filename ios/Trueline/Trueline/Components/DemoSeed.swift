@@ -36,6 +36,17 @@ enum DemoSeed {
                 context.insert(shot)
             }
         }
+
+        // Sessionless imports with a shot-level ball tag — the analyze-
+        // existing-footage path that per-ball stats must include.
+        for daysAgo in [3, 10] {
+            let shot = SavedShot(
+                date: Calendar.current.date(byAdding: .day, value: -daysAgo, to: .now) ?? .now,
+                result: makeResult(skill: 0.5, rng: &rng)
+            )
+            shot.ball = "Spare Ball"
+            context.insert(shot)
+        }
     }
 
     private static func makeResult(skill: Double, rng: inout SeededRNG) -> ShotResult {

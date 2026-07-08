@@ -113,10 +113,11 @@ struct TruelineApp: App {
 private struct TrendsPreview: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var sessions: [BowlingSession]
+    @Query private var shots: [SavedShot]
 
     var body: some View {
         NavigationStack {
-            TrendsView(sessions: sessions)
+            TrendsView(sessions: sessions.filter { !$0.shots.isEmpty }, shots: shots)
                 .defaultScrollAnchor(
                     UserDefaults.standard.bool(forKey: "trendsPreviewBottom") ? .bottom : .top
                 )

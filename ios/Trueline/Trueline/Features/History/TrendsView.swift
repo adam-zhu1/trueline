@@ -2,11 +2,15 @@ import Charts
 import SwiftData
 import SwiftUI
 
-/// Session-over-session trends: one small chart per metric — never combined,
-/// the scales differ — plus per-ball averages when sessions are tagged. All
-/// computed from saved shots; nothing here touches the analyzer.
+/// The stats screen: all-time totals over every saved shot, session-over-
+/// session trends (one small chart per metric — never combined, the scales
+/// differ), and per-ball averages. All computed from saved shots; nothing
+/// here touches the analyzer.
 struct TrendsView: View {
     let sessions: [BowlingSession]
+    /// Every saved shot — session throws and sessionless imports alike, so
+    /// all-time and per-ball stats see the whole record.
+    let shots: [SavedShot]
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
 
@@ -23,6 +27,8 @@ struct TrendsView: View {
 
     var body: some View {
         List {
+            allTimeSection
+            ballSection
             chartSection("Speed", unit: SpeedUnit.label(speedUnit)) { shots in
                 average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })
             }
@@ -35,10 +41,48 @@ struct TrendsView: View {
             chartSection("Entry Angle", unit: "°", idealBand: 4...6) {
                 average($0.compactMap(\.entryAngleDegrees))
             }
-            ballSection
         }
-        .navigationTitle("Trends")
+        .navigationTitle("Stats")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: All-time totals
+
+    /// The dashboard numbers: every saved shot counts, tagged or not.
+    private var allTimeSection: some View {
+        let entries = shots.filter { $0.entryBoard != nil }
+        let pocket: Double? = entries.isEmpty
+            ? nil
+            : Double(entries.filter(\.isPocketHit).count) / Double(entries.count) * 100
+        let activeDays = Set(shots.map { Calendar.current.startOfDay(for: $0.date) }).count
+        return Section("All Time") {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 3), spacing: 16) {
+                allTimeStat(String(shots.count), label: "throws")
+                allTimeStat(String(sessions.count), label: "sessions")
+                allTimeStat(String(activeDays), label: activeDays == 1 ? "day bowled" : "days bowled")
+                allTimeStat(
+                    format(average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })),
+                    label: "avg \(SpeedUnit.label(speedUnit))"
+                )
+                allTimeStat(format(average(shots.compactMap(\.hookBoards))), label: "avg hook")
+                allTimeStat(pocket.map { String(format: "%.0f%%", $0) } ?? "--", label: "pocket")
+            }
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func allTimeStat(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.title3.monospacedDigit().bold())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func format(_ value: Double?) -> String {
+        value.map { String(format: "%.1f", $0) } ?? "--"
     }
 
     // MARK: Per-session charts
@@ -148,22 +192,25 @@ struct TrendsView: View {
 
     @ViewBuilder
     private var ballSection: some View {
-        let groups = Dictionary(grouping: ordered.filter { !$0.ball.isEmpty }, by: \.ball)
+        // Group by the shot-level ball so sessionless imports count too.
+        let groups = Dictionary(
+            grouping: shots.filter { !$0.effectiveBall.isEmpty },
+            by: \.effectiveBall
+        )
         if !groups.isEmpty {
             Section {
                 ForEach(groups.keys.sorted(), id: \.self) { ball in
-                    ballRow(ball: ball, sessions: groups[ball] ?? [])
+                    ballRow(ball: ball, shots: groups[ball] ?? [])
                 }
             } header: {
                 Text("By Ball")
             } footer: {
-                Text("Averages across every session tagged with that ball — tag sessions to compare equipment.")
+                Text("Averages across every shot tagged with that ball — tag shots on the results screen to compare equipment.")
             }
         }
     }
 
-    private func ballRow(ball: String, sessions: [BowlingSession]) -> some View {
-        let shots = sessions.flatMap(\.shots)
+    private func ballRow(ball: String, shots: [SavedShot]) -> some View {
         let speed = average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })
         let hook = average(shots.compactMap(\.hookBoards))
         let entries = shots.filter { $0.entryBoard != nil }
