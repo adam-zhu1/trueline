@@ -18,6 +18,10 @@ final class SavedShot {
     var pathBoards: [Double]
     var pathFeet: [Double]
     var session: BowlingSession?
+    /// Ball tagged on this specific shot — how sessionless imports join the
+    /// per-ball stats. Session throws usually inherit the session tag instead
+    /// (see `effectiveBall`).
+    var ball: String = ""
     /// Replay video in ShotVideoStore; nil when saving videos is off or the
     /// video was deleted from Settings.
     var videoFileName: String?

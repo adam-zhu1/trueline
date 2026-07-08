@@ -31,17 +31,18 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        // Trends need at least two sessions to draw a line.
-                        if activeSessions.count >= 2 {
+                        // All-time stats work from the first saved shot; the
+                        // trend charts inside explain their own 2-session need.
+                        if !shots.isEmpty {
                             Section {
                                 NavigationLink {
-                                    TrendsView(sessions: activeSessions)
+                                    TrendsView(sessions: activeSessions, shots: shots)
                                 } label: {
                                     Label {
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Trends")
+                                            Text("Stats")
                                                 .font(.headline)
-                                            Text("Session averages over time, plus per-ball comparisons")
+                                            Text("All-time totals, trends, and ball comparison")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -170,7 +171,10 @@ struct ShotDetailView: View {
     }
 
     private var sessionTags: [String] {
-        guard let session = shot.session else { return [] }
+        guard let session = shot.session else {
+            let ball = shot.effectiveBall
+            return ball.isEmpty ? [] : [ball]
+        }
         return [session.ball, session.center, session.oilPattern].filter { !$0.isEmpty }
     }
 }

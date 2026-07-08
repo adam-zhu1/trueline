@@ -26,4 +26,30 @@ extension SavedShot {
     var isPocketHit: Bool {
         entryBoard.map { ShotResult.pocketBoards.contains($0) } ?? false
     }
+
+    /// The ball this shot was thrown with: its own tag first, else the
+    /// session's — so per-ball stats see session throws and one-off imports
+    /// through one lens.
+    var effectiveBall: String {
+        ball.isEmpty ? (session?.ball ?? "") : ball
+    }
+}
+
+/// The balls recently tagged on shots, most recent first — feeds the results
+/// screen's quick picker so a league bowler taps instead of retyping.
+enum RecentBalls {
+    private static let key = "recentBalls"
+    static let limit = 6
+
+    static func load() -> [String] {
+        UserDefaults.standard.stringArray(forKey: key) ?? []
+    }
+
+    static func noteUsed(_ ball: String) {
+        let trimmed = ball.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        var balls = load().filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
+        balls.insert(trimmed, at: 0)
+        UserDefaults.standard.set(Array(balls.prefix(limit)), forKey: key)
+    }
 }
