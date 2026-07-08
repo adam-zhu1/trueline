@@ -1,4 +1,5 @@
 import AVFoundation
+import SwiftData
 import SwiftUI
 
 @main
@@ -23,6 +24,14 @@ struct TruelineApp: App {
                     #if DEBUG
                     PaywallView {}
                     #endif
+                } else if Self.trendsPreview {
+                    #if DEBUG
+                    TrendsPreview()
+                    #endif
+                } else if Self.sessionDetailPreview {
+                    #if DEBUG
+                    SessionDetailPreview()
+                    #endif
                 } else {
                     ContentView()
                 }
@@ -38,6 +47,25 @@ struct TruelineApp: App {
     private static var paywallPreview: Bool {
         #if DEBUG
         UserDefaults.standard.bool(forKey: "paywallPreview")
+        #else
+        false
+        #endif
+    }
+
+    /// Debug hooks: `-trendsPreview` / `-sessionDetailPreview` (with
+    /// `-seedDemoHistory`) open straight onto those screens — they live behind
+    /// History navigation the CLI can't tap through.
+    private static var trendsPreview: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "trendsPreview")
+        #else
+        false
+        #endif
+    }
+
+    private static var sessionDetailPreview: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "sessionDetailPreview")
         #else
         false
         #endif
@@ -80,6 +108,42 @@ struct TruelineApp: App {
 }
 
 #if DEBUG
+/// Trends over the seeded demo history — the same data every run. Add
+/// `-trendsPreviewBottom` to open scrolled to the end (the CLI can't swipe).
+private struct TrendsPreview: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var sessions: [BowlingSession]
+
+    var body: some View {
+        NavigationStack {
+            TrendsView(sessions: sessions)
+                .defaultScrollAnchor(
+                    UserDefaults.standard.bool(forKey: "trendsPreviewBottom") ? .bottom : .top
+                )
+        }
+        .preferredColorScheme(.dark)
+        .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
+    }
+}
+
+/// A seeded session's detail screen (consistency rows, lines overlay).
+private struct SessionDetailPreview: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
+
+    var body: some View {
+        NavigationStack {
+            if let session = sessions.first(where: { !$0.shots.isEmpty }) {
+                SessionDetailView(session: session)
+            } else {
+                ProgressView()
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
+    }
+}
+
 /// Shows the ImageRenderer output — the exact bitmap the share sheet gets —
 /// not the live view, so a screenshot verifies the real share pipeline.
 private struct ShareCardPreview: View {
