@@ -28,6 +28,8 @@ struct SessionDetailView: View {
                 )
                 consistencyRow(title: "Board at Arrows", unit: "board", values: shots.compactMap(\.arrowBoard), tightWithin: nil)
                 consistencyRow(title: "Entry Board", unit: "board", values: shots.compactMap(\.entryBoard), tightWithin: nil)
+                consistencyRow(title: "Hook", unit: "boards", values: shots.compactMap(\.hookBoards), tightWithin: nil)
+                pocketRow
                 if let target = session.targetBoard {
                     accuracyRow(target: target)
                 }
@@ -92,6 +94,25 @@ struct SessionDetailView: View {
         }
         .navigationTitle(session.date.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Pocket hits out of throws with an entry board — mint once half or more
+    /// find the pocket (same nudge-not-judgment rule as the tiles).
+    private var pocketRow: some View {
+        let entries = shots.filter { $0.entryBoard != nil }
+        let hits = shots.filter(\.isPocketHit).count
+        return HStack(alignment: .firstTextBaseline) {
+            Text("Pocket Hits")
+            Spacer()
+            if entries.isEmpty {
+                Text("--").foregroundStyle(.secondary)
+            } else {
+                (Text("\(hits)")
+                    .font(.body.monospacedDigit().bold())
+                    .foregroundStyle(hits > 0 && hits * 2 >= entries.count ? Color.brandMint : Color.primary)
+                    + Text(" of \(entries.count)").font(.caption).foregroundStyle(Color.secondary))
+            }
+        }
     }
 
     /// Target-line accuracy: average miss off the target board, plus how many

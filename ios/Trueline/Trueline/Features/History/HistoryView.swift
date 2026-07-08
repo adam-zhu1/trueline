@@ -31,6 +31,27 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
+                        // Trends need at least two sessions to draw a line.
+                        if activeSessions.count >= 2 {
+                            Section {
+                                NavigationLink {
+                                    TrendsView(sessions: activeSessions)
+                                } label: {
+                                    Label {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Trends")
+                                                .font(.headline)
+                                            Text("Session averages over time, plus per-ball comparisons")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    } icon: {
+                                        Image(systemName: "chart.xyaxis.line")
+                                            .foregroundStyle(Color.brandMint)
+                                    }
+                                }
+                            }
+                        }
                         if !activeSessions.isEmpty {
                             Section("Sessions") {
                                 ForEach(activeSessions) { session in

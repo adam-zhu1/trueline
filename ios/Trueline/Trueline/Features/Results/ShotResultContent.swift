@@ -57,7 +57,7 @@ struct ShotResultContent: View {
                 MetricTile(title: "Launch Angle", value: format(result.launchAngleDegrees), unit: "°")
                 MetricTile(
                     title: "Entry Board", value: format(result.entryBoard), unit: "board",
-                    numeric: result.entryBoard, ideal: 17...18
+                    numeric: result.entryBoard, ideal: ShotResult.pocketBoards
                 )
                 MetricTile(
                     title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°",
@@ -69,6 +69,7 @@ struct ShotResultContent: View {
                     value: result.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
                     unit: "ft"
                 )
+                MetricTile(title: "Hook", value: format(result.hookBoards), unit: "boards")
             }
 
             if looksMiscalibrated {

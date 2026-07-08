@@ -53,6 +53,9 @@ struct ContentView: View {
             }
         }
         .task {
+            #if DEBUG
+            DemoSeed.seedIfRequested(context: modelContext)
+            #endif
             // Orphan sweep: drop replay files no shot references (crash
             // between file move and model save, failed delete, etc.).
             let names = ((try? modelContext.fetch(FetchDescriptor<SavedShot>())) ?? [])
