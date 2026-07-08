@@ -1,0 +1,40 @@
+{
+  "identifier" : "3A1F5C2E-7B94-4D0A-9E61-2C8B5F4A7D13",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "6F2E8A1B-4C57-49D3-B0A6-9D1E3C5B7F42",
+      "localizations" : [
+        {
+          "description" : "Unlimited analyzed throws, forever.",
+          "displayName" : "TrueLine Unlimited",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.adamzhu.Trueline.unlimited",
+      "referenceName" : "TrueLine Unlimited",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

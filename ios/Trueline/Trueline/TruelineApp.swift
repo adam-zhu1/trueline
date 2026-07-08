@@ -3,6 +3,8 @@ import SwiftUI
 
 @main
 struct TruelineApp: App {
+    @State private var store = TruelineStore()
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -17,12 +19,28 @@ struct TruelineApp: App {
                     #if DEBUG
                     ShareCardPreview()
                     #endif
+                } else if Self.paywallPreview {
+                    #if DEBUG
+                    PaywallView {}
+                    #endif
                 } else {
                     ContentView()
                 }
             }
             .modelContainer(for: SavedShot.self)
+            .environment(store)
+            .task { await store.start() }
         }
+    }
+
+    /// Debug hook: launch with `-paywallPreview` to open straight onto the
+    /// purchase screen (with `-freeThrowsUsed 10` for the out-of-throws copy).
+    private static var paywallPreview: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "paywallPreview")
+        #else
+        false
+        #endif
     }
 
     /// Debug hook: launch with `-progressPreview <0–1>` to pin the analysis

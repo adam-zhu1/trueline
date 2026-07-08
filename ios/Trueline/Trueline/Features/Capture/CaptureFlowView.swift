@@ -6,6 +6,9 @@ struct CaptureFlowView: View {
     private enum Step: Equatable {
         case record
         case review(URL)
+        /// Out of free throws with a clip in hand — the gate sits between
+        /// review and analysis so the recording itself is never blocked.
+        case paywall(URL)
         case calibrate(URL)
         case analyze(URL, LaneCorners)
         case results(URL, ShotResult)
@@ -15,6 +18,7 @@ struct CaptureFlowView: View {
             switch (lhs, rhs) {
             case (.record, .record): true
             case (.review(let a), .review(let b)): a == b
+            case (.paywall(let a), .paywall(let b)): a == b
             case (.calibrate(let a), .calibrate(let b)): a == b
             case (.analyze(let a, let c), .analyze(let b, let d)): a == b && c == d
             case (.results(let a, _), .results(let b, _)): a == b
@@ -24,6 +28,7 @@ struct CaptureFlowView: View {
         }
     }
 
+    @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
     @State private var camera = CameraModel()
     @State private var step: Step
@@ -70,17 +75,27 @@ struct CaptureFlowView: View {
                         }
                     },
                     onUse: {
-                        if let corners = sessionCorners {
-                            step = .analyze(clipURL, corners)
+                        if store.canAnalyze {
+                            startAnalysis(of: clipURL)
                         } else {
-                            step = .calibrate(clipURL)
+                            step = .paywall(clipURL)
                         }
                     },
                     onRecalibrate: sessionCorners == nil ? nil : {
                         step = .calibrate(clipURL)
                     }
                 )
-            case .calibrate(let clipURL):
+            case .paywall(let clipURL):
+            PaywallView {
+                // Unlocked: the throw they just bowled goes straight through.
+                // Dismissed: back to review — the clip isn't thrown away.
+                if store.canAnalyze {
+                    startAnalysis(of: clipURL)
+                } else {
+                    step = .review(clipURL)
+                }
+            }
+        case .calibrate(let clipURL):
                 CalibrationView(
                     clipURL: clipURL,
                     preferSavedCalibration: !isImported,
@@ -103,6 +118,9 @@ struct CaptureFlowView: View {
                     corners: corners,
                     onComplete: { result in
                         if result.isReliable {
+                            // The only place quota is spent: a reliable
+                            // result. Failed tracking falls through free.
+                            store.recordAnalyzedThrow()
                             ensureSession()
                             step = .results(clipURL, result)
                         } else {
@@ -148,6 +166,16 @@ struct CaptureFlowView: View {
         }
     }
 
+    /// First calibration of a session drags corners; every later throw reuses
+    /// them and skips straight to analysis.
+    private func startAnalysis(of clipURL: URL) {
+        if let corners = sessionCorners {
+            step = .analyze(clipURL, corners)
+        } else {
+            step = .calibrate(clipURL)
+        }
+    }
+
     /// The session shots get saved into — created on the first successful
     /// analysis, only for live recording flows (imported one-offs stay
     /// sessionless). Runs from the analysis completion callback: inserting a
@@ -168,4 +196,5 @@ struct CaptureFlowView: View {
 
 #Preview {
     CaptureFlowView(onExit: {})
+        .environment(TruelineStore())
 }

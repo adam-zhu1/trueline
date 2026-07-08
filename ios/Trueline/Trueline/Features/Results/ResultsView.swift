@@ -13,6 +13,7 @@ struct ResultsView: View {
     var targetBoard: Double? = nil
     var onDone: () -> Void
 
+    @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
     @AppStorage("saveShotVideos") private var saveShotVideos = true
 
@@ -30,41 +31,54 @@ struct ResultsView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                HStack(spacing: 12) {
-                    Button("Discard") { onDone() }
-                        .buttonStyle(.secondaryAction)
-                        .frame(maxWidth: 130)
-                    Button {
-                        let shot = SavedShot(result: result)
-                        shot.session = session
-                        if saveShotVideos,
-                           let rawName = ShotVideoStore.store(clipURL: clipURL) {
-                            // Claim the clip synchronously (move) so the flow's
-                            // cleanup can't delete it mid-export, then compact
-                            // it in the background: trimmed to the throw and
-                            // re-encoded at 720p. Failure keeps the raw.
-                            shot.videoFileName = rawName
-                            Task {
-                                if let compact = await ShotVideoStore.compress(
-                                    rawName: rawName,
-                                    throwStart: result.throwStartSeconds,
-                                    throwEnd: result.throwEndSeconds
-                                ) {
-                                    shot.videoFileName = compact
-                                }
-                            }
-                        }
-                        modelContext.insert(shot)
-                        onDone()
-                    } label: {
-                        Label("Save Shot", systemImage: "checkmark")
+                VStack(spacing: 8) {
+                    if !store.isUnlocked {
+                        // Keep the limit visible from throw one — the gate
+                        // should never feel like an ambush.
+                        Text("\(store.freeThrowsLeft) of \(TruelineStore.freeThrowLimit) free throws left")
+                            .font(.footnote)
+                            .foregroundStyle(store.freeThrowsLeft <= 2 ? Color.brandMint : .secondary)
                     }
-                    .buttonStyle(.primaryAction)
+                    resultButtons
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 .background(.bar)
             }
+        }
+    }
+
+    private var resultButtons: some View {
+        HStack(spacing: 12) {
+            Button("Discard") { onDone() }
+                .buttonStyle(.secondaryAction)
+                .frame(maxWidth: 130)
+            Button {
+                let shot = SavedShot(result: result)
+                shot.session = session
+                if saveShotVideos,
+                   let rawName = ShotVideoStore.store(clipURL: clipURL) {
+                    // Claim the clip synchronously (move) so the flow's
+                    // cleanup can't delete it mid-export, then compact
+                    // it in the background: trimmed to the throw and
+                    // re-encoded at 720p. Failure keeps the raw.
+                    shot.videoFileName = rawName
+                    Task {
+                        if let compact = await ShotVideoStore.compress(
+                            rawName: rawName,
+                            throwStart: result.throwStartSeconds,
+                            throwEnd: result.throwEndSeconds
+                        ) {
+                            shot.videoFileName = compact
+                        }
+                    }
+                }
+                modelContext.insert(shot)
+                onDone()
+            } label: {
+                Label("Save Shot", systemImage: "checkmark")
+            }
+            .buttonStyle(.primaryAction)
         }
     }
 
