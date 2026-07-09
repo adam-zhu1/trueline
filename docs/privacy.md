@@ -1,4 +1,8 @@
-# TrueLine Privacy Policy
+---
+title: Privacy Policy
+---
+
+# Privacy Policy
 
 **Last updated: July 7, 2026**
 

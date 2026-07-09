@@ -1,4 +1,8 @@
-# TrueLine Support
+---
+title: Support
+---
+
+# Support
 
 Need help with TrueLine? Email [adamzhu@andrew.cmu.edu](mailto:adamzhu@andrew.cmu.edu) and include what happened, your iPhone model, and — if it's about a specific throw — what the screen showed. You'll usually hear back within a couple of days.
 
