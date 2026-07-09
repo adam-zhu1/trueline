@@ -27,7 +27,9 @@ struct ContentView: View {
                 BowlHomeView(capture: $capture)
                     .tabItem { Label("Bowl", systemImage: "figure.bowling") }
                 HistoryView()
-                    .tabItem { Label("History", systemImage: "chart.line.uptrend.xyaxis") }
+                    .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+                StatsView()
+                    .tabItem { Label("Stats", systemImage: "chart.line.uptrend.xyaxis") }
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape") }
             }

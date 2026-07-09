@@ -31,28 +31,6 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        // All-time stats work from the first saved shot; the
-                        // trend charts inside explain their own 2-session need.
-                        if !shots.isEmpty {
-                            Section {
-                                NavigationLink {
-                                    TrendsView(sessions: activeSessions, shots: shots)
-                                } label: {
-                                    Label {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Stats")
-                                                .font(.headline)
-                                            Text("All-time totals, trends, and ball comparison")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    } icon: {
-                                        Image(systemName: "chart.xyaxis.line")
-                                            .foregroundStyle(Color.brandMint)
-                                    }
-                                }
-                            }
-                        }
                         if !activeSessions.isEmpty {
                             Section("Sessions") {
                                 ForEach(activeSessions) { session in
