@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if page.title %}{{ page.title }} · TrueLine{% else %}TrueLine{% endif %}</title>
+<meta name="description" content="{{ page.description | default: site.description }}">
+<style>
+:root {
+  --bg: #ffffff;
+  --ink: #1c1c1e;
+  --muted: #6e6e73;
+  --accent: #0c7a58;
+  --rule: #e6e6e8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416;
+    --ink: #ececee;
+    --muted: #98989f;
+    --accent: #45e6a0;
+    --rule: #2c2c30;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+.shell { max-width: 42rem; margin: 0 auto; padding: 0 1.25rem; }
+header .shell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+.wordmark {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.wordmark span { color: var(--accent); }
+nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+  margin-left: 1.25rem;
+}
+nav a:hover { color: var(--ink); }
+main { padding-bottom: 1rem; }
+h1 {
+  font-size: 1.7rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  margin: 2.25rem 0 1rem;
+}
+h2 {
+  font-size: 1.1rem;
+  line-height: 1.3;
+  margin: 2rem 0 0.5rem;
+}
+p, ul, ol { margin: 0 0 1rem; }
+li { margin-bottom: 0.35rem; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+footer {
+  margin-top: 4rem;
+}
+footer .shell {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.25rem;
+  padding-bottom: 2.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="shell">
+    <a class="wordmark" href="{{ '/' | relative_url }}">True<span>Line</span></a>
+    <nav>
+      <a href="{{ '/privacy' | relative_url }}">Privacy</a>
+      <a href="{{ '/support' | relative_url }}">Support</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <div class="shell">
+{{ content }}
+  </div>
+</main>
+<footer>
+  <div class="shell">© 2026 Adam Zhu · TrueLine for iPhone</div>
+</footer>
+</body>
+</html>
