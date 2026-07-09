@@ -46,6 +46,8 @@ final class TruelineStore {
     /// localized price, and keeps listening for out-of-band transactions
     /// (Ask to Buy approvals, purchases on another device, refunds).
     func start() async {
+        // Scene re-creation can call this again — don't stack listeners.
+        updatesTask?.cancel()
         updatesTask = Task {
             for await update in Transaction.updates {
                 if case .verified(let transaction) = update,

@@ -67,6 +67,20 @@ struct SettingsView: View {
                 Section {
                     Button("How TrueLine works") { showHowItWorks = true }
                 }
+                Section {
+                    // GitHub Pages for the repo — live once Pages is enabled
+                    // (Settings → Pages → main /docs).
+                    Link("Privacy Policy", destination: URL(string: "https://adam-zhu1.github.io/trueline/privacy")!)
+                    Link("Support", destination: URL(string: "https://adam-zhu1.github.io/trueline/support")!)
+                    LabeledContent(
+                        "Version",
+                        value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "--"
+                    )
+                } header: {
+                    Text("About")
+                } footer: {
+                    Text("TrueLine analyzes everything on your iPhone. No account, no cloud, no data collected.")
+                }
                 #if DEBUG
                 Section("Debug") {
                     Button("Reset Free Throws") { store.resetFreeThrows() }
