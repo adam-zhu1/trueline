@@ -106,7 +106,10 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(shot.date, style: .time)
                     .font(.headline)
-                Text(shot.date, style: .date)
+                // Ball tag when set, so tagged imports read as tagged.
+                Text(shot.effectiveBall.isEmpty
+                    ? shot.date.formatted(date: .abbreviated, time: .omitted)
+                    : "\(shot.date.formatted(date: .abbreviated, time: .omitted)) · \(shot.effectiveBall)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
