@@ -108,22 +108,18 @@ struct TruelineApp: App {
 }
 
 #if DEBUG
-/// Trends over the seeded demo history — the same data every run. Add
+/// Stats over the seeded demo history — the same data every run. Add
 /// `-trendsPreviewBottom` to open scrolled to the end (the CLI can't swipe).
 private struct TrendsPreview: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var sessions: [BowlingSession]
-    @Query private var shots: [SavedShot]
 
     var body: some View {
-        NavigationStack {
-            TrendsView(sessions: sessions.filter { !$0.shots.isEmpty }, shots: shots)
-                .defaultScrollAnchor(
-                    UserDefaults.standard.bool(forKey: "trendsPreviewBottom") ? .bottom : .top
-                )
-        }
-        .preferredColorScheme(.dark)
-        .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
+        StatsView()
+            .defaultScrollAnchor(
+                UserDefaults.standard.bool(forKey: "trendsPreviewBottom") ? .bottom : .top
+            )
+            .preferredColorScheme(.dark)
+            .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
     }
 }
 
