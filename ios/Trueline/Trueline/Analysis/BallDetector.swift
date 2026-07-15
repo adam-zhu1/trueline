@@ -24,6 +24,9 @@ final class BallDetector {
 
     init(model: MLModel) throws {
         vnModel = try VNCoreMLModel(for: model)
+        // The exported pipeline bakes in confidenceThreshold 0.25, which would
+        // silently defeat the FAR_CONF floor below; feed it our thresholds.
+        vnModel.featureProvider = ThresholdProvider()
     }
 
     /// Candidates in raw-buffer pixel coordinates. `orientation` tells Vision how
@@ -32,14 +35,30 @@ final class BallDetector {
     func candidates(
         in pixelBuffer: CVPixelBuffer,
         orientation: CGImagePropertyOrientation,
-        geometry: LaneGeometry
+        geometry: LaneGeometry,
+        diag: DetectorDiagnostics? = nil
     ) -> [Candidate] {
         let request = VNCoreMLRequest(model: vnModel)
-        request.imageCropAndScaleOption = .scaleFill
+        // Letterbox like Ultralytics training/inference; stretching the frame
+        // square (scaleFill) squashes the ball on portrait clips and costs
+        // detections. Vision maps the boxes back to original-image normalized
+        // coordinates either way.
+        request.imageCropAndScaleOption = .scaleFit
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
-        guard (try? handler.perform([request])) != nil,
-              let observations = request.results as? [VNRecognizedObjectObservation]
-        else { return [] }
+        diag?.frames += 1
+        do {
+            try handler.perform([request])
+        } catch {
+            diag?.recordPerformError(error)
+            return []
+        }
+        guard let observations = request.results as? [VNRecognizedObjectObservation] else {
+            diag?.recordCastFailure(request.results)
+            return []
+        }
+
+        diag?.rawBoxes += observations.count
+        if !observations.isEmpty { diag?.framesWithRaw += 1 }
 
         let rawW = Double(CVPixelBufferGetWidth(pixelBuffer))
         let rawH = Double(CVPixelBufferGetHeight(pixelBuffer))
@@ -47,7 +66,10 @@ final class BallDetector {
         var out: [Candidate] = []
         for obs in observations {
             let score = Double(obs.confidence)
-            guard score >= Self.farConf else { continue }
+            guard score >= Self.farConf else {
+                diag?.belowFloor += 1
+                continue
+            }
             // Vision box: normalized, origin bottom-left, in the *oriented* image.
             let box = obs.boundingBox
             let u = Double(box.midX)
@@ -55,8 +77,6 @@ final class BallDetector {
             let (rx, ry) = Self.orientedToRaw(u: u, v: v, orientation: orientation)
             let cx = rx * rawW
             let cy = ry * rawH
-            guard geometry.signedDistanceToLane(CGPoint(x: cx, y: cy)) >= -LaneGeometry.laneMarginPx
-            else { continue }
 
             // Radius: half the smaller box side in raw pixels (conservative disk).
             let (bw, bh) = Self.orientedSizeToRaw(
@@ -65,13 +85,39 @@ final class BallDetector {
             var r = 0.5 * min(bw * rawW, bh * rawH)
             r = min(max(r, 6), 120)
 
+            // Gate on the ball's extent, not just its center: hugging the gutter
+            // (or a slightly-narrow calibration) puts the center up to a radius
+            // outside the quad while the ball is still on the lane.
+            let laneDist = geometry.signedDistanceToLane(CGPoint(x: cx, y: cy))
+            guard laneDist >= -(LaneGeometry.laneMarginPx + r) else {
+                diag?.recordLaneReject(x: cx, y: cy, confidence: score, distance: laneDist)
+                continue
+            }
+
             if score < Self.mainConf {
-                // Low score only acceptable deep down-lane among the pins.
                 let feet = geometry.feet(atImage: CGPoint(x: cx, y: cy + r))
-                if feet < Self.farFeet { continue }
+                // Required confidence eases from MAIN_CONF at 15 ft to FAR_CONF
+                // at FAR_FEET — the ball shrinks and blurs gradually (and scores
+                // run lower on-device under FP16 than in full precision), so a
+                // hard cliff drops legitimate mid-lane detections. First lock
+                // still demands MAIN_CONF, so weak boxes can only continue an
+                // existing track, never start one.
+                let t = min(max((feet - 15.0) / (Self.farFeet - 15.0), 0), 1)
+                let required = Self.mainConf + (Self.farConf - Self.mainConf) * t
+                if score < required {
+                    diag?.recordLowConfNear(feet: feet, confidence: score)
+                    continue
+                }
+            }
+            if let diag {
+                diag.recordAccepted(
+                    feet: geometry.feet(atImage: CGPoint(x: cx, y: cy + r)),
+                    confidence: score
+                )
             }
             out.append(Candidate(x: cx, y: cy, radius: r, confidence: score))
         }
+        diag?.accepted += out.count
         return out
     }
 
@@ -102,6 +148,85 @@ final class BallDetector {
         switch orientation {
         case .right, .left: return (h, w)
         default: return (w, h)
+        }
+    }
+}
+
+/// Feeds the exported pipeline's threshold inputs — Vision otherwise runs with
+/// the values baked in at export (conf 0.25), above the FAR_CONF floor the
+/// detector's own filtering is designed around.
+private final class ThresholdProvider: NSObject, MLFeatureProvider {
+    var featureNames: Set<String> { ["confidenceThreshold", "iouThreshold"] }
+
+    func featureValue(for featureName: String) -> MLFeatureValue? {
+        switch featureName {
+        case "confidenceThreshold": return MLFeatureValue(double: BallDetector.farConf)
+        case "iouThreshold": return MLFeatureValue(double: 0.45)
+        default: return nil
+        }
+    }
+}
+
+/// Gate-by-gate counts across one analysis run, so a "couldn't track the ball"
+/// failure names the stage that starved the tracker: the model saw nothing, the
+/// lane gate rejected everything, or the confidence rules filtered it out.
+final class DetectorDiagnostics {
+    var frames = 0
+    /// Frames where the model returned at least one box.
+    var framesWithRaw = 0
+    var rawBoxes = 0
+    var belowFloor = 0
+    var outsideLane = 0
+    var lowConfNear = 0
+    var accepted = 0
+    /// Frames where the Vision request threw (normally swallowed silently).
+    private(set) var performErrors = 0
+    private(set) var firstPerformError: String?
+    /// Frames where results weren't [VNRecognizedObjectObservation].
+    private(set) var castFailures = 0
+    private(set) var castFailureTypes: String?
+    /// First few lane-gate rejections (raw-buffer pixels). A cluster of these
+    /// tracing the ball's actual path means the quad is mis-mapped, not the
+    /// model blind.
+    private(set) var laneRejectSamples: [(x: Double, y: Double, confidence: Double, distance: Double)] = []
+
+    func recordLaneReject(x: Double, y: Double, confidence: Double, distance: Double) {
+        outsideLane += 1
+        if laneRejectSamples.count < 8 {
+            laneRejectSamples.append((x, y, confidence, distance))
+        }
+    }
+
+    /// (feet, confidence) of low-conf rejections short of FAR_FEET — where on
+    /// the lane the confidence cliff is losing the ball.
+    private(set) var lowConfSamples: [(feet: Double, confidence: Double)] = []
+    /// Accepted-box confidence by lane distance (10 ft buckets, last = 40+) —
+    /// quantifies how detector confidence decays down-lane on this footage.
+    private(set) var acceptedBuckets = [(sum: Double, n: Int)](repeating: (0, 0), count: 5)
+
+    func recordAccepted(feet: Double, confidence: Double) {
+        let b = min(max(Int(feet / 10.0), 0), 4)
+        acceptedBuckets[b].sum += confidence
+        acceptedBuckets[b].n += 1
+    }
+
+    func recordLowConfNear(feet: Double, confidence: Double) {
+        lowConfNear += 1
+        if lowConfSamples.count < 12 {
+            lowConfSamples.append((feet, confidence))
+        }
+    }
+
+    func recordPerformError(_ error: Error) {
+        performErrors += 1
+        if firstPerformError == nil { firstPerformError = "\(error)" }
+    }
+
+    func recordCastFailure(_ results: [Any]?) {
+        castFailures += 1
+        if castFailureTypes == nil {
+            let types = (results ?? []).prefix(3).map { String(describing: type(of: $0)) }
+            castFailureTypes = types.isEmpty ? "nil/empty results" : types.joined(separator: ", ")
         }
     }
 }
