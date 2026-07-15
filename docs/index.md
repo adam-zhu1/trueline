@@ -57,68 +57,91 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
 <p class="lede">TrueLine turns your iPhone into a bowling ball-motion tracker. Prop your phone behind the approach, bowl, and get the numbers a coach would give you — for every single throw, in seconds.</p>
 </div>
 
-<svg class="phone-art" viewBox="0 0 260 520" fill="none" aria-label="iPhone showing TrueLine's lane view: a tracked throw hooking into the pocket, with speed, arrows, breakpoint, and entry-angle stats">
-  <!-- phone body; the app is always dark, so the screen keeps its own colors -->
+<svg class="phone-art" viewBox="0 0 260 520" fill="none" aria-label="iPhone showing TrueLine's Shot Result screen: top-down lane view with the tracked path and its metric tiles">
   <rect x="6" y="6" width="248" height="508" rx="42" fill="#1c1c1e" stroke="#3a3a3e" stroke-width="2"/>
   <rect x="16" y="16" width="228" height="488" rx="33" fill="#0e0e10"/>
-  <rect x="102" y="28" width="56" height="17" rx="8.5" fill="#000000"/>
-  <!-- header -->
-  <text x="130" y="70" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="10" letter-spacing="1.5" fill="#98989f">SHOT 7 · LANE 12</text>
-  <!-- lane view -->
-  <rect x="95" y="84" width="70" height="212" fill="#17171a"/>
-  <g stroke="#26262a" stroke-width="0.7">
-    <line x1="105" y1="84" x2="105" y2="296"/>
-    <line x1="115" y1="84" x2="115" y2="296"/>
-    <line x1="125" y1="84" x2="125" y2="296"/>
-    <line x1="135" y1="84" x2="135" y2="296"/>
-    <line x1="145" y1="84" x2="145" y2="296"/>
-    <line x1="155" y1="84" x2="155" y2="296"/>
+  <rect x="102" y="26" width="56" height="15" rx="7.5" fill="#000000"/>
+  <text x="130" y="60" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#ececee">Shot Result</text>
+  <rect x="43" y="72" width="174" height="246" rx="10" fill="#141416"/>
+  <rect x="51" y="92" width="4" height="202" fill="#262628"/>
+  <rect x="205" y="92" width="4" height="202" fill="#262628"/>
+  <rect x="55" y="92" width="150" height="202" fill="#37373c" stroke="#464b50" stroke-width="1"/>
+  <g stroke="#41464b" stroke-width="0.7">
+    <line x1="189.2" y1="92" x2="189.2" y2="294"/>
+    <line x1="169.5" y1="92" x2="169.5" y2="294"/>
+    <line x1="149.7" y1="92" x2="149.7" y2="294"/>
+    <line x1="130.0" y1="92" x2="130.0" y2="294"/>
+    <line x1="110.3" y1="92" x2="110.3" y2="294"/>
+    <line x1="90.5" y1="92" x2="90.5" y2="294"/>
+    <line x1="70.8" y1="92" x2="70.8" y2="294"/>
   </g>
-  <!-- gutters -->
-  <line x1="91" y1="84" x2="91" y2="296" stroke="#3a3a3e" stroke-width="2"/>
-  <line x1="169" y1="84" x2="169" y2="296" stroke="#3a3a3e" stroke-width="2"/>
-  <!-- pins: 4-3-2-1, head pin nearest -->
-  <g fill="#e8e8ec">
-    <circle cx="104" cy="92" r="3.2"/><circle cx="121.3" cy="92" r="3.2"/><circle cx="138.7" cy="92" r="3.2"/><circle cx="156" cy="92" r="3.2"/>
-    <circle cx="112.7" cy="100" r="3.2"/><circle cx="130" cy="100" r="3.2"/><circle cx="147.3" cy="100" r="3.2"/>
-    <circle cx="121.3" cy="108" r="3.2"/><circle cx="138.7" cy="108" r="3.2"/>
-    <circle cx="130" cy="116" r="3.2"/>
+  <text x="169.5" y="302.0" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="6" fill="#98989f">10</text>
+  <text x="130.0" y="302.0" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="6" fill="#98989f">20</text>
+  <text x="90.5" y="302.0" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="6" fill="#98989f">30</text>
+  <rect x="55" y="92" width="150" height="0.0" fill="none"/>
+  <rect x="55" y="92" width="150" height="0.0" fill="none"/>
+  <rect x="55" y="65.4" width="150" height="26.6" fill="#232326"/>
+  <rect x="137.9" y="92.0" width="3.9" height="40.4" fill="#40e69e" opacity="0.14"/>
+  <line x1="141.1" y1="92.0" x2="141.1" y2="132.4" stroke="#29946b" stroke-width="0.8" stroke-dasharray="3 4"/>
+  <line x1="55" y1="294.0" x2="205" y2="294.0" stroke="#29946b" stroke-width="1.6"/>
+  <line x1="55" y1="273.8" x2="205" y2="273.8" stroke="#29946b" stroke-width="0.8" stroke-dasharray="4 3"/>
+  <line x1="55" y1="92.0" x2="205" y2="92.0" stroke="#29946b" stroke-width="1.4"/>
+  <polyline points="189.2,253.6 169.5,249.1 149.7,244.6 130.0,240.1 110.3,244.6 90.5,249.1 70.8,253.6" stroke="#29946b" stroke-width="0.8"/>
+  <g fill="#40e69e">
+    <path d="M189.2 251.0 L187.0 255.5 L191.4 255.5 Z"/>
+    <path d="M169.5 246.5 L167.3 251.0 L171.7 251.0 Z"/>
+    <path d="M149.7 242.0 L147.5 246.5 L151.9 246.5 Z"/>
+    <path d="M130.0 237.5 L127.8 242.0 L132.2 242.0 Z"/>
+    <path d="M110.3 242.0 L108.1 246.5 L112.5 246.5 Z"/>
+    <path d="M90.5 246.5 L88.3 251.0 L92.7 251.0 Z"/>
+    <path d="M70.8 251.0 L68.6 255.5 L73.0 255.5 Z"/>
   </g>
-  <!-- arrows, center farthest down-lane -->
-  <g stroke="#4a4a50" stroke-width="1.5" stroke-linecap="round">
-    <path d="M126 232 l4 -7 l4 7"/>
-    <path d="M112 238 l4 -7 l4 7"/>
-    <path d="M140 238 l4 -7 l4 7"/>
-    <path d="M98 244 l4 -7 l4 7"/>
-    <path d="M154 244 l4 -7 l4 7"/>
-  </g>
-  <!-- approach dots + foul line -->
-  <g fill="#4a4a50">
-    <circle cx="110" cy="282" r="1.5"/><circle cx="120" cy="282" r="1.5"/><circle cx="130" cy="282" r="1.5"/><circle cx="140" cy="282" r="1.5"/><circle cx="150" cy="282" r="1.5"/>
-  </g>
-  <line x1="91" y1="296" x2="169" y2="296" stroke="#4a4a50" stroke-width="1.5"/>
-  <!-- tracked path: launch, drift toward the gutter, breakpoint, hook into the 1–3 pocket -->
-  <path d="M136 296 C 146 262 156 210 157 168 C 157.5 148 145 128 134.8 114.5" stroke="#45e6a0" stroke-width="2.5" stroke-linecap="round"/>
-  <circle cx="157" cy="168" r="4.5" stroke="#45e6a0" stroke-width="2"/>
-  <circle cx="134.8" cy="113.5" r="3" fill="#45e6a0"/>
-  <!-- stat tiles -->
+  <circle cx="130.0" cy="92.0" r="2.6" fill="#40e69e" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="152.3" cy="85.0" r="2.6" fill="#40e69e" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="107.7" cy="85.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="174.5" cy="78.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="130.0" cy="78.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="85.5" cy="78.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="196.8" cy="71.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="152.3" cy="71.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="107.7" cy="71.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <circle cx="63.2" cy="71.0" r="2.6" fill="#dbdbde" stroke="#292929" stroke-width="0.7"/>
+  <path d="M137.9 294.0 L141.0 288.9 L144.0 283.9 L146.9 278.9 L149.6 273.8 L152.3 268.8 L154.8 263.7 L157.2 258.6 L159.5 253.6 L161.7 248.6 L163.8 243.5 L165.8 238.4 L167.7 233.4 L169.4 228.4 L171.1 223.3 L172.6 218.2 L174.0 213.2 L175.3 208.1 L176.5 203.1 L177.5 198.1 L178.5 193.0 L179.3 187.9 L180.1 182.9 L180.7 177.9 L181.2 172.8 L181.6 167.8 L181.9 162.7 L182.0 157.6 L182.1 152.6 L180.4 147.6 L178.4 142.5 L176.0 137.4 L173.4 132.4 L170.4 127.4 L167.1 122.3 L163.5 117.2 L159.5 112.2 L155.3 107.1 L150.7 102.1 L145.9 97.1 L140.7 92.0" stroke="#40e69e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M151.7 241.7 L148.5 247.7 L154.9 247.7 Z" fill="#40e69e"/>
+  <rect x="156.7" y="239.6" width="22" height="11" rx="5.5" fill="#000000" opacity="0.6"/>
+  <text x="167.7" y="247.5" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="7" font-weight="600" fill="#ffffff">14.5</text>
+  <circle cx="182.1" cy="152.6" r="3.2" fill="#40e69e"/>
+  <rect x="187.1" y="147.1" width="19" height="11" rx="5.5" fill="#000000" opacity="0.6"/>
+  <text x="196.6" y="155.0" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="7" font-weight="600" fill="#ffffff">6.8</text>
   <g font-family="-apple-system, Helvetica, sans-serif">
-    <rect x="28" y="316" width="98" height="60" rx="12" fill="#1a1a1e" stroke="#26262a"/>
-    <text x="40" y="344" font-size="19" font-weight="700" fill="#ececee">17.2</text>
-    <text x="40" y="362" font-size="8" letter-spacing="1" fill="#98989f">MPH · SPEED</text>
-    <rect x="134" y="316" width="98" height="60" rx="12" fill="#1a1a1e" stroke="#26262a"/>
-    <text x="146" y="344" font-size="19" font-weight="700" fill="#ececee">10.4</text>
-    <text x="146" y="362" font-size="8" letter-spacing="1" fill="#98989f">ARROW BOARD</text>
-    <rect x="28" y="384" width="98" height="60" rx="12" fill="#1a1a1e" stroke="#26262a"/>
-    <text x="40" y="412" font-size="19" font-weight="700" fill="#ececee">6 <tspan font-size="11" font-weight="600" fill="#98989f">@ 42 FT</tspan></text>
-    <text x="40" y="430" font-size="8" letter-spacing="1" fill="#98989f">BREAKPOINT</text>
-    <rect x="134" y="384" width="98" height="60" rx="12" fill="#1a1a1e" stroke="#26262a"/>
-    <text x="146" y="412" font-size="19" font-weight="700" fill="#ececee">5.2°</text>
-    <text x="146" y="430" font-size="8" letter-spacing="1" fill="#98989f">ENTRY ANGLE</text>
-    <!-- pocket pill -->
-    <rect x="93" y="458" width="74" height="22" rx="11" fill="#45e6a0"/>
-    <text x="130" y="472.5" text-anchor="middle" font-size="9.5" font-weight="700" letter-spacing="1" fill="#0e0e10">POCKET ✓</text>
+    <rect x="28" y="326" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="37" y="338" font-size="7" fill="#98989f">Speed</text>
+    <text x="37" y="353" font-size="13" font-weight="700" fill="#ececee">17.2 <tspan font-size="7" font-weight="400" fill="#98989f">mph</tspan></text>
+    <rect x="133" y="326" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="142" y="338" font-size="7" fill="#98989f">Board at Arrows</text>
+    <text x="142" y="353" font-size="13" font-weight="700" fill="#ececee">14.5 <tspan font-size="7" font-weight="400" fill="#98989f">board</tspan></text>
+    <rect x="28" y="371" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="37" y="383" font-size="7" fill="#98989f">Launch Angle</text>
+    <text x="37" y="398" font-size="13" font-weight="700" fill="#ececee">6.2 <tspan font-size="7" font-weight="400" fill="#98989f">°</tspan></text>
+    <rect x="133" y="371" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="142" y="383" font-size="7" fill="#98989f">Entry Board</text>
+    <text x="142" y="398" font-size="13" font-weight="700" fill="#40e69e">17.3 <tspan font-size="7" font-weight="400" fill="#98989f">board</tspan></text>
+    <text x="142" y="407" font-size="6" fill="#40e69e" opacity="0.8">target 17–18</text>
+    <rect x="28" y="416" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="37" y="428" font-size="7" fill="#98989f">Entry Angle</text>
+    <text x="37" y="443" font-size="13" font-weight="700" fill="#40e69e">4.8 <tspan font-size="7" font-weight="400" fill="#98989f">°</tspan></text>
+    <text x="37" y="452" font-size="6" fill="#40e69e" opacity="0.8">target 4–6</text>
+    <rect x="133" y="416" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="142" y="428" font-size="7" fill="#98989f">Breakpoint</text>
+    <text x="142" y="443" font-size="13" font-weight="700" fill="#ececee">6.8 <tspan font-size="7" font-weight="400" fill="#98989f">board</tspan></text>
+    <rect x="28" y="461" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="37" y="473" font-size="7" fill="#98989f">Breakpoint Distance</text>
+    <text x="37" y="488" font-size="13" font-weight="700" fill="#ececee">42 <tspan font-size="7" font-weight="400" fill="#98989f">ft</tspan></text>
+    <rect x="133" y="461" width="100" height="40" rx="9" fill="#1d1d21"/>
+    <text x="142" y="473" font-size="7" fill="#98989f">Hook</text>
+    <text x="142" y="488" font-size="13" font-weight="700" fill="#ececee">10.5 <tspan font-size="7" font-weight="400" fill="#98989f">boards</tspan></text>
   </g>
+
 </svg>
 <p class="art-caption">One throw in TrueLine — tracked, measured, scored.</p>
 
