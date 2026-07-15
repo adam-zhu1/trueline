@@ -129,8 +129,8 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
   <button class="cta-button" type="submit">Get notified</button>
 </form>
 <p class="cta-note">One email when it ships — nothing else. Want to try it early?
-Mention it to <a href="mailto:adamzhu@andrew.cmu.edu?subject=TrueLine%20beta">adamzhu@andrew.cmu.edu</a> and you're on the TestFlight beta list.</p>
-<p class="cta-note" id="notify-fail" hidden>That didn't go through — email <a href="mailto:adamzhu@andrew.cmu.edu?subject=Notify%20me%20%E2%80%94%20TrueLine">adamzhu@andrew.cmu.edu</a> instead and you're on the list.</p>
+Say so on the <a href="support.md">Support page</a> and you're on the TestFlight beta list.</p>
+<p class="cta-note" id="notify-fail" hidden>That didn't go through — please try again in a minute, or use the form on the <a href="support.md">Support page</a>.</p>
 </div>
 
 <script>
