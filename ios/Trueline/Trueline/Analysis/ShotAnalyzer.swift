@@ -98,6 +98,21 @@ struct ShotAnalyzer {
         var frameNumber = 0
         let laneCentroid = geometry.laneCentroid
 
+        #if DEBUG
+        let diag: DetectorDiagnostics? = DetectorDiagnostics()
+        #else
+        let diag: DetectorDiagnostics? = nil
+        #endif
+        var measuredFrames = 0
+        var coastedFrames = 0
+        var assocRejects = 0
+        var lastMeasuredFeet = 0.0
+        var trackStartFeet = 0.0
+        var trackMeasured = 0
+        var kalmanResets = 0
+        // Contiguous runs of real measurements (frame + feet), for the debug log.
+        var measSegments: [(f0: Int, f1: Int, ft0: Double, ft1: Double)] = []
+
         while let sampleBuffer = output.copyNextSampleBuffer() {
             // A cancelled analysis (user backed out) must stop decoding, not
             // grind through the rest of the clip.
@@ -112,7 +127,7 @@ struct ShotAnalyzer {
             }
 
             let candidates = detector.candidates(
-                in: pixelBuffer, orientation: orientation, geometry: geometry
+                in: pixelBuffer, orientation: orientation, geometry: geometry, diag: diag
             )
 
             var measurement: BallDetector.Candidate?
@@ -135,13 +150,21 @@ struct ShotAnalyzer {
                         jumpScale = 1.32
                     }
                     let scale = geometry.laneWidthScale(atImage: CGPoint(x: pred.x, y: pred.y))
-                    let jumpOK = max(28.0, maxJumpPx * jumpScale * scale)
-                    if d <= jumpOK { measurement = nearest }
+                    // Coasting compounds prediction error; the gate must grow
+                    // with the blind streak or the ball can't re-attach after a
+                    // detection gap.
+                    let coastGrow = 1.0 + min(Double(noMeasStreak) * 0.04, 1.5)
+                    let jumpOK = max(28.0, maxJumpPx * jumpScale * scale * coastGrow)
+                    if d <= jumpOK { measurement = nearest } else { assocRejects += 1 }
                 }
             } else if !candidates.isEmpty {
                 // First lock: largest ball-sized candidate nearest the lane center.
-                let ballish = candidates.filter { $0.radius >= 10 && $0.radius <= 58 }
-                let pool = ballish.isEmpty ? candidates : ballish
+                // Locking needs strong evidence — the detector's graded threshold
+                // admits sub-MAIN_CONF boxes mid-lane, but those may only continue
+                // a track, never start one (a weak pre-throw box would false-lock).
+                let strong = candidates.filter { $0.confidence >= BallDetector.mainConf }
+                let ballish = strong.filter { $0.radius >= 10 && $0.radius <= 58 }
+                let pool = ballish.isEmpty ? strong : ballish
                 let cx = Double(laneCentroid.x)
                 let cy = Double(laneCentroid.y)
                 measurement = pool.min(by: {
@@ -153,6 +176,7 @@ struct ShotAnalyzer {
             var sy: Double?
 
             if let m = measurement {
+                measuredFrames += 1
                 noMeasStreak = 0
                 var (rx, ry, rr) = Self.refineCenter(
                     pixelBuffer: pixelBuffer, x: m.x, y: m.y, r: m.radius
@@ -178,26 +202,46 @@ struct ShotAnalyzer {
                     sy = kf.state[1]
                 }
                 positions.append(Sample(x: sx!, y: sy!, frame: frameNumber, radius: lastR))
+                lastMeasuredFeet = geometry.feet(atImage: CGPoint(x: sx!, y: sy! + lastR))
+                trackMeasured += 1
+                if trackMeasured == 1 { trackStartFeet = lastMeasuredFeet }
+                if var seg = measSegments.last, frameNumber - seg.f1 <= 15 {
+                    seg.f1 = frameNumber
+                    seg.ft1 = lastMeasuredFeet
+                    measSegments[measSegments.count - 1] = seg
+                } else {
+                    measSegments.append((frameNumber, frameNumber, lastMeasuredFeet, lastMeasuredFeet))
+                }
             } else if let kf = kalman, let pred = coastPred {
                 noMeasStreak += 1
                 let predFt = geometry.feet(atImage: CGPoint(x: pred.x, y: pred.y))
                 let coastCap = predFt > 45.0 ? farCoastCap : maxPredOnlyFrames
                 if noMeasStreak > coastCap {
+                    // However the track ends, the coasted tail is prediction-only,
+                    // not data — drop the whole blind streak from the path (it can
+                    // exceed coastCap when the cap switches near→far mid-streak).
+                    positions.removeLast(min(noMeasStreak - 1, positions.count))
                     if coastCap == farCoastCap {
-                        // Lost deep down-lane: the shot is over. The coasted tail
-                        // is prediction-only; drop it from the path and freeze so
-                        // a later shot in the clip can't append onto this one.
-                        if positions.count > farCoastCap {
-                            positions.removeLast(farCoastCap)
-                        }
+                        // Lost deep down-lane: the shot is over. Freeze so a later
+                        // shot in the clip can't append onto this one.
                         trackFinished = true
+                    } else if trackMeasured >= 10, lastMeasuredFeet - trackStartFeet >= 15 {
+                        // A real throw was tracked and then lost for a long blind
+                        // streak: the ball is gone. Freezing (instead of resetting
+                        // for a new lock) stops a looped/replayed clip from
+                        // painting a second pass over this track.
+                        trackFinished = true
+                    } else {
+                        kalmanResets += 1
                     }
                     kalman = nil
                     noMeasStreak = 0
                     lastMeasSmooth = nil
                     framesSinceTrack = 0
+                    trackMeasured = 0
                 } else {
                     kf.coast()
+                    coastedFrames += 1
                     sx = pred.x
                     sy = pred.y
                     positions.append(Sample(x: pred.x, y: pred.y, frame: frameNumber, radius: lastR))
@@ -221,11 +265,119 @@ struct ShotAnalyzer {
 
         if reader.status == .reading { reader.cancelReading() }
 
+        #if DEBUG
+        if let diag {
+            Self.logDiagnostics(
+                diag: diag, geometry: geometry, rawSize: naturalSize,
+                orientation: orientation, fps: fpsSafe, maxJumpPx: maxJumpPx,
+                measured: measuredFrames, coasted: coastedFrames,
+                assocRejects: assocRejects, tracked: positions.count,
+                lastMeasuredFeet: lastMeasuredFeet,
+                kalmanResets: kalmanResets, measSegments: measSegments
+            )
+        }
+        #endif
+
         return Self.postProcess(
             positions: positions, geometry: geometry, fps: fpsSafe,
             rawSize: naturalSize, orientation: orientation
         )
     }
+
+    #if DEBUG
+    /// One console block per analysis: where candidates died on the way to the
+    /// tracker. Reading it: zero raw boxes → the model can't see the ball in
+    /// this footage; raw boxes mostly dying at "outside lane" → the calibrated
+    /// quad doesn't cover the ball's path (check the reject samples against the
+    /// quad corners); accepted candidates but few tracked frames → the
+    /// association gate is dropping the lock.
+    private static func logDiagnostics(
+        diag: DetectorDiagnostics, geometry: LaneGeometry, rawSize: CGSize,
+        orientation: CGImagePropertyOrientation, fps: Double, maxJumpPx: Double,
+        measured: Int, coasted: Int, assocRejects: Int, tracked: Int,
+        lastMeasuredFeet: Double,
+        kalmanResets: Int, measSegments: [(f0: Int, f1: Int, ft0: Double, ft1: Double)]
+    ) {
+        let orient: String
+        switch orientation {
+        case .up: orient = "up"
+        case .down: orient = "down"
+        case .left: orient = "left"
+        case .right: orient = "right"
+        default: orient = "other(\(orientation.rawValue))"
+        }
+        let quad = geometry.quad
+            .map { String(format: "(%.0f,%.0f)", $0.x, $0.y) }
+            .joined(separator: " ")
+        var lines = [
+            "═══ TrueLine analysis diagnostics ═══",
+            String(
+                format: "video: %.0f×%.0f raw, orientation %@, %.1f fps, %d frames decoded",
+                rawSize.width, rawSize.height, orient, fps, diag.frames
+            ),
+            String(
+                format: "quad (raw px, foulR foulL pinL pinR): %@ | px/ft %.1f | jump gate %.0f px",
+                quad, geometry.pixelsPerFoot, maxJumpPx
+            ),
+            "detector: \(diag.rawBoxes) raw boxes on \(diag.framesWithRaw)/\(diag.frames) frames"
+                + " → rejected \(diag.belowFloor) below conf \(BallDetector.farConf),"
+                + " \(diag.outsideLane) outside lane quad,"
+                + " \(diag.lowConfNear) low-conf before \(Int(BallDetector.farFeet)) ft"
+                + " → \(diag.accepted) accepted",
+            "tracker: \(measured) measured + \(coasted) coasted = \(tracked) tracked frames"
+                + " (need ≥ 10); \(assocRejects) candidates rejected by the jump gate"
+                + String(format: "; last real detection at %.1f ft", lastMeasuredFeet)
+                + (kalmanResets > 0 ? "; \(kalmanResets) track resets" : ""),
+        ]
+        let buckets = diag.acceptedBuckets.enumerated().compactMap { i, b -> String? in
+            guard b.n > 0 else { return nil }
+            let label = i < 4 ? "\(i * 10)–\((i + 1) * 10)ft" : "40ft+"
+            return String(format: "%@ %.2f×%d", label, b.sum / Double(b.n), b.n)
+        }
+        if !buckets.isEmpty {
+            lines.append("  accepted conf by distance: " + buckets.joined(separator: "  "))
+        }
+        if !measSegments.isEmpty {
+            let segs = measSegments
+                .map { String(format: "f%d–%d (%.1f→%.1f ft)", $0.f0, $0.f1, $0.ft0, $0.ft1) }
+                .joined(separator: "  ")
+            lines.append("  measured segments: \(segs)")
+        }
+        if !diag.lowConfSamples.isEmpty {
+            let s = diag.lowConfSamples
+                .map { String(format: "%.0fft/%.2f", $0.feet, $0.confidence) }
+                .joined(separator: " ")
+            lines.append("  low-conf rejects (feet/conf): \(s)")
+        }
+        if diag.performErrors > 0 {
+            lines.append("vision: request THREW on \(diag.performErrors)/\(diag.frames) frames"
+                + " — first: \(diag.firstPerformError ?? "?")")
+        }
+        if diag.castFailures > 0 {
+            lines.append("vision: results were not object observations on"
+                + " \(diag.castFailures) frames — saw: \(diag.castFailureTypes ?? "?")")
+        }
+        for s in diag.laneRejectSamples {
+            lines.append(String(
+                format: "  lane reject: (%.0f, %.0f) conf %.2f, %.0f px outside",
+                s.x, s.y, s.confidence, -s.distance
+            ))
+        }
+        if diag.performErrors == diag.frames, diag.frames > 0 {
+            lines.append("verdict: every Vision request failed — see the error above")
+        } else if diag.castFailures > 0, diag.rawBoxes == 0 {
+            lines.append("verdict: the model is returning the wrong observation type — likely an export/pipeline issue")
+        } else if diag.rawBoxes == 0 {
+            lines.append("verdict: the model returned nothing on any frame — this footage is below what the detector can see")
+        } else if diag.outsideLane > diag.accepted {
+            lines.append("verdict: the lane gate is the dominant filter — compare the reject samples against the quad corners above")
+        } else if diag.accepted > 0, tracked < 10 {
+            lines.append("verdict: detections exist but no stable lock — look at the jump-gate rejects and whether accepted boxes are scattered")
+        }
+        lines.append("═════════════════════════════════════")
+        print(lines.joined(separator: "\n"))
+    }
+    #endif
 
     // MARK: - Post-processing (metrics from the tracked path)
 
