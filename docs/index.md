@@ -27,7 +27,24 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
   border-radius: 999px;
 }
 .cta-button:hover { opacity: 0.9; }
+.cta-button:disabled { opacity: 0.6; }
 .cta-note { font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem !important; }
+.notify-form { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.notify-input {
+  font: inherit;
+  font-size: 16px; /* ≥16px stops iOS Safari zooming the page on focus */
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.75rem 1.2rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+  max-width: 18rem;
+}
+.notify-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+.cta-button { border: 0; cursor: pointer; font-size: 16px; }
+.notify-done { color: var(--accent); font-weight: 600; font-size: 1.05rem; }
 .metrics { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1.5rem; }
 .metrics li { padding-left: 1.1rem; text-indent: -1.1rem; }
 .metrics li::before { content: "◆ "; color: var(--accent); font-size: 0.7em; }
@@ -107,9 +124,39 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
 
 <div class="cta-block">
 <p><strong>TrueLine is coming to the App Store.</strong></p>
-<a class="cta-button" href="mailto:adamzhu@andrew.cmu.edu?subject=Notify%20me%20%E2%80%94%20TrueLine&body=Put%20me%20on%20the%20launch%20list.%0A%0A(Optional)%20I%20bowl%20league%20at%3A%20">Get notified at launch</a>
-<p class="cta-note">One email when it ships — nothing else. Want to try it early? Say so and you're on the TestFlight beta list.</p>
+<form id="notify-form" class="notify-form" action="https://formspree.io/f/mlgqdanz" method="POST">
+  <input class="notify-input" type="email" name="email" required placeholder="you@example.com" autocomplete="email" aria-label="Email address">
+  <button class="cta-button" type="submit">Get notified</button>
+</form>
+<p class="cta-note">One email when it ships — nothing else. Want to try it early?
+Mention it to <a href="mailto:adamzhu@andrew.cmu.edu?subject=TrueLine%20beta">adamzhu@andrew.cmu.edu</a> and you're on the TestFlight beta list.</p>
+<p class="cta-note" id="notify-fail" hidden>That didn't go through — email <a href="mailto:adamzhu@andrew.cmu.edu?subject=Notify%20me%20%E2%80%94%20TrueLine">adamzhu@andrew.cmu.edu</a> instead and you're on the list.</p>
 </div>
+
+<script>
+(function () {
+  var form = document.getElementById("notify-form");
+  if (!form) return;
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var btn = form.querySelector("button");
+    btn.disabled = true;
+    btn.textContent = "Signing up…";
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      headers: { Accept: "application/json" },
+    }).then(function (r) {
+      if (!r.ok) { throw new Error("bad status"); }
+      form.innerHTML = '<p class="notify-done">✓ You’re on the list.</p>';
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = "Get notified";
+      document.getElementById("notify-fail").hidden = false;
+    });
+  });
+})();
+</script>
 
 ## What you get, every throw
 
