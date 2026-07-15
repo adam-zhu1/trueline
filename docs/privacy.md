@@ -32,4 +32,4 @@ If a future version of TrueLine ever changes any of the above — for example, b
 
 ## Contact
 
-Questions about privacy: [adamzhu@andrew.cmu.edu](mailto:adamzhu@andrew.cmu.edu)
+Questions about privacy? Use the contact form on the [Support page](support.md).

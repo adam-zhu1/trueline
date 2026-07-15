@@ -4,7 +4,73 @@ title: Support
 
 # Support
 
-Need help with TrueLine? Email [adamzhu@andrew.cmu.edu](mailto:adamzhu@andrew.cmu.edu) and include what happened, your iPhone model, and — if it's about a specific throw — what the screen showed. You'll usually hear back within a couple of days.
+Need help with TrueLine? Send a message below — include what happened, your iPhone model, and, if it's about a specific throw, what the screen showed. You'll usually hear back within a couple of days.
+
+<style>
+.contact-form { display: grid; gap: 0.75rem; max-width: 26rem; margin: 1.5rem 0 2rem; }
+.contact-input, .contact-msg {
+  font: inherit;
+  font-size: 16px; /* ≥16px stops iOS Safari zooming the page on focus */
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+  width: 100%;
+}
+.contact-msg { min-height: 7.5rem; resize: vertical; }
+.contact-input:focus, .contact-msg:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.contact-send {
+  justify-self: start;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1.6rem;
+  cursor: pointer;
+}
+.contact-send:hover { opacity: 0.9; }
+.contact-send:disabled { opacity: 0.6; }
+.contact-done { color: var(--accent); font-weight: 600; }
+.contact-note { font-size: 0.85rem; color: var(--muted); margin: 0; }
+</style>
+
+<form id="contact-form" class="contact-form" action="https://formspree.io/f/mlgqdanz" method="POST">
+  <input type="hidden" name="_subject" value="TrueLine support message">
+  <input type="hidden" name="type" value="support">
+  <input class="contact-input" type="email" name="email" required placeholder="you@example.com" autocomplete="email" aria-label="Your email, for the reply">
+  <textarea class="contact-msg" name="message" required placeholder="What happened? Your iPhone model? If it's about a throw, what did the screen show?" aria-label="Your message"></textarea>
+  <button class="contact-send" type="submit">Send</button>
+  <p class="contact-note" id="contact-fail" hidden>That didn't send — please try again in a minute.</p>
+</form>
+
+<script>
+(function () {
+  var form = document.getElementById("contact-form");
+  if (!form) return;
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var btn = form.querySelector("button");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      headers: { Accept: "application/json" },
+    }).then(function (r) {
+      if (!r.ok) { throw new Error("bad status"); }
+      form.innerHTML = '<p class="contact-done">✓ Sent — you’ll usually hear back within a couple of days.</p>';
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = "Send";
+      document.getElementById("contact-fail").hidden = false;
+    });
+  });
+})();
+</script>
 
 ## Quick answers
 
