@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% if page.title %}{{ page.title }} · TrueLine{% else %}TrueLine{% endif %}</title>
 <meta name="description" content="{{ page.description | default: site.description }}">
+<link rel="icon" href="{{ '/assets/favicon.svg' | relative_url }}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="{{ '/assets/apple-touch-icon.png' | relative_url }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TrueLine">
+<meta property="og:title" content="{% if page.title %}{{ page.title }} · TrueLine{% else %}TrueLine{% endif %}">
+<meta property="og:description" content="{{ page.description | default: site.description }}">
+<meta property="og:url" content="{{ page.url | absolute_url }}">
+<meta property="og:image" content="{{ '/assets/og-card.png' | absolute_url }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <style>
 :root {
   --bg: #ffffff;
@@ -33,18 +44,21 @@ body {
 .shell { max-width: 42rem; margin: 0 auto; padding: 0 1.25rem; }
 header .shell {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   padding-top: 1.5rem;
   padding-bottom: 1.5rem;
 }
 .wordmark {
+  display: flex;
+  align-items: center;
   font-weight: 700;
   font-size: 1.05rem;
   color: var(--ink);
   text-decoration: none;
   letter-spacing: -0.01em;
 }
+.wordmark svg { display: block; margin-right: 0.45rem; }
 .wordmark span { color: var(--accent); }
 nav a {
   color: var(--muted);
@@ -85,7 +99,7 @@ footer a { color: var(--muted); }
 <body>
 <header>
   <div class="shell">
-    <a class="wordmark" href="{{ '/' | relative_url }}">True<span>Line</span></a>
+    <a class="wordmark" href="{{ '/' | relative_url }}"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="var(--accent)"/><circle cx="9.4" cy="8.6" r="1.55" fill="var(--bg)"/><circle cx="14.2" cy="8.6" r="1.55" fill="var(--bg)"/><circle cx="11.8" cy="13.2" r="1.9" fill="var(--bg)"/></svg>True<span>Line</span></a>
     <nav>
       <a href="{{ '/privacy' | relative_url }}">Privacy</a>
       <a href="{{ '/support' | relative_url }}">Support</a>
