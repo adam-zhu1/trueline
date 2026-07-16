@@ -1,6 +1,6 @@
 ---
-title: Every throw, measured
-description: TrueLine turns your iPhone into a bowling ball-motion tracker — speed, board at the arrows, breakpoint, entry angle, and hook for every throw. No hardware, no subscription.
+title: Ball tracking on your iPhone
+description: TrueLine tracks your bowling ball with your iPhone. Speed, hook, breakpoint, and entry angle for every throw, with no extra hardware.
 ---
 
 <style>
@@ -57,8 +57,8 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
 </style>
 
 <div class="hero">
-<h1>Every throw, measured.</h1>
-<p class="lede">TrueLine turns your iPhone into a bowling ball-motion tracker. Prop your phone behind the approach, bowl, and get the numbers a coach would give you — for every single throw, in seconds.</p>
+<h1>See what your ball actually did.</h1>
+<p class="lede">TrueLine tracks your bowling ball with your iPhone. Prop the phone up behind the approach and bowl like you normally would. A few seconds after each throw, you get the numbers a coach would give you.</p>
 </div>
 
 <svg class="phone-art" viewBox="0 0 260 520" fill="none" aria-label="iPhone showing TrueLine's Shot Result screen: a narrow top-down lane with the tracked hook path, and stat tiles for speed, hook, entry angle, and breakpoint">
@@ -122,7 +122,7 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
     <text x="143" y="489" font-size="14" font-weight="700" fill="#ececee">6.8 <tspan font-size="7.5" font-weight="400" fill="#98989f">board</tspan></text>
   </g>
 </svg>
-<p class="art-caption">One throw in TrueLine — tracked, measured, scored.</p>
+<p class="art-caption">The screen you see after a throw.</p>
 
 <div class="cta-block">
 <p><strong>TrueLine is coming to the App Store.</strong></p>
@@ -130,9 +130,8 @@ description: TrueLine turns your iPhone into a bowling ball-motion tracker — s
   <input class="notify-input" type="email" name="email" required placeholder="you@example.com" autocomplete="email" aria-label="Email address">
   <button class="cta-button" type="submit">Get notified</button>
 </form>
-<p class="cta-note">One email when it ships — nothing else. Want to try it early?
-Say so on the <a href="support.md">Support page</a> and you're on the TestFlight beta list.</p>
-<p class="cta-note" id="notify-fail" hidden>That didn't go through — please try again in a minute, or use the form on the <a href="support.md">Support page</a>.</p>
+<p class="cta-note">You'll get one email when it launches and that's it. Want to try the beta before then? Ask on the <a href="support.md">Support page</a>.</p>
+<p class="cta-note" id="notify-fail" hidden>That didn't go through. Try again in a minute, or use the form on the <a href="support.md">Support page</a>.</p>
 </div>
 
 <script>
@@ -160,7 +159,7 @@ Say so on the <a href="support.md">Support page</a> and you're on the TestFlight
 })();
 </script>
 
-## What you get, every throw
+## What it measures
 
 <ul class="metrics">
 <li>Ball speed</li>
@@ -173,7 +172,7 @@ Say so on the <a href="support.md">Support page</a> and you're on the TestFlight
 <li>Trends across sessions</li>
 </ul>
 
-Your throw is replayed with the tracked path drawn on it, every line of a session fans onto one lane view, and you can compare your arsenal ball by ball — speed, hook, and pocket rate.
+Each shot gets replayed with the tracked line drawn over your video. A whole session stacks up on one lane view so you can see how your line moved through the night. If you bowl more than one ball, you can compare them by speed, hook, and pocket rate.
 
 <div class="phone-row">
 <figure class="phone-col">
@@ -229,9 +228,9 @@ Your throw is replayed with the tracked path drawn on it, every line of a sessio
     <text x="143" y="427" font-size="7.5" fill="#98989f">Avg Speed</text>
     <text x="143" y="443" font-size="13" font-weight="700" fill="#ececee">16.9 <tspan font-size="7.5" font-weight="400" fill="#98989f">mph</tspan></text>
   </g>
-  <text x="130" y="470" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="6.5" fill="#98989f">All throws on one lane — brighter is more recent.</text>
+  <text x="130" y="470" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="6.5" fill="#98989f">Brighter lines are more recent throws.</text>
 </svg>
-<figcaption>Every throw of a session, fanned on one lane</figcaption>
+<figcaption>A whole session on one lane</figcaption>
 </figure>
 <figure class="phone-col">
 <svg viewBox="0 0 260 520" fill="none" aria-label="iPhone showing TrueLine's Stats tab: all-time totals, averages, and trend charts across sessions">
@@ -282,22 +281,22 @@ Your throw is replayed with the tracked path drawn on it, every line of a sessio
     <circle cx="220.0" cy="404.3" r="1.8" fill="#40e69e"/>
   </g>
 </svg>
-<figcaption>Trends across your sessions</figcaption>
+<figcaption>Your stats over time</figcaption>
 </figure>
 </div>
 
 ## How it works
 
 <ol class="steps">
-<li><strong>Prop your phone</strong> behind the approach, looking down your lane.</li>
-<li><strong>Set the lane corners once</strong> — then just bowl.</li>
-<li><strong>Get your numbers in seconds</strong>, throw after throw.</li>
+<li>Prop your phone behind the approach so it can see the whole lane.</li>
+<li>Set the four lane corners once. After that you just bowl.</li>
+<li>Your numbers show up a few seconds after each throw.</li>
 </ol>
 
-No hardware, no lane sensors, and it works at any center. You can also analyze footage already in your camera roll.
+There's no hardware to buy and nothing to set up at the center. It works at any house, and it can also analyze footage already in your camera roll.
 
-## Private by design
+## Nothing leaves your phone
 
-Everything runs on your iPhone. No account, no cloud, no subscription — TrueLine makes zero network requests. Your first 10 throws are free; one purchase unlocks it forever.
+TrueLine has no accounts and makes no network requests. All of the analysis runs on the phone itself. The first 10 throws are free, and a single purchase unlocks it for good.
 
 Questions? See [Support](support.md) or read the [Privacy Policy](privacy.md).
