@@ -1,5 +1,5 @@
 title: TrueLine
-description: iPhone bowling ball-motion tracker — speed, hook, breakpoint, and entry angle for every throw.
+description: TrueLine tracks your bowling ball with your iPhone and measures speed, hook, breakpoint, and entry angle.
 plugins:
   - jekyll-relative-links
 defaults:

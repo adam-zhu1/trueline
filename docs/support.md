@@ -4,7 +4,7 @@ title: Support
 
 # Support
 
-Need help with TrueLine? Send a message below — include what happened, your iPhone model, and, if it's about a specific throw, what the screen showed. You'll usually hear back within a couple of days.
+Need help with TrueLine? Send a message below. Include what happened, which iPhone you have, and what the screen showed if it was about a specific throw. You'll usually hear back within a couple of days.
 
 <style>
 .contact-form { display: grid; gap: 0.75rem; max-width: 26rem; margin: 1.5rem 0 2rem; }
@@ -42,9 +42,9 @@ Need help with TrueLine? Send a message below — include what happened, your iP
   <input type="hidden" name="_subject" value="TrueLine support message">
   <input type="hidden" name="type" value="support">
   <input class="contact-input" type="email" name="email" required placeholder="you@example.com" autocomplete="email" aria-label="Your email, for the reply">
-  <textarea class="contact-msg" name="message" required placeholder="What happened? Your iPhone model? If it's about a throw, what did the screen show?" aria-label="Your message"></textarea>
+  <textarea class="contact-msg" name="message" required placeholder="What happened? Include which iPhone you have." aria-label="Your message"></textarea>
   <button class="contact-send" type="submit">Send</button>
-  <p class="contact-note" id="contact-fail" hidden>That didn't send — please try again in a minute.</p>
+  <p class="contact-note" id="contact-fail" hidden>That didn't send. Please try again in a minute.</p>
 </form>
 
 <script>
@@ -62,7 +62,7 @@ Need help with TrueLine? Send a message below — include what happened, your iP
       headers: { Accept: "application/json" },
     }).then(function (r) {
       if (!r.ok) { throw new Error("bad status"); }
-      form.innerHTML = '<p class="contact-done">✓ Sent — you’ll usually hear back within a couple of days.</p>';
+      form.innerHTML = '<p class="contact-done">✓ Sent. You’ll usually hear back within a couple of days.</p>';
     }).catch(function () {
       btn.disabled = false;
       btn.textContent = "Send";
@@ -75,19 +75,19 @@ Need help with TrueLine? Send a message below — include what happened, your iP
 ## Quick answers
 
 **Where do I put the phone?**
-Prop it on the ball return or a table behind the approach, looking straight down your lane, with the whole lane in frame — foul line to pins. Don't move it between throws.
+Prop it on the ball return or a table behind the approach, looking straight down your lane, with the whole lane in frame, from the foul line to the pins. Don't move it between throws.
 
 **The numbers look wrong (impossible speed, board 30+ at the arrows).**
-This almost always means the calibration no longer matches the camera — the phone moved after you set the lane corners. Recalibrate on your next throw: drag the four corners so they sit exactly on the lane edges at the foul line and the pin deck.
+This almost always means the calibration no longer matches the camera, usually because the phone moved after you set the lane corners. Recalibrate on your next throw: drag the four corners so they sit exactly on the lane edges at the foul line and the pin deck.
 
 **The ball wasn't tracked.**
 Make sure the full throw is visible in the clip, the lane corners are set correctly, and the recording starts before the ball leaves your hand (speed needs the ball tracked through the front of the lane).
 
 **Board numbers seem mirrored.**
-Check your bowling hand in Settings — boards are counted from your side of the lane, so the wrong hand mirrors every number.
+Check your bowling hand in Settings. Boards are counted from your side of the lane, so the wrong hand mirrors every number.
 
 **How do I free up storage?**
-Settings shows how much space shot replays use. You can turn off "Save video with each shot" or delete all replay videos — your metrics and lane views are always kept.
+Settings shows how much space shot replays use. You can turn off "Save video with each shot" or delete all replay videos. Your metrics and lane views are always kept.
 
 **Is my footage uploaded anywhere?**
 No. Everything runs on your phone; TrueLine makes no network connections. See the [Privacy Policy](privacy.md).
