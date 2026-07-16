@@ -8,7 +8,6 @@ description: TrueLine tracks your bowling ball with your iPhone. Speed, hook, br
 .hero h1 { font-size: 2rem; margin: 0 0 0.75rem; }
 .hero .lede { font-size: 1.1rem; color: var(--muted); max-width: 34rem; }
 .phone-art { display: block; margin: 2.5rem auto 0; max-width: 280px; width: 74%; }
-.art-caption { text-align: center; font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem; }
 .cta-block {
   margin: 2.5rem 0;
   padding: 1.5rem;
@@ -52,7 +51,7 @@ description: TrueLine tracks your bowling ball with your iPhone. Speed, hook, br
 .phone-row { display: flex; gap: 1.25rem; justify-content: center; margin: 1.75rem 0 0.5rem; }
 .phone-col { flex: 1 1 0; max-width: 215px; margin: 0; }
 .phone-col svg { width: 100%; height: auto; display: block; }
-.phone-col figcaption { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 0.6rem; }
+.phone-col figcaption { font-size: 0.85rem; font-weight: 600; color: var(--muted); text-align: center; margin-top: 0.75rem; letter-spacing: 0.01em; }
 .steps li { margin-bottom: 0.6rem; }
 </style>
 
@@ -122,7 +121,6 @@ description: TrueLine tracks your bowling ball with your iPhone. Speed, hook, br
     <text x="143" y="489" font-size="14" font-weight="700" fill="#ececee">6.8 <tspan font-size="7.5" font-weight="400" fill="#98989f">board</tspan></text>
   </g>
 </svg>
-<p class="art-caption">The screen you see after a throw.</p>
 
 <div class="cta-block">
 <p><strong>TrueLine is coming to the App Store.</strong></p>
@@ -230,7 +228,7 @@ Each shot gets replayed with the tracked line drawn over your video. A whole ses
   </g>
   <text x="130" y="470" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" font-size="6.5" fill="#98989f">Brighter lines are more recent throws.</text>
 </svg>
-<figcaption>A whole session on one lane</figcaption>
+<figcaption>Session view</figcaption>
 </figure>
 <figure class="phone-col">
 <svg viewBox="0 0 260 520" fill="none" aria-label="iPhone showing TrueLine's Stats tab: all-time totals, averages, and trend charts across sessions">
@@ -281,7 +279,7 @@ Each shot gets replayed with the tracked line drawn over your video. A whole ses
     <circle cx="220.0" cy="404.3" r="1.8" fill="#40e69e"/>
   </g>
 </svg>
-<figcaption>Your stats over time</figcaption>
+<figcaption>Stats</figcaption>
 </figure>
 </div>
 
