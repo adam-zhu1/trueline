@@ -1,5 +1,6 @@
 title: TrueLine
 description: TrueLine tracks your bowling ball with your iPhone and measures speed, hook, breakpoint, and entry angle.
+url: "https://adam-zhu1.github.io"
 plugins:
   - jekyll-relative-links
 defaults:
