@@ -12,7 +12,11 @@ struct TruelineApp: App {
                 if let progress = Self.progressPreviewValue {
                     ZStack {
                         Color.black.ignoresSafeArea()
-                        AnalysisProgressView(progress: progress)
+                        if progress > 1 {
+                            AnimatedProgressPreview()
+                        } else {
+                            AnalysisProgressView(progress: progress)
+                        }
                     }
                 } else if let demoURL = Self.calibrationDemoURL {
                     DemoAnalysisFlow(clipURL: demoURL)
@@ -73,7 +77,11 @@ struct TruelineApp: App {
 
     /// Debug hook: launch with `-progressPreview <0–1>` to pin the analysis
     /// progress view at a fixed value — the real analysis is too fast in the
-    /// simulator to inspect visually.
+    /// simulator to inspect visually. A value above 1 ramps 0→1 over a few
+    /// seconds instead, which is the only way to see the strike finish (it
+    /// fires on the transition to 1, so a pinned value never triggers it).
+    /// Above 1 rather than negative because the launch-argument parser eats
+    /// a leading "-" on the value.
     private static var progressPreviewValue: Double? {
         #if DEBUG
         UserDefaults.standard.object(forKey: "progressPreview")
@@ -108,6 +116,22 @@ struct TruelineApp: App {
 }
 
 #if DEBUG
+/// Ramps analysis progress 0→1 so the strike finish can be watched (and
+/// screenshotted) without running a real analysis.
+private struct AnimatedProgressPreview: View {
+    @State private var progress = 0.0
+
+    var body: some View {
+        AnalysisProgressView(progress: progress)
+            .task {
+                while progress < 1 {
+                    try? await Task.sleep(for: .milliseconds(30))
+                    progress = min(progress + 0.01, 1)
+                }
+            }
+    }
+}
+
 /// Stats over the seeded demo history — the same data every run. Add
 /// `-trendsPreviewBottom` to open scrolled to the end (the CLI can't swipe).
 private struct TrendsPreview: View {
