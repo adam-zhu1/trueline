@@ -1,119 +1,71 @@
-# Trueline
+# TrueLine
 
-Computer vision on phone video: ball speed, board at arrows, breakpoint, and entry angle — from a single side-mounted camera, no extra hardware. Optional YOLO ball detection.
+An iOS app that turns a single iPhone into a bowling ball tracker: per-throw launch speed, board at the arrows, breakpoint, and entry angle. These metrics otherwise require a $10k+ in-lane installation. App Store launch in preparation.
+
+Landing page: [adam-zhu1.github.io/trueline](https://adam-zhu1.github.io/trueline/)
 
 ---
 
 ## About
 
-I'm a first-year **Statistics & Machine Learning** student at **Carnegie Mellon University** and I bowled competitively in high school. I started Trueline because of a problem I keep hitting: after a bad shot, it's genuinely hard to know whether to **move** or to **fix the release** — foul-line board, breakpoint, and shot-to-shot speed blur in memory, so adjustments stay guesswork.
+I bowled competitively in high school, and TrueLine comes from a problem I kept hitting: after a bad shot, it's genuinely hard to know whether to move or to fix the release. Foul-line board, breakpoint, and shot-to-shot speed blur in memory, so adjustments stay guesswork.
 
-Enterprise lane systems (e.g. **Specto**) cost on the order of **$15k** installed and need hardware on the lane. Apps like **LaneTrax** prove a phone can log a shot; what I want Trueline to become is the same **no-extra-hardware** setup, with **solid metrics on every delivery** and, down the road, **recommendations** from that data — for league bowlers, high school and college teams, and coaches who want objective feedback without Specto-level pricing.
+Enterprise lane systems cost $10k+ installed and need hardware on the lane. TrueLine's goal is the same class of metrics with no extra hardware, on every delivery, for league bowlers, school teams, and coaches who want objective feedback without enterprise pricing.
 
-The piece of this that excites me technically is **board-level accuracy from a side-mounted phone** over a full lane: boards are on the order of an inch wide across sixty feet, so pulling reliable line and breakpoint out of casual video is a real **CV / ML** problem — and the reason the stack looks the way it does.
+The technically interesting part is board-level accuracy from a side-mounted phone over a full lane: boards are about an inch wide across sixty feet, so pulling a reliable line and breakpoint out of casual video is a real CV/ML problem. That constraint drives the whole stack.
 
----
+## How it works
+
+- **Detection:** a fine-tuned YOLOv8 detector, bootstrapped from hand-labeled seed frames and grown with a model-assisted labeling loop, exported to Core ML. The full computer vision pipeline runs on-device with zero third-party dependencies.
+- **Tracking:** constant-velocity Kalman filter with Savitzky-Golay smoothing of the tracked path.
+- **Calibration:** a four-corner calibration homography maps any camera angle into real-world lane coordinates. A custom gutter-line detector proposes the corners and a magnifier-loupe drag UI refines them.
+- **Verification:** a clip-by-clip parity harness (`experiments/shot_parity`) checks the Swift port against the Python/OpenCV prototype: board position agrees within 1 board and launch speed within 1-2%.
 
 ## What it measures
 
 | Metric | How |
 |--------|-----|
-| **Speed (mph)** | Frame count between foul line and 6 ft dot line crossings × FPS. |
-| **Board at arrows** | Homography projects the ball's lane contact point onto the USBC arrow V (board 5–35, 12–16 ft). Reported to 0.1 board. |
+| **Speed (mph)** | Timing between foul-line and 6 ft dot-line crossings. |
+| **Board at arrows** | Homography projects the ball's lane contact point onto the USBC arrow V (boards 5-35, 12-16 ft). Reported to 0.1 board. |
 | **Breakpoint board** | Minimum homography board along the tracked path (trimmed to cut approach noise and pin-deck scatter). |
-| **Entry angle (°)** | Angle between the smoothed path and the boards over the final stretch before the pins, in real lane inches. |
+| **Entry angle (deg)** | Angle between the smoothed path and the boards over the final stretch before the pins, in real lane inches. |
 
-All board/feet calculations use a **perspective homography** (`image_to_lane`) built from four calibrated lane corners. A **parallax correction** offsets from the ball center to the lane contact point (bottom of the detected circle) so metrics are accurate from a low side angle.
+All board/feet calculations use a perspective homography built from the four calibrated lane corners, with a parallax correction from ball center to lane contact point so metrics stay accurate from a low side angle. A 39-board model supports right- and left-handed bowlers.
 
----
+## Repo layout
 
-## Approach
+```
+ios/Trueline/         SwiftUI app (Swift, Core ML, AVFoundation)
+src/                  Python/OpenCV reference prototype
+training/             YOLOv8 training scripts and docs
+experiments/          Parity harness, lane auto-detection experiments
+dataset/              YOLO dataset scaffolding (images/labels gitignored)
+docs/                 Landing, support, and privacy pages (GitHub Pages)
+```
 
-- **Detection:** MOG2 background subtraction + Hough circles + motion-blob fallback by default; optional **YOLOv8** if `models/ball.pt` exists.
-- **Tracking:** Constant-velocity **Kalman filter** with nearest-candidate association; temporal EMA blend reduces jitter.
-- **Calibration:** Six clicks on the first frame — foul line (right/left gutter), dot line at 6 ft (right/left), pin deck (right/left). Stored in `data/calibration.json`; reusable across videos from the same camera position.
-- **39-board model:** Board 1 at the bowler's outside gutter, board 39 at the opposite side. Supports right- and left-handed bowlers.
+## Python prototype
 
----
-
-## Output
-
-Two OpenCV windows:
-
-1. **Trueline** — video with foul/dot/pin lines, ball trail (drawn at the lane contact point), breakpoint marker, and HUD (speed, arrow board, breakpoint, entry angle).
-2. **Trueline — Lane View** — top-down schematic with smoothed ball path, arrow V, breakpoint dot, and metrics.
-
-Terminal prints a shot summary after tracking finishes.
-
----
-
-## Tech stack
-
-Python 3.11+, OpenCV, NumPy; optional PyTorch + Ultralytics for YOLO (`training/`).
-
----
-
-## Setup and run
+The `src/` prototype is the reference implementation the iOS app is verified against.
 
 ```bash
-cd /path/to/trueline
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-**YOLO (optional):** `pip install -r training/requirements-training.txt`, then install a trained `models/ball.pt` (see `training/README.md`; weight files are gitignored).
-
-```bash
 python3 src/main.py
 ```
 
-- Enter the **full path** to the video file at the prompt.
-- **`R`** reuses existing calibration; **`C`** recalibrates.
-- **`Q`** quits the preview or exits the final-frame hold.
+- Enter the full path to the video file at the prompt.
+- `R` reuses existing calibration; `C` recalibrates. `Q` quits.
+- Optional YOLO detection: `pip install -r training/requirements-training.txt` and install a trained `models/ball.pt` (see `training/README.md`; weights are gitignored). `TRUELINE_BALL_MODEL=/path/to/other.pt` overrides the checkpoint.
 
-**Custom weights:** `export TRUELINE_BALL_MODEL=/path/to/other.pt` to use a checkpoint other than `models/ball.pt`.
+## Tech stack
 
-**Other environment variables:** `TRUELINE_DEBUG_TRACK=1` logs whether each frame past 45 ft was measurement-backed or coasting (prediction-only); `TRUELINE_LANE_MARGIN_PX` overrides how far outside the calibrated lane polygon a YOLO detection center may sit (default 22 px).
+Swift, SwiftUI, Core ML, AVFoundation (app) · Python, PyTorch, OpenCV (prototype and training)
 
----
+## Status
 
-## Train or update the ball detector
-
-See **`training/README.md`** for frame extraction, labeling, training, and installing `models/ball.pt`.
-
----
-
-## Project layout
-
-```
-src/
-  main.py             CLI entry point
-  calibration.py      Six-click calibration, lane geometry constants
-  ball_tracking.py    Detection, Kalman tracking, homography, metrics, overlays, lane view
-  ui.py               Drawing primitives, color palette, HUD components
-  yolo_ball.py        Optional YOLO detector wrapper
-training/             YOLO training scripts + docs
-data/                 calibration.json (gitignored video/output files)
-models/               ball.pt weights (gitignored)
-```
-
----
-
-## Status / roadmap
-
-Working: speed, board at arrows, breakpoint, entry angle, perspective lane view, parallax correction, right/left hand support, measurement-backed tracking to the pin deck.
-
-Roadmap: session logging / consistency metrics, recommendations, mobile.
-
----
+Working: speed, board at arrows, breakpoint, entry angle, on-device tracking, parity with the prototype. Next: App Store launch, session logging and consistency metrics, recommendations.
 
 ## License
 
-MIT — see `LICENSE`.
-
----
-
-## Contact
-
-Issues and PRs welcome.
+MIT. See `LICENSE`.
