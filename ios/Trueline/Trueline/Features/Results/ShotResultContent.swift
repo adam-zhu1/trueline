@@ -11,9 +11,15 @@ struct ShotResultContent: View {
     /// Target-line practice: the session's target board at the arrows, when
     /// set — adds a per-throw miss tile.
     var targetBoard: Double? = nil
+    /// True when this screen is being revealed fresh from an analysis (the
+    /// curtain wipe): the tracked line draws itself in, then the lane view
+    /// and tiles land one by one. False (History) shows everything in place.
+    var reveal = false
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showFullScreenVideo = false
+    @State private var revealed = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -26,6 +32,7 @@ struct ShotResultContent: View {
                         expandableVideo(clipURL)
                         LaneViewCanvas(result: result, compact: true)
                             .frame(width: 104)
+                            .modifier(landing(0))
                     }
                     .containerRelativeFrame(.vertical) { length, _ in length * 0.52 }
                     .frame(maxWidth: .infinity)
@@ -34,9 +41,11 @@ struct ShotResultContent: View {
                     expandableVideo(clipURL)
                     LaneViewCanvas(result: result, compact: true)
                         .frame(height: 320)
+                        .modifier(landing(0))
                 }
             } else {
                 LaneViewCanvas(result: result)
+                    .modifier(landing(0))
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -45,7 +54,9 @@ struct ShotResultContent: View {
                     value: format(result.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
                     unit: SpeedUnit.label(speedUnit)
                 )
+                .modifier(landing(1))
                 MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
+                    .modifier(landing(2))
                 if let targetBoard {
                     let miss = result.arrowBoard.map { $0 - targetBoard }
                     MetricTile(
@@ -54,23 +65,30 @@ struct ShotResultContent: View {
                         unit: "boards",
                         numeric: miss, ideal: -1...1
                     )
+                    .modifier(landing(3))
                 }
                 MetricTile(title: "Launch Angle", value: format(result.launchAngleDegrees), unit: "°")
+                    .modifier(landing(4))
                 MetricTile(
                     title: "Entry Board", value: format(result.entryBoard), unit: "board",
                     numeric: result.entryBoard, ideal: ShotResult.pocketBoards
                 )
+                .modifier(landing(5))
                 MetricTile(
                     title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°",
                     numeric: result.entryAngleDegrees, ideal: 4...6
                 )
+                .modifier(landing(6))
                 MetricTile(title: "Breakpoint", value: format(result.breakpointBoard), unit: "board")
+                    .modifier(landing(7))
                 MetricTile(
                     title: "Breakpoint Distance",
                     value: result.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
                     unit: "ft"
                 )
+                .modifier(landing(8))
                 MetricTile(title: "Hook", value: format(result.hookBoards), unit: "boards")
+                    .modifier(landing(9))
             }
 
             if looksMiscalibrated {
@@ -96,13 +114,27 @@ struct ShotResultContent: View {
                     .multilineTextAlignment(.center)
             }
         }
+        .onAppear {
+            guard reveal, !revealed else { return }
+            // The curtain is still lifting when this appears; the line starts
+            // drawing partway through the wipe, tiles land after it.
+            withAnimation(.easeInOut(duration: 0.9).delay(0.4)) {
+                revealed = true
+            }
+        }
+    }
+
+    /// Entrance for one element of the reveal, staggered by index. Inert when
+    /// the screen isn't revealing (History) — everything sits in place.
+    private func landing(_ index: Int) -> TileLanding {
+        TileLanding(active: reveal, shown: revealed, index: index, reduceMotion: reduceMotion)
     }
 
     /// The replay, tappable to go full screen — a small expand glyph in the
     /// corner makes the option visible. The in-place player is a muted loop
     /// with no controls, so the whole surface can take the tap.
     private func expandableVideo(_ clipURL: URL) -> some View {
-        VideoPathView(clipURL: clipURL, result: result)
+        VideoPathView(clipURL: clipURL, result: result, pathTrim: !reveal || revealed ? 1 : 0)
             .allowsHitTesting(false)
             .overlay(alignment: .topTrailing) {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -131,6 +163,29 @@ struct ShotResultContent: View {
     private func format(_ value: Double?) -> String {
         guard let value else { return "--" }
         return String(format: "%.1f", value)
+    }
+}
+
+/// One element of the result-reveal choreography: hidden below its resting
+/// place until `shown`, then it rises and fades in on a small spring, each
+/// index a beat later than the last. Inert when `active` is false.
+private struct TileLanding: ViewModifier {
+    let active: Bool
+    let shown: Bool
+    let index: Int
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(!active || shown ? 1 : 0)
+            .offset(y: !active || shown || reduceMotion ? 0 : 14)
+            .animation(
+                reduceMotion
+                    ? .easeIn(duration: 0.3).delay(0.4)
+                    : .spring(response: 0.45, dampingFraction: 0.8)
+                        .delay(1.0 + Double(index) * 0.07),
+                value: shown
+            )
     }
 }
 

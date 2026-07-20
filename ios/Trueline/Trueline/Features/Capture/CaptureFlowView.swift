@@ -30,6 +30,7 @@ struct CaptureFlowView: View {
 
     @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var camera = CameraModel()
     @State private var step: Step
     /// Corners from the first calibration of this session; later throws reuse
@@ -122,7 +123,11 @@ struct CaptureFlowView: View {
                             // result. Failed tracking falls through free.
                             store.recordAnalyzedThrow()
                             ensureSession()
-                            step = .results(clipURL, result)
+                            // The curtain: the loader wipes up off the result.
+                            // Only this swap animates — failures cut straight.
+                            withAnimation(.timingCurve(0.7, 0, 0.25, 1, duration: 0.85)) {
+                                step = .results(clipURL, result)
+                            }
                         } else {
                             step = .trackingFailed(clipURL)
                         }
@@ -134,8 +139,10 @@ struct CaptureFlowView: View {
                         step = .review(clipURL)
                     }
                 )
+                .zIndex(1)
+                .transition(reduceMotion ? .opacity : .move(edge: .top))
             case .results(let clipURL, let result):
-                ResultsView(clipURL: clipURL, result: result, session: session, targetBoard: targetBoard) {
+                ResultsView(clipURL: clipURL, result: result, session: session, targetBoard: targetBoard, reveal: true) {
                     if isImported {
                         try? FileManager.default.removeItem(at: clipURL)
                         camera.stop()
