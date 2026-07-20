@@ -157,11 +157,12 @@ struct AnalysisView: View {
     @AppStorage("bowlingHand") private var bowlingHand = "right"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var progress = 0.0
+    @State private var livePoints: [CGPoint] = []
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            AnalysisProgressView(progress: progress)
+            AnalysisProgressView(progress: progress, livePath: livePoints)
             if let onCancel {
                 VStack {
                     HStack {
@@ -190,9 +191,11 @@ struct AnalysisView: View {
                 )
                 let result = try await analyzer.analyze(videoURL: clipURL) { p in
                     Task { @MainActor in progress = p }
+                } livePath: { points in
+                    Task { @MainActor in livePoints = points }
                 }
-                // Let the progress rack play its strike before the result
-                // takes over; skipped under Reduce Motion (the rack is static).
+                // Give the bowler a beat to finish the throw before the
+                // result takes over; skipped under Reduce Motion (still pose).
                 progress = 1
                 if !reduceMotion {
                     try? await Task.sleep(for: .milliseconds(850))

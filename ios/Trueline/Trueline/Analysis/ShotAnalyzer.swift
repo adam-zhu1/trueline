@@ -52,7 +52,15 @@ struct ShotAnalyzer {
         var radius: Double
     }
 
-    func analyze(videoURL: URL, progress: (@Sendable (Double) -> Void)? = nil) async throws -> ShotResult {
+    /// `livePath` receives the tracked path so far (display-normalized, like
+    /// ShotResult.videoPath but unsmoothed) at the same cadence as `progress`.
+    /// It is a snapshot, not a delta: the tracker drops coasted tails and
+    /// false locks retroactively, so the path can shrink between calls.
+    func analyze(
+        videoURL: URL,
+        progress: (@Sendable (Double) -> Void)? = nil,
+        livePath: (@Sendable ([CGPoint]) -> Void)? = nil
+    ) async throws -> ShotResult {
         let asset = AVURLAsset(url: videoURL)
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
             throw AnalyzerError.noVideoTrack
@@ -124,6 +132,9 @@ struct ShotAnalyzer {
             frameNumber += 1
             if frameNumber % 10 == 0 {
                 progress?(min(Double(frameNumber) / Double(totalFrames), 1.0))
+                livePath?(positions.map {
+                    Self.displayPoint($0, rawSize: naturalSize, orientation: orientation)
+                })
             }
 
             let candidates = detector.candidates(
@@ -378,6 +389,17 @@ struct ShotAnalyzer {
         print(lines.joined(separator: "\n"))
     }
     #endif
+
+    /// One tracked sample's contact point in display-normalized coordinates —
+    /// the live-progress version of the videoPath mapping in postProcess.
+    private static func displayPoint(
+        _ s: Sample, rawSize: CGSize, orientation: CGImagePropertyOrientation
+    ) -> CGPoint {
+        let rx = s.x / Double(rawSize.width)
+        let ry = (s.y + s.radius) / Double(rawSize.height)
+        let (u, v) = BallDetector.rawToOriented(rx: rx, ry: ry, orientation: orientation)
+        return CGPoint(x: u, y: v)
+    }
 
     // MARK: - Post-processing (metrics from the tracked path)
 

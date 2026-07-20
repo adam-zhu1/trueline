@@ -6,6 +6,7 @@ import SwiftUI
 struct VideoPathView: View {
     let clipURL: URL
     let result: ShotResult
+    var cornerRadius: CGFloat = 12
 
     @State private var player: AVPlayer?
     @State private var looper: Any?
@@ -37,7 +38,7 @@ struct VideoPathView: View {
             result.videoDisplaySize.width / max(result.videoDisplaySize.height, 1),
             contentMode: .fit
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .onAppear {
             // Re-appears reuse the player; the looper observer is re-added
             // fresh each time so it never stacks or outlives the view.

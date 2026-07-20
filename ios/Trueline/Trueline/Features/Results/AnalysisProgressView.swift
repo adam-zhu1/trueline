@@ -1,173 +1,170 @@
 import SwiftUI
 
-/// Determinate, bowling-shaped progress for the analysis step: the pin rack
-/// is the progress bar — ten ghost pins light up in mint one per 10%, head
-/// pin first, row by row back. Driven by real analysis progress, never fake
-/// motion; a percentage backs it up because a full clip can take a while on
-/// device. When progress hits 1 the rack flashes and scatters — a strike —
-/// which is why completion should linger briefly (see AnalysisView) before
-/// the result appears. Under Reduce Motion the pins just stay lit.
+/// The analysis wait keeps to one idea: a mint ball travels the brand hook
+/// curve with a short comet trail, breathes out at the pocket, and goes
+/// again. The caption underneath reacts to the real analysis — it flips from
+/// "looking" to "tracking" the moment the tracker first locks onto the ball —
+/// and the percent is real progress, so the wait stays honest without a
+/// progress bar. Under Reduce Motion the loop is a still: the full hook line
+/// with the ball at the pocket.
 struct AnalysisProgressView: View {
     /// Real progress, 0–1.
     var progress: Double
+    /// Tracked path so far. Only its presence is read here — it switches the
+    /// caption when the ball is actually found. A snapshot that can shrink
+    /// when the tracker drops a false lock, so emptiness can come back.
+    var livePath: [CGPoint] = []
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var flash = false
-    @State private var struck = false
 
     var body: some View {
         VStack(spacing: 28) {
-            ZStack {
-                ForEach(0..<PinRack.pins.count, id: \.self) { index in
-                    let pin = PinRack.pins[index]
-                    PinView(lit: litFraction(index), flash: flash)
-                        .frame(width: pin.size.width, height: pin.size.height)
-                        .position(pin.center)
-                        .rotationEffect(
-                            struck ? .degrees(pin.scatterSpin) : .zero,
-                            anchor: .center
-                        )
-                        .offset(struck ? pin.scatterOffset : .zero)
-                        .opacity(struck ? 0 : 1)
+            if reduceMotion {
+                Canvas { context, size in
+                    HookLoop.drawStill(context, size: size)
                 }
+                .frame(width: HookLoop.size.width, height: HookLoop.size.height)
+            } else {
+                TimelineView(.animation) { timeline in
+                    Canvas { context, size in
+                        let t = timeline.date.timeIntervalSinceReferenceDate
+                        let phase = t.truncatingRemainder(dividingBy: HookLoop.period)
+                            / HookLoop.period
+                        HookLoop.draw(context, size: size, at: phase)
+                    }
+                }
+                .frame(width: HookLoop.size.width, height: HookLoop.size.height)
             }
-            .frame(width: PinRack.canvasSize.width, height: PinRack.canvasSize.height)
-            .animation(.linear(duration: 0.3), value: progress)
 
             VStack(spacing: 6) {
-                Text("Tracking the ball…")
+                Text(stageLabel)
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.8))
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.25), value: stageLabel)
                 Text(progress > 0 ? "\(Int((progress * 100).rounded()))%" : " ")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
         }
-        .onChange(of: progress >= 1) { _, done in
-            guard done, !reduceMotion else { return }
-            Task { @MainActor in
-                withAnimation(.easeOut(duration: 0.15)) { flash = true }
-                try? await Task.sleep(for: .milliseconds(200))
-                withAnimation(.easeIn(duration: 0.45)) { struck = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(stageLabel) \(Int((progress * 100).rounded())) percent")
+    }
+
+    private var stageLabel: String {
+        if progress >= 1 { return "Measuring your line…" }
+        return livePath.isEmpty ? "Looking for the ball…" : "Tracking the ball…"
+    }
+}
+
+/// The looping hook: HookCurve traced foul line (bottom) to pocket (top) by a
+/// glowing ball with a fading trail. The ball reaches the pocket at 82% of
+/// the period; the rest is the whole trace breathing out so the loop restarts
+/// clean. Internal (not private) so the debug AnimationLabView can show it
+/// beside the candidate replacements.
+enum HookLoop {
+    static let size = CGSize(width: 170, height: 240)
+    static let period: Double = 2.6
+
+    private static let arriveAt = 0.82
+    private static let tailLength = 0.45
+    private static let ballR: CGFloat = 5.5
+
+    private static func laneRect(in size: CGSize) -> CGRect {
+        CGRect(x: 26, y: 14, width: size.width - 52, height: size.height - 28)
+    }
+
+    static func draw(_ context: GraphicsContext, size: CGSize, at phase: Double) {
+        let rect = laneRect(in: size)
+        let travel = min(phase / arriveAt, 1)
+        let fade = phase < arriveAt ? 1.0 : 1 - (phase - arriveAt) / (1 - arriveAt)
+
+        if travel > 0.01 {
+            let from = max(0, travel - tailLength)
+            let steps = 36
+            var prev = HookCurve.point(at: from, in: rect)
+            for i in 1...steps {
+                let a = Double(i) / Double(steps)
+                let pt = HookCurve.point(at: from + (travel - from) * a, in: rect)
+                var seg = Path()
+                seg.move(to: prev)
+                seg.addLine(to: pt)
+                context.stroke(
+                    seg,
+                    with: .color(.brandMint.opacity((0.04 + 0.72 * a) * fade)),
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                )
+                prev = pt
             }
         }
+
+        let ball = HookCurve.point(at: travel, in: rect)
+        context.fill(
+            Path(ellipseIn: CGRect(x: ball.x - 11, y: ball.y - 11, width: 22, height: 22)),
+            with: .color(.brandMint.opacity(0.20 * fade))
+        )
+        context.fill(
+            Path(ellipseIn: CGRect(x: ball.x - ballR, y: ball.y - ballR, width: ballR * 2, height: ballR * 2)),
+            with: .color(.brandMint.opacity(fade))
+        )
     }
 
-    /// Pin `index` fills across its own tenth of the progress range, so the
-    /// rack lights continuously instead of popping a pin at a time.
-    private func litFraction(_ index: Int) -> Double {
-        min(max(progress * 10 - Double(index), 0), 1)
-    }
-}
-
-/// One pin: a ghost outline with the mint version faded in on top.
-private struct PinView: View {
-    var lit: Double
-    var flash: Bool
-
-    var body: some View {
-        ZStack {
-            PinSilhouette()
-                .fill(Color.white.opacity(0.05))
-            PinSilhouette()
-                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-            PinSilhouette()
-                .fill(Color.brandMint)
-                .opacity(lit)
-                .shadow(color: Color.brandMint.opacity(flash ? 1 : 0.6 * lit),
-                        radius: flash ? 10 : 6)
-        }
-    }
-}
-
-/// Rack layout seen from the approach — head pin nearest (largest, lowest),
-/// back row deepest. Lateral spacing is true to the rack (6 in offsets);
-/// depth is exaggerated and back rows shrink slightly, matching the
-/// perspective language of OnboardingArtView. Lighting order is pins 1–10.
-private enum PinRack {
-    static let canvasSize = CGSize(width: 220, height: 190)
-
-    struct Pin {
-        let center: CGPoint
-        let size: CGSize
-        let scatterOffset: CGSize
-        let scatterSpin: Double
-    }
-
-    static let pins: [Pin] = {
-        // (row, lateral position in 6 in units): pins 1, 2–3, 4–6, 7–10.
-        let layout: [(row: Int, offsets: [Double])] = [
-            (0, [0]), (1, [-1, 1]), (2, [-2, 0, 2]), (3, [-3, -1, 1, 3]),
-        ]
-        let unitAcross = 24.0        // 6 in of rack width, in points
-        let rowRise = 38.0           // exaggerated row depth
-        let frontPinHeight = 40.0
-        return layout.flatMap { row in
-            row.offsets.map { off in
-                let scale = pow(0.90, Double(row.row))
-                let height = frontPinHeight * scale
-                let center = CGPoint(
-                    x: canvasSize.width / 2 + off * unitAcross * (1 - 0.04 * Double(row.row)),
-                    y: canvasSize.height - 24 - Double(row.row) * rowRise
-                )
-                // A strike throws pins up-lane and outward: away from a point
-                // just in front of the head pin, harder for the front rows.
-                let origin = CGPoint(x: canvasSize.width / 2, y: canvasSize.height + 30)
-                let dx = center.x - origin.x, dy = center.y - origin.y
-                let len = max((dx * dx + dy * dy).squareRoot(), 1)
-                let force = 110.0 * (1 - 0.12 * Double(row.row))
-                return Pin(
-                    center: center,
-                    size: CGSize(width: height * 0.42, height: height),
-                    scatterOffset: CGSize(width: dx / len * force, height: dy / len * force),
-                    scatterSpin: off == 0 ? 24 : off * 30
-                )
-            }
-        }
-    }()
-}
-
-/// Hand-drawn pin outline: a half-width profile (head bump, neck pinch,
-/// belly, tapered base) sampled down one side and mirrored up the other.
-private struct PinSilhouette: Shape {
-    func path(in rect: CGRect) -> Path {
-        let steps = 36
-        // t runs top (0) to bottom (1); result is a fraction of rect half-width.
-        func halfWidth(_ t: Double) -> Double {
-            let head = 0.52 * exp(-pow((t - 0.14) / 0.115, 2))
-            let belly = 0.90 * exp(-pow((t - 0.64) / 0.235, 2))
-            // Quarter-circle cap so the head closes round instead of pointed.
-            let cap = t < 0.07 ? (1 - pow(1 - t / 0.07, 2)).squareRoot() : 1
-            return (0.10 + head + belly) * cap
-        }
-        var left: [CGPoint] = []
-        var right: [CGPoint] = []
-        for i in 0...steps {
-            let t = Double(i) / Double(steps)
-            let dx = halfWidth(t) * rect.width / 2
-            let y = rect.minY + t * rect.height
-            left.append(CGPoint(x: rect.midX - dx, y: y))
-            right.append(CGPoint(x: rect.midX + dx, y: y))
-        }
+    static func drawStill(_ context: GraphicsContext, size: CGSize) {
+        let rect = laneRect(in: size)
         var path = Path()
-        path.move(to: left[0])
-        for pt in left.dropFirst() { path.addLine(to: pt) }
-        for pt in right.reversed() { path.addLine(to: pt) }
-        path.closeSubpath()
-        return path
+        for step in 0...40 {
+            let u = Double(step) / 40
+            let pt = HookCurve.point(at: u, in: rect)
+            if step == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        context.stroke(
+            path, with: .color(.brandMint.opacity(0.9)),
+            style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+        )
+        let ball = HookCurve.point(at: 1, in: rect)
+        context.fill(
+            Path(ellipseIn: CGRect(x: ball.x - ballR, y: ball.y - ballR, width: ballR * 2, height: ballR * 2)),
+            with: .color(.brandMint)
+        )
     }
 }
 
-#Preview("Mid-analysis") {
+#Preview("Searching") {
     ZStack {
         Color.black.ignoresSafeArea()
-        AnalysisProgressView(progress: 0.62)
+        AnalysisProgressView(progress: 0.18)
     }
 }
 
-#Preview("Nearly done") {
+#Preview("Tracking") {
     ZStack {
         Color.black.ignoresSafeArea()
-        AnalysisProgressView(progress: 0.97)
+        AnalysisProgressView(
+            progress: 0.62,
+            livePath: [CGPoint(x: 0.5, y: 0.5)]
+        )
     }
+}
+
+#Preview("Loop frames") {
+    // The loop unrolled, for tuning the trail and breathe-out.
+    Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+        ForEach([[0.15, 0.4, 0.6], [0.82, 0.9, 0.97]], id: \.self) { row in
+            GridRow {
+                ForEach(row, id: \.self) { phase in
+                    Canvas { context, size in
+                        HookLoop.draw(context, size: size, at: phase)
+                    }
+                    .frame(width: HookLoop.size.width * 0.8, height: HookLoop.size.height * 0.8)
+                    .border(.white.opacity(0.15))
+                    .overlay(alignment: .topLeading) {
+                        Text("\(phase, specifier: "%.2f")")
+                            .font(.caption2).foregroundStyle(.secondary).padding(2)
+                    }
+                }
+            }
+        }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color.black)
 }
