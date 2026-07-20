@@ -15,6 +15,9 @@ enum CaptureRoute: Equatable {
 /// UIKit presentation machinery to wedge.
 struct ContentView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    /// "dark" (default, the brand look), "light", or "system". Cinema
+    /// surfaces (capture, analysis, launch) hardcode dark regardless.
+    @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.modelContext) private var modelContext
     @State private var showOnboarding = false
     @State private var capture: CaptureRoute?
@@ -45,9 +48,11 @@ struct ContentView: View {
                     .zIndex(2)
             }
         }
-        // Brand is mint-on-dark everywhere; letting half the app flip to light
-        // with the system made the tabs feel like different products.
-        .preferredColorScheme(.dark)
+        // Brand default is mint-on-dark, but appearance is a Settings choice
+        // now. nil hands the decision to the system.
+        .preferredColorScheme(
+            appearance == "dark" ? .dark : appearance == "light" ? .light : nil
+        )
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
                 hasSeenOnboarding = true

@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("bowlingHand") private var bowlingHand = "right"
     @AppStorage("speedUnit") private var speedUnit = "mph"
     @AppStorage("saveShotVideos") private var saveShotVideos = true
+    @AppStorage("appearance") private var appearance = "dark"
     @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
     @State private var showHowItWorks = false
@@ -27,6 +28,17 @@ struct SettingsView: View {
                         Text("mph").tag("mph")
                         Text("km/h").tag("kmh")
                     }
+                }
+                Section {
+                    Picker("Appearance", selection: $appearance) {
+                        Text("Dark").tag("dark")
+                        Text("Light").tag("light")
+                        Text("System").tag("system")
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Recording, analysis, and launch screens always stay dark, like the camera.")
                 }
                 Section {
                     Toggle("Save video with each shot", isOn: $saveShotVideos)
