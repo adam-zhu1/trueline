@@ -67,7 +67,10 @@ struct AnalysisProgressView: View {
         .background(Color.black.ignoresSafeArea())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(stageLabel), \(Int((displayed * 100).rounded())) percent")
-        .task { await runCounter() }
+        // task(id:) so the loop restarts with the fresh value each time real
+        // progress lands — a plain .task captures the struct once and would
+        // chase the initial 0 forever.
+        .task(id: progress) { await runCounter() }
     }
 
     private var stageLabel: String {
