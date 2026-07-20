@@ -11,6 +11,10 @@ struct ResultsView: View {
     var session: BowlingSession?
     /// Target-line practice target, when the session has one.
     var targetBoard: Double? = nil
+    /// True when arriving fresh from an analysis: the content plays its
+    /// entrance choreography (line draws in, tiles land). History opens
+    /// with everything already in place.
+    var reveal = false
     var onDone: () -> Void
 
     @Environment(TruelineStore.self) private var store
@@ -25,7 +29,7 @@ struct ResultsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                ShotResultContent(result: result, clipURL: clipURL, targetBoard: targetBoard)
+                ShotResultContent(result: result, clipURL: clipURL, targetBoard: targetBoard, reveal: reveal)
                     .padding()
             }
             .navigationTitle("Shot Result")
@@ -155,14 +159,16 @@ struct AnalysisView: View {
     }
 
     @AppStorage("bowlingHand") private var bowlingHand = "right"
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var progress = 0.0
     @State private var livePoints: [CGPoint] = []
+    @State private var counterDone = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            AnalysisProgressView(progress: progress, livePath: livePoints)
+            AnalysisProgressView(progress: progress, livePath: livePoints) {
+                counterDone = true
+            }
             if let onCancel {
                 VStack {
                     HStack {
@@ -194,12 +200,14 @@ struct AnalysisView: View {
                 } livePath: { points in
                     Task { @MainActor in livePoints = points }
                 }
-                // Give the bowler a beat to finish the throw before the
-                // result takes over; skipped under Reduce Motion (still pose).
+                // Let the counter finish its climb to 100 (it smooths real
+                // progress and enforces a minimum run), hold a beat, then
+                // hand off — the parent wipes this screen up like a curtain.
                 progress = 1
-                if !reduceMotion {
-                    try? await Task.sleep(for: .milliseconds(850))
+                while !counterDone {
+                    try? await Task.sleep(for: .milliseconds(40))
                 }
+                try? await Task.sleep(for: .milliseconds(300))
                 onComplete(result)
             } catch is CancellationError {
                 // The user backed out; the flow already navigated away.

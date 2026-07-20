@@ -20,10 +20,6 @@ struct TruelineApp: App {
                     }
                 } else if let demoURL = Self.calibrationDemoURL {
                     DemoAnalysisFlow(clipURL: demoURL)
-                } else if Self.animationLab {
-                    #if DEBUG
-                    AnimationLabView()
-                    #endif
                 } else if Self.shareCardPreview {
                     #if DEBUG
                     ShareCardPreview()
@@ -48,18 +44,6 @@ struct TruelineApp: App {
             .environment(store)
             .task { await store.start() }
         }
-    }
-
-    /// Debug hook: launch with `-animationLab` to open the analysis-wait
-    /// animation variant lab (swipe between candidate concepts). Read from
-    /// the raw argument list, not UserDefaults, so the bare flag works
-    /// without a `YES` value after it.
-    private static var animationLab: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-animationLab")
-        #else
-        false
-        #endif
     }
 
     /// Debug hook: launch with `-paywallPreview` to open straight onto the
@@ -234,14 +218,22 @@ private struct DemoAnalysisFlow: View {
             if failed {
                 Text("Demo failed").foregroundStyle(.red)
             } else if let result {
-                ResultsView(clipURL: clipURL, result: result, session: nil) {}
+                ResultsView(clipURL: clipURL, result: result, session: nil, reveal: true) {}
             } else if let corners {
                 AnalysisView(
                     clipURL: clipURL,
                     corners: corners,
-                    onComplete: { result = $0 },
+                    onComplete: { newResult in
+                        // Same curtain as the real flow, so the demo
+                        // exercises the reveal end to end.
+                        withAnimation(.timingCurve(0.7, 0, 0.25, 1, duration: 0.85)) {
+                            result = newResult
+                        }
+                    },
                     onFailed: { failed = true }
                 )
+                .zIndex(1)
+                .transition(.move(edge: .top))
             } else {
                 ProgressView("Detecting lane…")
             }

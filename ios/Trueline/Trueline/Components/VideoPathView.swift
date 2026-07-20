@@ -7,6 +7,9 @@ struct VideoPathView: View {
     let clipURL: URL
     let result: ShotResult
     var cornerRadius: CGFloat = 12
+    /// How much of the tracked line is drawn, 0–1. Animatable (it's a shape
+    /// trim), so the result-reveal choreography can draw the line in.
+    var pathTrim: CGFloat = 1
 
     @State private var player: AVPlayer?
     @State private var looper: Any?
@@ -19,19 +22,13 @@ struct VideoPathView: View {
             // The container has the video's aspect ratio, so normalized display
             // coordinates map straight onto the view.
             if result.videoPath.count >= 2 {
-                Canvas { context, size in
-                    var path = Path()
-                    for (i, p) in result.videoPath.enumerated() {
-                        let pt = CGPoint(x: p.x * size.width, y: p.y * size.height)
-                        if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
-                    }
-                    context.stroke(
-                        path,
-                        with: .color(.brandMint),
+                TrackedPathShape(points: result.videoPath)
+                    .trim(from: 0, to: pathTrim)
+                    .stroke(
+                        Color.brandMint,
                         style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
                     )
-                }
-                .allowsHitTesting(false)
+                    .allowsHitTesting(false)
             }
         }
         .aspectRatio(
@@ -66,5 +63,21 @@ struct VideoPathView: View {
                 self.looper = nil
             }
         }
+    }
+}
+
+/// The smoothed ball path in normalized display coordinates, as a Shape so
+/// `.trim` can animate it drawing in.
+private struct TrackedPathShape: Shape {
+    var points: [CGPoint]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard points.count >= 2 else { return path }
+        for (i, p) in points.enumerated() {
+            let pt = CGPoint(x: p.x * rect.width, y: p.y * rect.height)
+            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        return path
     }
 }
