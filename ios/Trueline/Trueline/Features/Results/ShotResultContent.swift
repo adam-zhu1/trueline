@@ -13,6 +13,7 @@ struct ShotResultContent: View {
     var targetBoard: Double? = nil
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
+    @State private var showFullScreenVideo = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -22,7 +23,7 @@ struct ShotResultContent: View {
                     // heights matched to a share of the screen so small phones
                     // still see the metrics without scrolling far.
                     HStack(spacing: 12) {
-                        VideoPathView(clipURL: clipURL, result: result)
+                        expandableVideo(clipURL)
                         LaneViewCanvas(result: result, compact: true)
                             .frame(width: 104)
                     }
@@ -30,7 +31,7 @@ struct ShotResultContent: View {
                     .frame(maxWidth: .infinity)
                 } else {
                     // Landscape clip: no room beside it — stack instead.
-                    VideoPathView(clipURL: clipURL, result: result)
+                    expandableVideo(clipURL)
                     LaneViewCanvas(result: result, compact: true)
                         .frame(height: 320)
                 }
@@ -97,6 +98,27 @@ struct ShotResultContent: View {
         }
     }
 
+    /// The replay, tappable to go full screen — a small expand glyph in the
+    /// corner makes the option visible. The in-place player is a muted loop
+    /// with no controls, so the whole surface can take the tap.
+    private func expandableVideo(_ clipURL: URL) -> some View {
+        VideoPathView(clipURL: clipURL, result: result)
+            .allowsHitTesting(false)
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.caption.weight(.semibold))
+                    .padding(8)
+                    .background(.black.opacity(0.45), in: Circle())
+                    .foregroundStyle(.white)
+                    .padding(8)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .onTapGesture { showFullScreenVideo = true }
+            .fullScreenCover(isPresented: $showFullScreenVideo) {
+                FullScreenVideoView(clipURL: clipURL, result: result)
+            }
+    }
+
     /// Stale or wrong calibration produces numbers that look like data (a
     /// miscalibrated test clip read 27 mph over board 30) — flag anything
     /// outside plausible league ranges instead of presenting it deadpan.
@@ -109,5 +131,38 @@ struct ShotResultContent: View {
     private func format(_ value: Double?) -> String {
         guard let value else { return "--" }
         return String(format: "%.1f", value)
+    }
+}
+
+/// The replay at full size with the tracked line still drawn on it. Unlike
+/// the in-place loop this one keeps the player's native controls, so the
+/// throw can be scrubbed frame by frame.
+struct FullScreenVideoView: View {
+    let clipURL: URL
+    let result: ShotResult
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VideoPathView(clipURL: clipURL, result: result, cornerRadius: 0)
+            VStack {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.headline)
+                            .padding(12)
+                            .background(.white.opacity(0.12), in: Circle())
+                            .foregroundStyle(.white)
+                    }
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding()
+        }
     }
 }

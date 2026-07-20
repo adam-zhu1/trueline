@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Branded cold-start moment: the wordmark cascades in letter by letter, the
-/// ball rolls beneath it drawing the brand's underline, and strikes a mini
-/// pin rack at the end — scattered pins, sparks, ring, impact pop. One scene
-/// on black, ~1.7 s, tap to skip, no artificial loading — the app behind it
+/// Branded cold-start moment, one idea only: the wordmark settles in, the
+/// letters collapse left into a mint ball, and the ball rolls back across the
+/// word's width drawing the brand line. Then the whole scene breathes out.
+/// ~1.85 s on black, tap to skip, no artificial loading — the app behind it
 /// is already ready. Reduce Motion gets a static wordmark instead.
 struct LaunchAnimationView: View {
     var onFinished: () -> Void
@@ -16,26 +16,16 @@ struct LaunchAnimationView: View {
     /// "Line" — the mint half of the wordmark — starts here.
     private static let mintFrom = 4
 
-    // Timeline, seconds from start: letters cascade, then the ball rolls the
-    // underline, then the strike.
-    private let letterStagger = 0.05
-    private let letterDuration = 0.22
-    private let rollStart = 0.45
-    private let rollDuration = 0.6
-    private let impactDuration = 0.55
-    private var impactStart: Double { rollStart + rollDuration }
-    private var totalDuration: Double { impactStart + impactDuration + 0.1 }
-
-    /// Pin scatter on impact: direction and travel per pin (deterministic —
-    /// the strike looks identical every launch).
-    private static let pinScatter: [(dx: Double, dy: Double, dist: Double)] = [
-        (0.35, -1.0, 64), (1.0, -0.55, 74), (0.75, -1.25, 58),
-    ]
-    /// Extra sparks thrown off the deck.
-    private static let sparks: [(dx: Double, dy: Double, dist: Double, mint: Bool)] = [
-        (-0.6, -0.8, 44, true), (-0.15, -1.0, 54, false), (0.3, -0.95, 48, true),
-        (0.9, -0.25, 42, false), (0.55, -0.7, 58, true),
-    ]
+    // Timeline, seconds from start.
+    private let wordIn = 0.3
+    private let morphStart = 0.45
+    private let morphStagger = 0.02
+    private let morphDuration = 0.32
+    private let rollStart = 0.95
+    private let rollDuration = 0.5
+    private let fadeStart = 1.6
+    private let fadeDuration = 0.25
+    private var totalDuration: Double { fadeStart + fadeDuration }
 
     var body: some View {
         ZStack {
@@ -65,9 +55,12 @@ struct LaunchAnimationView: View {
             .font(.system(size: 44, weight: .bold))
     }
 
-    private func draw(_ ctx: GraphicsContext, size: CGSize, t: Double) {
+    fileprivate func draw(_ ctx: GraphicsContext, size: CGSize, t: Double) {
+        var root = ctx
+        root.opacity = 1 - clamp((t - fadeStart) / fadeDuration)
+
         let letters = Self.word.indices.map { i in
-            ctx.resolve(
+            root.resolve(
                 Text(String(Self.word[i]))
                     .font(.system(size: 44, weight: .bold))
                     .foregroundStyle(i >= Self.mintFrom ? Color.brandMint : Color.white)
@@ -77,124 +70,68 @@ struct LaunchAnimationView: View {
         let totalWidth = sizes.reduce(0) { $0 + $1.width }
         let center = CGPoint(x: size.width / 2, y: size.height * 0.44)
         let startX = center.x - totalWidth / 2
-
-        let roll = clamp((t - rollStart) / rollDuration)
-        let impact = clamp((t - impactStart) / impactDuration)
-
-        // Wordmark: letters drop in with a stagger; the whole word pulses
-        // once as the ball strikes.
-        let pop = 1 + 0.06 * sin(clamp(impact / 0.4) * .pi)
-        var textLayer = ctx
-        textLayer.translateBy(x: center.x, y: center.y)
-        textLayer.scaleBy(x: pop, y: pop)
-        textLayer.translateBy(x: -center.x, y: -center.y)
-        var penX = startX
-        for (i, letter) in letters.enumerated() {
-            let reveal = clamp((t - Double(i) * letterStagger) / letterDuration)
-            let eased = 1 - pow(1 - reveal, 2.0)
-            var layer = textLayer
-            layer.opacity = reveal
-            layer.draw(letter, at: CGPoint(
-                x: penX + sizes[i].width / 2,
-                y: center.y + (1 - eased) * 16
-            ))
-            penX += sizes[i].width
-        }
-
-        // The underline the ball draws, and the rack it runs into.
         let lineY = center.y + (sizes.first?.height ?? 44) / 2 + 12
-        let lineStart = startX
-        let lineEnd = startX + totalWidth
-        let rollEased = roll * roll * (3 - 2 * roll)
-        let ballX = lineStart + (lineEnd - lineStart) * rollEased
-        let pinBase = CGPoint(x: lineEnd + 15, y: lineY - 4)
+        // Where the letters gather and the roll begins.
+        let gather = CGPoint(x: startX + 9, y: lineY - 9)
 
-        // Mini rack, standing just past the line's end until the strike.
-        let pinOffsets: [(Double, Double)] = [(-4.5, 0), (4.5, 0), (0, -8)]
-        if impact <= 0 {
-            let standOpacity = clamp(roll * 3)
-            for (dx, dy) in pinOffsets {
-                pin(ctx, at: CGPoint(x: pinBase.x + dx, y: pinBase.y + dy), opacity: standOpacity)
-            }
+        // Wordmark: rises in as one piece, then each letter is drawn toward
+        // the gather point, shrinking and fading — the word becomes the ball.
+        let arrive = clamp(t / wordIn)
+        let rise = (1 - arrive) * 10
+        var penX = startX
+        var gathered = 0.0
+        for (i, letter) in letters.enumerated() {
+            let home = CGPoint(x: penX + sizes[i].width / 2, y: center.y + rise)
+            penX += sizes[i].width
+            let m = clamp((t - morphStart - Double(i) * morphStagger) / morphDuration)
+            // Motion leads, fade trails: the letter visibly travels to the
+            // gather point and only disappears as it arrives, so the morph
+            // reads as absorption rather than a fade-out.
+            let eased = m * m * (3 - 2 * m)
+            gathered += m / Double(letters.count)
+            guard m < 1 else { continue }
+            var layer = root
+            layer.opacity = root.opacity * arrive * (1 - m * m)
+            let pos = CGPoint(
+                x: home.x + (gather.x - home.x) * eased,
+                y: home.y + (gather.y - home.y) * eased
+            )
+            layer.translateBy(x: pos.x, y: pos.y)
+            let scale = 1 - 0.7 * eased
+            layer.scaleBy(x: scale, y: scale)
+            layer.draw(letter, at: .zero)
         }
+
+        // The ball forms from the gathered letters, then rolls the word's
+        // width drawing the line.
+        guard gathered > 0 else { return }
+        let roll = clamp((t - rollStart) / rollDuration)
+        let rollEased = roll * roll * (3 - 2 * roll)
+        let ballX = gather.x + (startX + totalWidth - gather.x) * rollEased
+        let ballR = 4 + 5 * clamp(gathered)
 
         if roll > 0 {
-            // Comet underline while rolling; once drawn it stays — the ball
-            // just wrote the "Line" in TrueLine.
-            if roll < 1 {
-                let steps = 40
-                for i in 1...steps {
-                    let a = Double(i) / Double(steps)
-                    var seg = Path()
-                    seg.move(to: CGPoint(x: lineStart + (ballX - lineStart) * (a - 1.0 / Double(steps)), y: lineY))
-                    seg.addLine(to: CGPoint(x: lineStart + (ballX - lineStart) * a, y: lineY))
-                    ctx.stroke(
-                        seg,
-                        with: .color(.brandMint.opacity(0.25 + 0.65 * a)),
-                        style: StrokeStyle(lineWidth: 3, lineCap: .butt)
-                    )
-                }
-            } else {
-                var line = Path()
-                line.move(to: CGPoint(x: lineStart, y: lineY))
-                line.addLine(to: CGPoint(x: lineEnd, y: lineY))
-                ctx.stroke(line, with: .color(.brandMint), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-            }
-
-            // The ball: glowing head while rolling, gone in the strike flash.
-            if impact < 0.35 {
-                let alpha = 1 - impact / 0.35
-                let ballPos = CGPoint(x: min(ballX, pinBase.x - 6), y: lineY - 7)
-                ctx.fill(
-                    Path(ellipseIn: CGRect(x: ballPos.x - 14, y: ballPos.y - 14, width: 28, height: 28)),
-                    with: .color(.brandMint.opacity(0.28 * alpha))
-                )
-                ctx.fill(
-                    Path(ellipseIn: CGRect(x: ballPos.x - 7, y: ballPos.y - 7, width: 14, height: 14)),
-                    with: .color(.brandMint.opacity(alpha))
-                )
-            }
-        }
-
-        // The strike: pins scatter in arcs, sparks fly, a ring expands.
-        if impact > 0 {
-            let ease = 1 - pow(1 - impact, 2.2)
-            let fade = 1 - impact
-
-            for (i, (dx, dy)) in pinOffsets.enumerated() {
-                let s = Self.pinScatter[i]
-                let px = pinBase.x + dx + s.dx * s.dist * ease
-                let py = pinBase.y + dy + s.dy * s.dist * ease + 34 * ease * ease
-                pin(ctx, at: CGPoint(x: px, y: py), opacity: fade)
-            }
-
-            for s in Self.sparks {
-                let px = pinBase.x + s.dx * s.dist * ease
-                let py = pinBase.y + s.dy * s.dist * ease + 22 * ease * ease
-                let r = 2.6 * (1 - 0.5 * impact)
-                ctx.fill(
-                    Path(ellipseIn: CGRect(x: px - r, y: py - r, width: r * 2, height: r * 2)),
-                    with: .color((s.mint ? Color.brandMint : Color(white: 0.92)).opacity(fade))
-                )
-            }
-
-            let ringR = 8 + 40 * ease
-            ctx.stroke(
-                Path(ellipseIn: CGRect(
-                    x: pinBase.x - ringR, y: pinBase.y - ringR,
-                    width: ringR * 2, height: ringR * 2
-                )),
-                with: .color(.brandMint.opacity(0.55 * fade)),
-                lineWidth: 2.5 * fade + 0.5
+            var line = Path()
+            line.move(to: CGPoint(x: gather.x, y: lineY))
+            line.addLine(to: CGPoint(x: ballX, y: lineY))
+            root.stroke(
+                line, with: .color(.brandMint),
+                style: StrokeStyle(lineWidth: 3, lineCap: .round)
             )
         }
-    }
-
-    private func pin(_ ctx: GraphicsContext, at pt: CGPoint, opacity: Double) {
-        let r = 3.4
-        ctx.fill(
-            Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
-            with: .color(Color(white: 0.92).opacity(opacity))
+        root.fill(
+            Path(ellipseIn: CGRect(
+                x: ballX - ballR * 2.1, y: gather.y - ballR * 2.1,
+                width: ballR * 4.2, height: ballR * 4.2
+            )),
+            with: .color(.brandMint.opacity(0.18 * clamp(gathered)))
+        )
+        root.fill(
+            Path(ellipseIn: CGRect(
+                x: ballX - ballR, y: gather.y - ballR,
+                width: ballR * 2, height: ballR * 2
+            )),
+            with: .color(.brandMint.opacity(clamp(gathered)))
         )
     }
 
@@ -211,4 +148,36 @@ struct LaunchAnimationView: View {
 
 #Preview {
     LaunchAnimationView {}
+}
+
+/// The launch unrolled, for tuning: settle, morph, roll, fade.
+private struct LaunchFrameGrid: View {
+    private let view = LaunchAnimationView {}
+
+    var body: some View {
+        Grid(horizontalSpacing: 2, verticalSpacing: 2) {
+            ForEach([[0.2, 0.5, 0.65], [0.8, 0.95, 1.15], [1.35, 1.55, 1.75]], id: \.self) { row in
+                GridRow {
+                    ForEach(row, id: \.self) { t in
+                        Canvas { ctx, size in
+                            view.draw(ctx, size: size, t: t)
+                        }
+                        .frame(width: 240, height: 130)
+                        .border(.white.opacity(0.15))
+                        .overlay(alignment: .topLeading) {
+                            Text("\(t, specifier: "%.2f")s")
+                                .font(.caption2).foregroundStyle(.secondary).padding(2)
+                        }
+                    }
+                }
+            }
+        }
+        .scaleEffect(0.55)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+    }
+}
+
+#Preview("Timeline frames") {
+    LaunchFrameGrid()
 }

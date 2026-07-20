@@ -49,6 +49,12 @@
             ReferencedContainer = "container:Trueline.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "-animationLab"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <StoreKitConfigurationFileReference
          identifier = "../../../Trueline.storekit">
       </StoreKitConfigurationFileReference>

@@ -20,6 +20,10 @@ struct TruelineApp: App {
                     }
                 } else if let demoURL = Self.calibrationDemoURL {
                     DemoAnalysisFlow(clipURL: demoURL)
+                } else if Self.animationLab {
+                    #if DEBUG
+                    AnimationLabView()
+                    #endif
                 } else if Self.shareCardPreview {
                     #if DEBUG
                     ShareCardPreview()
@@ -44,6 +48,18 @@ struct TruelineApp: App {
             .environment(store)
             .task { await store.start() }
         }
+    }
+
+    /// Debug hook: launch with `-animationLab` to open the analysis-wait
+    /// animation variant lab (swipe between candidate concepts). Read from
+    /// the raw argument list, not UserDefaults, so the bare flag works
+    /// without a `YES` value after it.
+    private static var animationLab: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-animationLab")
+        #else
+        false
+        #endif
     }
 
     /// Debug hook: launch with `-paywallPreview` to open straight onto the
@@ -116,17 +132,30 @@ struct TruelineApp: App {
 }
 
 #if DEBUG
-/// Ramps analysis progress 0→1 so the strike finish can be watched (and
-/// screenshotted) without running a real analysis.
+/// Ramps analysis progress 0→1 with a synthetic tracked path arriving partway
+/// through — every stage (looking, tracking, measuring captions and the hook
+/// loop) can be watched and screenshotted without running a real analysis.
+/// The path mimics a real stream: points appear only while "the throw" is on
+/// screen.
 private struct AnimatedProgressPreview: View {
     @State private var progress = 0.0
+    @State private var points: [CGPoint] = []
 
     var body: some View {
-        AnalysisProgressView(progress: progress)
+        AnalysisProgressView(progress: progress, livePath: points)
             .task {
                 while progress < 1 {
-                    try? await Task.sleep(for: .milliseconds(30))
-                    progress = min(progress + 0.01, 1)
+                    try? await Task.sleep(for: .milliseconds(40))
+                    progress = min(progress + 0.008, 1)
+                    // The ball shows up a third of the way into the clip.
+                    let t = (progress - 0.35) / 0.55
+                    if t > 0 {
+                        let u = min(t, 1)
+                        points.append(CGPoint(
+                            x: 0.62 - 0.30 * u + 0.16 * u * u,
+                            y: 0.92 - 0.80 * u
+                        ))
+                    }
                 }
             }
     }
