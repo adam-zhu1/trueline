@@ -1,183 +1,177 @@
 import SwiftUI
 
-/// Branded cold-start moment, one idea only: the wordmark settles in, the
-/// letters collapse left into a mint ball, and the ball rolls back across the
-/// word's width drawing the brand line. Then the whole scene breathes out.
-/// ~1.85 s on black, tap to skip, no artificial loading — the app behind it
-/// is already ready. Reduce Motion gets a static wordmark instead.
+/// Branded cold start, Adam's sequence: the wordmark pops up on black; a
+/// bowling ball rolls straight up the center of the screen (no hook — the
+/// brand doesn't pick a hand) and the wordmark splits to let it in; at dead
+/// center the ball inflates until it floods the screen solid mint; the
+/// wordmark returns near-black in the same spot; then the mint wipes up like
+/// the curtain and Home lands underneath. ~3.7s, tap to skip, no artificial
+/// loading — the app behind it is already ready. Reduce Motion gets a static
+/// wordmark and a fade.
 struct LaunchAnimationView: View {
+    /// Fires when the curtain starts to lift (or on skip) — Home uses it to
+    /// start landing its elements while the mint is still rising.
+    var onReveal: () -> Void = {}
     var onFinished: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var startDate = Date()
+    @State private var revealed = false
     @State private var finished = false
 
-    private static let word = Array("TrueLine")
-    /// "Line" — the mint half of the wordmark — starts here.
-    private static let mintFrom = 4
-
     // Timeline, seconds from start.
-    private let wordIn = 0.3
-    private let morphStart = 0.45
-    private let morphStagger = 0.02
-    private let morphDuration = 0.32
-    private let rollStart = 0.95
-    private let rollDuration = 0.5
-    private let fadeStart = 1.6
-    private let fadeDuration = 0.25
-    private var totalDuration: Double { fadeStart + fadeDuration }
+    private let wordIn = 0.15
+    private let rollStart = 0.45
+    private let rollEnd = 1.5
+    private let growStart = 1.6
+    private let growEnd = 2.05
+    private let logoAt = 2.1
+    // The inverted-logo hold is the brand beat — long enough to register,
+    // short enough that the whole launch stays under four seconds.
+    private let wipeAt = 3.25
+    private let wipeDuration = 0.75
+
+    private let inkDark = Color(red: 4 / 255, green: 19 / 255, blue: 12 / 255)
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
+        GeometryReader { geo in
             if reduceMotion {
-                staticWordmark
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    wordmark(gap: 0, dark: false)
+                }
             } else {
                 TimelineView(.animation) { context in
                     let t = context.date.timeIntervalSince(startDate)
-                    Canvas { ctx, size in
-                        draw(ctx, size: size, t: t)
-                    }
+                    scene(t: t, size: geo.size)
                 }
+                .ignoresSafeArea()
             }
         }
         .contentShape(Rectangle())
         .onTapGesture { finish() }
         .task {
-            try? await Task.sleep(for: .seconds(reduceMotion ? 0.6 : totalDuration))
-            finish()
+            if reduceMotion {
+                try? await Task.sleep(for: .seconds(0.6))
+                finish()
+            } else {
+                try? await Task.sleep(for: .seconds(wipeAt))
+                reveal()
+                try? await Task.sleep(for: .seconds(wipeDuration + 0.1))
+                finish()
+            }
         }
     }
 
-    private var staticWordmark: some View {
-        (Text("True").foregroundStyle(.white) + Text("Line").foregroundStyle(Color.brandMint))
-            .font(.system(size: 44, weight: .bold))
+    // MARK: Scene
+
+    @ViewBuilder
+    private func scene(t: Double, size: CGSize) -> some View {
+        let u = smooth((t - rollStart) / (rollEnd - rollStart))
+        let dy = (size.height / 2 + 60) * (1 - u)
+        let g = easeIn((t - growStart) / (growEnd - growStart))
+        // Split opens as the ball closes in on the wordmark's center.
+        let gap = 30 * smooth(min(max(1 - dy / 170, 0), 1))
+        let wipe = wipeProgress(t)
+
+        ZStack {
+            // Black stage with the splitting wordmark; gone once the flood
+            // owns the screen.
+            if t < logoAt {
+                Color.black
+                wordmark(gap: gap, dark: false)
+                    .opacity(min(max((t - wordIn) / 0.35, 0), 1))
+            }
+
+            // The ball: straight up the middle, then the inflation. Sized to
+            // out-cover the screen diagonal at full scale.
+            if t >= rollStart, t < logoAt {
+                ball(rotation: u * 56, holeAlpha: 1 - min(g * 3, 1))
+                    .scaleEffect(1 + g * (size.height * 1.4 / 30))
+                    .offset(y: dy)
+            }
+
+            // The flood: solid mint, the wordmark back in near-black at the
+            // same spot. The whole layer is the curtain — it wipes up to
+            // reveal Home already landing beneath.
+            if t >= logoAt {
+                ZStack {
+                    Color.brandMint
+                    wordmark(gap: 0, dark: true)
+                        .opacity(min(max((t - logoAt) / 0.3, 0), 1))
+                        .scaleEffect(0.96 + 0.04 * smooth((t - logoAt) / 0.45))
+                }
+                .compositingGroup()
+                .offset(y: -size.height * 1.05 * wipe)
+            }
+        }
     }
 
-    fileprivate func draw(_ ctx: GraphicsContext, size: CGSize, t: Double) {
-        var root = ctx
-        root.opacity = 1 - clamp((t - fadeStart) / fadeDuration)
-
-        let letters = Self.word.indices.map { i in
-            root.resolve(
-                Text(String(Self.word[i]))
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundStyle(i >= Self.mintFrom ? Color.brandMint : Color.white)
-            )
+    private func wordmark(gap: CGFloat, dark: Bool) -> some View {
+        HStack(spacing: 0) {
+            Text("True")
+                .foregroundStyle(dark ? inkDark : .white)
+                .offset(x: -gap)
+            Text("Line")
+                .foregroundStyle(dark ? inkDark : Color.brandMint)
+                .offset(x: gap)
         }
-        let sizes = letters.map { $0.measure(in: CGSize(width: 200, height: 120)) }
-        let totalWidth = sizes.reduce(0) { $0 + $1.width }
-        let center = CGPoint(x: size.width / 2, y: size.height * 0.44)
-        let startX = center.x - totalWidth / 2
-        let lineY = center.y + (sizes.first?.height ?? 44) / 2 + 12
-        // Where the letters gather and the roll begins.
-        let gather = CGPoint(x: startX + 9, y: lineY - 9)
-
-        // Wordmark: rises in as one piece, then each letter is drawn toward
-        // the gather point, shrinking and fading — the word becomes the ball.
-        let arrive = clamp(t / wordIn)
-        let rise = (1 - arrive) * 10
-        var penX = startX
-        var gathered = 0.0
-        for (i, letter) in letters.enumerated() {
-            let home = CGPoint(x: penX + sizes[i].width / 2, y: center.y + rise)
-            penX += sizes[i].width
-            let m = clamp((t - morphStart - Double(i) * morphStagger) / morphDuration)
-            // Motion leads, fade trails: the letter visibly travels to the
-            // gather point and only disappears as it arrives, so the morph
-            // reads as absorption rather than a fade-out.
-            let eased = m * m * (3 - 2 * m)
-            gathered += m / Double(letters.count)
-            guard m < 1 else { continue }
-            var layer = root
-            layer.opacity = root.opacity * arrive * (1 - m * m)
-            let pos = CGPoint(
-                x: home.x + (gather.x - home.x) * eased,
-                y: home.y + (gather.y - home.y) * eased
-            )
-            layer.translateBy(x: pos.x, y: pos.y)
-            let scale = 1 - 0.7 * eased
-            layer.scaleBy(x: scale, y: scale)
-            layer.draw(letter, at: .zero)
-        }
-
-        // The ball forms from the gathered letters, then rolls the word's
-        // width drawing the line.
-        guard gathered > 0 else { return }
-        let roll = clamp((t - rollStart) / rollDuration)
-        let rollEased = roll * roll * (3 - 2 * roll)
-        let ballX = gather.x + (startX + totalWidth - gather.x) * rollEased
-        let ballR = 4 + 5 * clamp(gathered)
-
-        if roll > 0 {
-            var line = Path()
-            line.move(to: CGPoint(x: gather.x, y: lineY))
-            line.addLine(to: CGPoint(x: ballX, y: lineY))
-            root.stroke(
-                line, with: .color(.brandMint),
-                style: StrokeStyle(lineWidth: 3, lineCap: .round)
-            )
-        }
-        root.fill(
-            Path(ellipseIn: CGRect(
-                x: ballX - ballR * 2.1, y: gather.y - ballR * 2.1,
-                width: ballR * 4.2, height: ballR * 4.2
-            )),
-            with: .color(.brandMint.opacity(0.18 * clamp(gathered)))
-        )
-        root.fill(
-            Path(ellipseIn: CGRect(
-                x: ballX - ballR, y: gather.y - ballR,
-                width: ballR * 2, height: ballR * 2
-            )),
-            with: .color(.brandMint.opacity(clamp(gathered)))
-        )
+        .font(.system(size: 42, weight: .bold))
     }
 
-    private func clamp(_ v: Double) -> Double {
-        min(max(v, 0), 1)
+    private func ball(rotation: Double, holeAlpha: Double) -> some View {
+        ZStack {
+            Circle()
+                .fill(Color.brandMint)
+            // Finger holes, turning at rolling speed — what makes it a
+            // bowling ball and not a dot.
+            ZStack {
+                Circle().frame(width: 4.5, height: 4.5).offset(x: -2, y: -6)
+                Circle().frame(width: 4.5, height: 4.5).offset(x: -6, y: 0)
+                Circle().frame(width: 4.5, height: 4.5).offset(x: 1, y: 1)
+            }
+            .foregroundStyle(.black.opacity(0.45 * holeAlpha))
+            .rotationEffect(.radians(rotation))
+        }
+        .frame(width: 30, height: 30)
+    }
+
+    // MARK: Easing
+
+    private func smooth(_ f: Double) -> Double {
+        let c = min(max(f, 0), 1)
+        return c * c * (3 - 2 * c)
+    }
+
+    private func easeIn(_ f: Double) -> Double {
+        let c = min(max(f, 0), 1)
+        return c * c
+    }
+
+    /// Double smoothstep: a sharper S than plain smoothstep, close to the
+    /// curtain's cubic-bezier feel.
+    private func wipeProgress(_ t: Double) -> CGFloat {
+        let p = smooth((t - wipeAt) / wipeDuration)
+        return CGFloat(smooth(p))
+    }
+
+    private func reveal() {
+        guard !revealed else { return }
+        revealed = true
+        onReveal()
     }
 
     private func finish() {
         guard !finished else { return }
         finished = true
+        reveal()
         onFinished()
     }
 }
 
 #Preview {
-    LaunchAnimationView {}
-}
-
-/// The launch unrolled, for tuning: settle, morph, roll, fade.
-private struct LaunchFrameGrid: View {
-    private let view = LaunchAnimationView {}
-
-    var body: some View {
-        Grid(horizontalSpacing: 2, verticalSpacing: 2) {
-            ForEach([[0.2, 0.5, 0.65], [0.8, 0.95, 1.15], [1.35, 1.55, 1.75]], id: \.self) { row in
-                GridRow {
-                    ForEach(row, id: \.self) { t in
-                        Canvas { ctx, size in
-                            view.draw(ctx, size: size, t: t)
-                        }
-                        .frame(width: 240, height: 130)
-                        .border(.white.opacity(0.15))
-                        .overlay(alignment: .topLeading) {
-                            Text("\(t, specifier: "%.2f")s")
-                                .font(.caption2).foregroundStyle(.secondary).padding(2)
-                        }
-                    }
-                }
-            }
-        }
-        .scaleEffect(0.55)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+    ZStack {
+        Color(white: 0.1).ignoresSafeArea()
+        LaunchAnimationView {}
     }
-}
-
-#Preview("Timeline frames") {
-    LaunchFrameGrid()
 }
