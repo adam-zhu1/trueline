@@ -126,8 +126,8 @@ struct ShotResultContent: View {
 
     /// Entrance for one element of the reveal, staggered by index. Inert when
     /// the screen isn't revealing (History) — everything sits in place.
-    private func landing(_ index: Int) -> TileLanding {
-        TileLanding(active: reveal, shown: revealed, index: index, reduceMotion: reduceMotion)
+    private func landing(_ index: Int) -> EntranceLanding {
+        EntranceLanding(active: reveal, shown: revealed, index: index, reduceMotion: reduceMotion)
     }
 
     /// The replay, tappable to go full screen — a small expand glyph in the
@@ -163,29 +163,6 @@ struct ShotResultContent: View {
     private func format(_ value: Double?) -> String {
         guard let value else { return "--" }
         return String(format: "%.1f", value)
-    }
-}
-
-/// One element of the result-reveal choreography: hidden below its resting
-/// place until `shown`, then it rises and fades in on a small spring, each
-/// index a beat later than the last. Inert when `active` is false.
-private struct TileLanding: ViewModifier {
-    let active: Bool
-    let shown: Bool
-    let index: Int
-    let reduceMotion: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(!active || shown ? 1 : 0)
-            .offset(y: !active || shown || reduceMotion ? 0 : 14)
-            .animation(
-                reduceMotion
-                    ? .easeIn(duration: 0.3).delay(0.4)
-                    : .spring(response: 0.45, dampingFraction: 0.8)
-                        .delay(1.0 + Double(index) * 0.07),
-                value: shown
-            )
     }
 }
 

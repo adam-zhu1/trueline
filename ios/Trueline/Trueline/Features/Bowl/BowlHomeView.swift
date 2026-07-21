@@ -6,7 +6,12 @@ import SwiftUI
 struct BowlHomeView: View {
     /// Owned by ContentView, which renders the capture flow as a root overlay.
     @Binding var capture: CaptureRoute?
+    /// Cold-start entrance: nil renders statically (previews, tab revisits);
+    /// non-nil participates in the launch choreography — hidden while false,
+    /// landing staggered when it flips true (the curtain starting to lift).
+    var entrance: Bool? = nil
     @Environment(TruelineStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pickerItem: PhotosPickerItem?
     @State private var isImporting = false
     @State private var importFailed = false
@@ -18,20 +23,24 @@ struct BowlHomeView: View {
                 (Text("True").foregroundStyle(.white) + Text("Line").foregroundStyle(Color.brandMint))
                     .font(.headline)
                     .padding(.top, 8)
+                    .modifier(landing(0))
 
                 Text("Every throw,\nmeasured.")
                     .font(.system(size: 40, weight: .bold))
                     .padding(.top, 28)
+                    .modifier(landing(1))
 
                 Text("Prop your phone behind the approach and bowl. Speed, line, breakpoint, and entry angle for every shot.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.top, 12)
+                    .modifier(landing(2))
 
                 Spacer()
 
                 LaneHeroView()
                     .frame(height: 168)
+                    .modifier(landing(3))
 
                 Spacer()
 
@@ -46,23 +55,27 @@ struct BowlHomeView: View {
                         Label("Start Session", systemImage: "record.circle.fill")
                     }
                     .buttonStyle(.primaryAction)
+                    .modifier(landing(4))
 
                     // Out of free throws: the picker would just funnel into a
                     // gate anyway, so go straight to the paywall.
-                    if store.canAnalyze {
-                        PhotosPicker(selection: $pickerItem, matching: .videos) {
-                            importLabel
+                    Group {
+                        if store.canAnalyze {
+                            PhotosPicker(selection: $pickerItem, matching: .videos) {
+                                importLabel
+                            }
+                            .buttonStyle(.secondaryAction)
+                            .disabled(isImporting)
+                        } else {
+                            Button {
+                                showPaywall = true
+                            } label: {
+                                importLabel
+                            }
+                            .buttonStyle(.secondaryAction)
                         }
-                        .buttonStyle(.secondaryAction)
-                        .disabled(isImporting)
-                    } else {
-                        Button {
-                            showPaywall = true
-                        } label: {
-                            importLabel
-                        }
-                        .buttonStyle(.secondaryAction)
                     }
+                    .modifier(landing(5))
                 }
             }
             .padding(20)
@@ -94,6 +107,20 @@ struct BowlHomeView: View {
                 PaywallView { showPaywall = false }
             }
         }
+    }
+
+    /// Entrance for one element. The launch curtain lifts bottom-first, so
+    /// the stagger runs bottom-up — each element is already landing as the
+    /// mint clears it, instead of the top rows animating under cover.
+    private func landing(_ index: Int) -> EntranceLanding {
+        EntranceLanding(
+            active: entrance != nil,
+            shown: entrance ?? true,
+            index: 5 - index,
+            reduceMotion: reduceMotion,
+            baseDelay: 0.15,
+            step: 0.09
+        )
     }
 
     private var importLabel: some View {
