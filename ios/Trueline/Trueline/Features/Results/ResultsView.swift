@@ -166,27 +166,12 @@ struct AnalysisView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            AnalysisProgressView(progress: progress, livePath: livePoints) {
-                counterDone = true
-            }
-            if let onCancel {
-                VStack {
-                    HStack {
-                        Button {
-                            onCancel()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.headline)
-                                .padding(12)
-                                .background(.white.opacity(0.12), in: Circle())
-                                .foregroundStyle(.white)
-                        }
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                .padding()
-            }
+            AnalysisProgressView(
+                progress: progress,
+                livePath: livePoints,
+                onCountedToFull: { counterDone = true },
+                onCancel: onCancel
+            )
         }
         .task {
             do {

@@ -18,6 +18,9 @@ struct AnalysisProgressView: View {
     /// Fires once, when the displayed counter completes its climb to 100 —
     /// the cue for the curtain.
     var onCountedToFull: (() -> Void)? = nil
+    /// Renders a close button in the top-right when the flow offers a way
+    /// out. Lives inside this layout so it can never overlap the wordmark.
+    var onCancel: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var displayed = 0.0
@@ -26,27 +29,38 @@ struct AnalysisProgressView: View {
 
     var body: some View {
         VStack {
-            HStack(alignment: .firstTextBaseline) {
-                (Text("True").foregroundStyle(.white)
-                    + Text("Line").foregroundStyle(Color.brandMint))
-                    .font(.system(size: 15, weight: .semibold))
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    (Text("True").foregroundStyle(.white)
+                        + Text("Line").foregroundStyle(Color.brandMint))
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("SHOT ANALYSIS")
+                        .font(.system(size: 10, weight: .medium))
+                        .kerning(0.8)
+                        .foregroundStyle(.white.opacity(0.4))
+                }
                 Spacer()
-                Text("SHOT ANALYSIS")
-                    .font(.system(size: 11, weight: .medium))
-                    .kerning(0.8)
-                    .foregroundStyle(.white.opacity(0.4))
+                if let onCancel {
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .padding(11)
+                            .background(.white.opacity(0.08), in: Circle())
+                    }
+                    .accessibilityLabel("Cancel analysis")
+                }
             }
 
             Spacer()
 
-            HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(stageLabel)
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.5))
                     .contentTransition(.opacity)
                     .animation(.easeInOut(duration: 0.25), value: stageLabel)
-                    .padding(.bottom, 18)
-                Spacer()
+                    .padding(.leading, 6)
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text("\(Int((displayed * 100).rounded()))")
                         .font(.system(size: 104, weight: .semibold))
@@ -59,6 +73,7 @@ struct AnalysisProgressView: View {
                         .foregroundStyle(Color.brandMint)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -103,7 +118,7 @@ struct AnalysisProgressView: View {
 }
 
 #Preview("Searching") {
-    AnalysisProgressView(progress: 0.18)
+    AnalysisProgressView(progress: 0.18, onCancel: {})
 }
 
 #Preview("Tracking") {
