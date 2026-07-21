@@ -67,8 +67,9 @@ struct LaunchAnimationView: View {
 
     @ViewBuilder
     private func scene(t: Double, size: CGSize) -> some View {
-        let u = smooth((t - rollStart) / (rollEnd - rollStart))
-        let dy = (size.height / 2 + 60) * (1 - u)
+        let u = expoInOut((t - rollStart) / (rollEnd - rollStart))
+        let travel = size.height / 2 + 60
+        let dy = travel * (1 - u)
         let g = easeIn((t - growStart) / (growEnd - growStart))
         // Split opens as the ball closes in on the wordmark's center.
         let gap = 30 * smooth(min(max(1 - dy / 170, 0), 1))
@@ -86,7 +87,9 @@ struct LaunchAnimationView: View {
             // The ball: straight up the middle, then the inflation. Sized to
             // out-cover the screen diagonal at full scale.
             if t >= rollStart, t < logoAt {
-                ball(rotation: u * 56, holeAlpha: 1 - min(g * 3, 1))
+                // Rolling, not spinning: rotation is distance over radius,
+                // so the holes turn exactly as fast as the ball moves.
+                ball(rotation: u * travel / 15, holeAlpha: 1 - min(g * 3, 1))
                     .scaleEffect(1 + g * (size.height * 1.4 / 30))
                     .offset(y: dy)
             }
@@ -126,11 +129,11 @@ struct LaunchAnimationView: View {
             // Finger holes, turning at rolling speed — what makes it a
             // bowling ball and not a dot.
             ZStack {
-                Circle().frame(width: 4.5, height: 4.5).offset(x: -2, y: -6)
-                Circle().frame(width: 4.5, height: 4.5).offset(x: -6, y: 0)
-                Circle().frame(width: 4.5, height: 4.5).offset(x: 1, y: 1)
+                Circle().frame(width: 5.5, height: 5.5).offset(x: -2, y: -6.5)
+                Circle().frame(width: 5.5, height: 5.5).offset(x: -6.5, y: 0.5)
+                Circle().frame(width: 5.5, height: 5.5).offset(x: 1.5, y: 1.5)
             }
-            .foregroundStyle(.black.opacity(0.45 * holeAlpha))
+            .foregroundStyle(.black.opacity(0.55 * holeAlpha))
             .rotationEffect(.radians(rotation))
         }
         .frame(width: 30, height: 30)
@@ -146,6 +149,17 @@ struct LaunchAnimationView: View {
     private func easeIn(_ f: Double) -> Double {
         let c = min(max(f, 0), 1)
         return c * c
+    }
+
+    /// Exponential ease in-out: near-still off the line, fast through the
+    /// middle, hard deceleration into the arrival. Much sharper S than
+    /// smoothstep — the ball's travel reads as a throw, not a tween.
+    private func expoInOut(_ f: Double) -> Double {
+        let c = min(max(f, 0), 1)
+        if c == 0 || c == 1 { return c }
+        return c < 0.5
+            ? pow(2, 20 * c - 10) / 2
+            : (2 - pow(2, 10 - 20 * c)) / 2
     }
 
     /// Double smoothstep: a sharper S than plain smoothstep, close to the
