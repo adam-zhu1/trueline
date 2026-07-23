@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Branded cold start, Adam's sequence: the wordmark pops up on black; a
-/// bowling ball rolls straight up the center of the screen (no hook — the
-/// brand doesn't pick a hand) and the wordmark splits to let it in; at dead
-/// center the ball inflates until it floods the screen solid mint; the
-/// wordmark returns near-black in the same spot; then the mint wipes up like
-/// the curtain and Home lands underneath. ~3.7s, tap to skip, no artificial
+/// Branded cold start, Adam's strike (design locked in the Trueline Claude
+/// Design project): the wordmark pops up on black; a bowling ball accelerates
+/// straight up the center — flat-out at contact, never braking — and the
+/// letters explode off the screen like struck pins; after a short fall beat
+/// the ball inflates until it floods the screen solid mint; the wordmark
+/// returns near-black, intact and calm; then the mint wipes up like the
+/// curtain and Home lands underneath. ~4.4s, tap to skip, no artificial
 /// loading — the app behind it is already ready. Reduce Motion gets a static
 /// wordmark and a fade.
 struct LaunchAnimationView: View {
@@ -25,19 +26,33 @@ struct LaunchAnimationView: View {
     @State private var revealed = false
     @State private var finished = false
 
-    // Timeline, seconds from start.
+    // Timeline, seconds from start. Three beats after the roll: contact
+    // explodes the text, a short fall lets the letters read, then the ball
+    // expands. Timings approved on the design-project mock.
     private let wordIn = 0.15
-    private let rollStart = 0.45
-    private let rollEnd = 1.5
-    private let growStart = 1.6
-    private let growEnd = 2.05
-    private let logoAt = 2.1
-    // The inverted-logo hold is the brand beat — long enough to register,
-    // short enough that the whole launch stays under four seconds.
-    private let wipeAt = 3.25
+    private let rollStart = 0.5
+    private let impact = 1.35
+    private let growStart = 1.75
+    private let growEnd = 2.2
+    private let logoAt = 2.25
+    private let wipeAt = 3.6
     private let wipeDuration = 0.75
 
     private let inkDark = Color(red: 4 / 255, green: 19 / 255, blue: 12 / 255)
+
+    /// The wordmark, letter by letter, with each letter's strike kick:
+    /// launched away from center on contact, up first, then gravity, each
+    /// with its own tumble. Deterministic — the same perfect strike every
+    /// launch, tuned like keyframes.
+    private static let letters: [(char: String, mint: Bool)] = [
+        ("T", false), ("r", false), ("u", false), ("e", false),
+        ("L", true), ("i", true), ("n", true), ("e", true),
+    ]
+    private static let kicks: [(vx: Double, vy: Double, spin: Double)] = [
+        (-300, -260, -6.5), (-210, -350, -5), (-140, -300, -8), (-70, -430, -4),
+        (80, -420, 5), (150, -310, 7.5), (230, -360, 4.5), (320, -270, 8),
+    ]
+    private static let gravity = 1500.0
 
     var body: some View {
         GeometryReader { geo in
@@ -98,21 +113,21 @@ struct LaunchAnimationView: View {
 
     @ViewBuilder
     private func scene(t: Double, size: CGSize) -> some View {
-        let u = expoInOut((t - rollStart) / (rollEnd - rollStart))
+        // Accelerating the whole way — a strike arrives at full speed;
+        // easing out here is what made the hit feel laggy.
+        let u = expoIn((t - rollStart) / (impact - rollStart))
         let travel = size.height / 2 + 60
         let dy = travel * (1 - u)
         let g = easeIn((t - growStart) / (growEnd - growStart))
-        // Split opens as the ball closes in on the wordmark's center.
-        let gap = 30 * smooth(min(max(1 - dy / 170, 0), 1))
 
         ZStack {
             Color.black
-            wordmark(gap: gap, dark: false)
+            strikeWordmark(t: t)
                 .opacity(min(max((t - wordIn) / 0.35, 0), 1))
 
-            // The ball: straight up the middle, then the inflation. Sized to
-            // out-cover the screen diagonal at full scale. The mint flood
-            // layer (in body) takes over at logoAt.
+            // The ball: dead stop on contact, holds through the fall beat,
+            // then the inflation. Sized to out-cover the screen diagonal at
+            // full scale. The mint flood layer (in body) takes over at logoAt.
             if t >= rollStart {
                 // Rolling, not spinning: rotation is distance over radius,
                 // so the holes turn exactly as fast as the ball moves.
@@ -121,6 +136,27 @@ struct LaunchAnimationView: View {
                     .offset(y: dy)
             }
         }
+    }
+
+    /// The wordmark as eight letters; from the moment of impact each flies
+    /// on its kick — a tiny ripple delay spreads from the center letters out.
+    private func strikeWordmark(t: Double) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Self.letters.indices, id: \.self) { i in
+                let letter = Self.letters[i]
+                let kick = Self.kicks[i]
+                let delay = abs(Double(i) - 3.5) * 0.028
+                let s = max(0, t - impact - delay)
+                Text(letter.char)
+                    .foregroundStyle(letter.mint ? Color.brandMint : .white)
+                    .offset(
+                        x: kick.vx * s,
+                        y: kick.vy * s + 0.5 * Self.gravity * s * s
+                    )
+                    .rotationEffect(.radians(kick.spin * s))
+            }
+        }
+        .font(.system(size: 42, weight: .bold))
     }
 
     private func wordmark(gap: CGFloat, dark: Bool) -> some View {
@@ -164,15 +200,10 @@ struct LaunchAnimationView: View {
         return c * c
     }
 
-    /// Exponential ease in-out: near-still off the line, fast through the
-    /// middle, hard deceleration into the arrival. Much sharper S than
-    /// smoothstep — the ball's travel reads as a throw, not a tween.
-    private func expoInOut(_ f: Double) -> Double {
+    /// Pure exponential ease-in: near-still off the line, flat-out at impact.
+    private func expoIn(_ f: Double) -> Double {
         let c = min(max(f, 0), 1)
-        if c == 0 || c == 1 { return c }
-        return c < 0.5
-            ? pow(2, 20 * c - 10) / 2
-            : (2 - pow(2, 10 - 20 * c)) / 2
+        return c == 0 ? 0 : pow(2, 10 * c - 10)
     }
 
     private func reveal() {
