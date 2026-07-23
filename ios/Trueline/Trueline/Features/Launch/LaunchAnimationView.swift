@@ -16,6 +16,12 @@ struct LaunchAnimationView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var startDate = Date()
+    // The flood/wipe runs on Core Animation (state + withAnimation), not the
+    // per-frame timeline — driving the offset from TimelineView recomputed
+    // the whole layer every frame and dropped frames mid-wipe.
+    @State private var floodShown = false
+    @State private var logoIn = false
+    @State private var wiped = false
     @State private var revealed = false
     @State private var finished = false
 
@@ -35,15 +41,31 @@ struct LaunchAnimationView: View {
 
     var body: some View {
         GeometryReader { geo in
-            if reduceMotion {
-                ZStack {
-                    Color.black
-                    wordmark(gap: 0, dark: false)
+            ZStack {
+                if reduceMotion {
+                    ZStack {
+                        Color.black
+                        wordmark(gap: 0, dark: false)
+                    }
+                } else if !floodShown {
+                    // Roll + split + inflate: per-frame canvas territory.
+                    TimelineView(.animation) { context in
+                        let t = context.date.timeIntervalSince(startDate)
+                        scene(t: t, size: geo.size)
+                    }
                 }
-            } else {
-                TimelineView(.animation) { context in
-                    let t = context.date.timeIntervalSince(startDate)
-                    scene(t: t, size: geo.size)
+
+                // The flood is its own layer so the wipe is a single
+                // Core-Animation offset — no per-frame recomputation.
+                if floodShown {
+                    ZStack {
+                        Color.brandMint
+                        wordmark(gap: 0, dark: true)
+                            .opacity(logoIn ? 1 : 0)
+                            .scaleEffect(logoIn ? 1 : 0.96)
+                    }
+                    .compositingGroup()
+                    .offset(y: wiped ? -geo.size.height * 1.15 : 0)
                 }
             }
         }
@@ -58,8 +80,14 @@ struct LaunchAnimationView: View {
                 try? await Task.sleep(for: .seconds(0.6))
                 finish()
             } else {
-                try? await Task.sleep(for: .seconds(wipeAt))
+                try? await Task.sleep(for: .seconds(logoAt))
+                floodShown = true
+                withAnimation(.easeOut(duration: 0.35)) { logoIn = true }
+                try? await Task.sleep(for: .seconds(wipeAt - logoAt))
                 reveal()
+                withAnimation(.timingCurve(0.75, 0, 0.2, 1, duration: wipeDuration)) {
+                    wiped = true
+                }
                 try? await Task.sleep(for: .seconds(wipeDuration + 0.1))
                 finish()
             }
@@ -76,39 +104,21 @@ struct LaunchAnimationView: View {
         let g = easeIn((t - growStart) / (growEnd - growStart))
         // Split opens as the ball closes in on the wordmark's center.
         let gap = 30 * smooth(min(max(1 - dy / 170, 0), 1))
-        let wipe = wipeProgress(t)
 
         ZStack {
-            // Black stage with the splitting wordmark; gone once the flood
-            // owns the screen.
-            if t < logoAt {
-                Color.black
-                wordmark(gap: gap, dark: false)
-                    .opacity(min(max((t - wordIn) / 0.35, 0), 1))
-            }
+            Color.black
+            wordmark(gap: gap, dark: false)
+                .opacity(min(max((t - wordIn) / 0.35, 0), 1))
 
             // The ball: straight up the middle, then the inflation. Sized to
-            // out-cover the screen diagonal at full scale.
-            if t >= rollStart, t < logoAt {
+            // out-cover the screen diagonal at full scale. The mint flood
+            // layer (in body) takes over at logoAt.
+            if t >= rollStart {
                 // Rolling, not spinning: rotation is distance over radius,
                 // so the holes turn exactly as fast as the ball moves.
                 ball(rotation: u * travel / 15, holeAlpha: 1 - min(g * 3, 1))
                     .scaleEffect(1 + g * (size.height * 1.4 / 30))
                     .offset(y: dy)
-            }
-
-            // The flood: solid mint, the wordmark back in near-black at the
-            // same spot. The whole layer is the curtain — it wipes up to
-            // reveal Home already landing beneath.
-            if t >= logoAt {
-                ZStack {
-                    Color.brandMint
-                    wordmark(gap: 0, dark: true)
-                        .opacity(min(max((t - logoAt) / 0.3, 0), 1))
-                        .scaleEffect(0.96 + 0.04 * smooth((t - logoAt) / 0.45))
-                }
-                .compositingGroup()
-                .offset(y: -size.height * 1.15 * wipe)
             }
         }
     }
@@ -163,13 +173,6 @@ struct LaunchAnimationView: View {
         return c < 0.5
             ? pow(2, 20 * c - 10) / 2
             : (2 - pow(2, 10 - 20 * c)) / 2
-    }
-
-    /// Double smoothstep: a sharper S than plain smoothstep, close to the
-    /// curtain's cubic-bezier feel.
-    private func wipeProgress(_ t: Double) -> CGFloat {
-        let p = smooth((t - wipeAt) / wipeDuration)
-        return CGFloat(smooth(p))
     }
 
     private func reveal() {
