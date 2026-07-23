@@ -11,14 +11,19 @@ struct ResultsView: View {
     var session: BowlingSession?
     /// Target-line practice target, when the session has one.
     var targetBoard: Double? = nil
-    /// True when arriving fresh from an analysis: the content plays its
-    /// entrance choreography (line draws in, tiles land). History opens
-    /// with everything already in place.
+    /// True when arriving fresh from an analysis: a frozen copy of the
+    /// loader's final frame overlays this screen and lifts like the curtain
+    /// (a single Core Animation offset — swapping views with a transition
+    /// re-laid-out the loader mid-slide and made the counter jump), then the
+    /// tracked line draws itself in. History opens with everything in place.
     var reveal = false
     var onDone: () -> Void
 
     @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var curtainUp = false
+    @State private var curtainGone = false
     @AppStorage("saveShotVideos") private var saveShotVideos = true
     /// Sticky across throws and launches — league bowlers throw the same ball
     /// all night, so the tag should survive without a tap.
@@ -68,6 +73,33 @@ struct ResultsView: View {
             } message: {
                 Text("Tag this shot's ball to compare equipment in Stats.")
             }
+        }
+        .overlay {
+            // The reader stays INSIDE the safe area so the frozen loader's
+            // content sits exactly where the live loader's did (its own
+            // background still floods the full screen); the travel is padded
+            // well past the safe-area height to clear the real one.
+            if reveal, !curtainGone {
+                GeometryReader { geo in
+                    AnalysisProgressView(frozenAtFull: true)
+                        .offset(y: !reduceMotion && curtainUp ? -geo.size.height * 1.35 : 0)
+                        .opacity(reduceMotion && curtainUp ? 0 : 1)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .task {
+            guard reveal else { return }
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(
+                reduceMotion
+                    ? .easeOut(duration: 0.3)
+                    : .timingCurve(0.75, 0, 0.2, 1, duration: 0.8)
+            ) {
+                curtainUp = true
+            }
+            try? await Task.sleep(for: .milliseconds(950))
+            curtainGone = true
         }
     }
 

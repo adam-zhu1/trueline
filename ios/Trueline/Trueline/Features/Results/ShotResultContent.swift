@@ -11,9 +11,10 @@ struct ShotResultContent: View {
     /// Target-line practice: the session's target board at the arrows, when
     /// set — adds a per-throw miss tile.
     var targetBoard: Double? = nil
-    /// True when this screen is being revealed fresh from an analysis (the
-    /// curtain wipe): the tracked line draws itself in, then the lane view
-    /// and tiles land one by one. False (History) shows everything in place.
+    /// True when this screen is being revealed fresh from an analysis: the
+    /// curtain lifts on the complete layout and the tracked line then draws
+    /// itself in — the one flourish. False (History) shows everything in
+    /// place, line included.
     var reveal = false
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
@@ -38,7 +39,6 @@ struct ShotResultContent: View {
                                 .frame(width: videoW)
                             LaneViewCanvas(result: result, compact: true)
                                 .frame(maxWidth: .infinity)
-                                .modifier(landing(0))
                         }
                         .frame(width: geo.size.width, height: geo.size.height)
                     }
@@ -49,11 +49,9 @@ struct ShotResultContent: View {
                     expandableVideo(clipURL)
                     LaneViewCanvas(result: result, compact: true)
                         .frame(height: 320)
-                        .modifier(landing(0))
                 }
             } else {
                 LaneViewCanvas(result: result)
-                    .modifier(landing(0))
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -62,9 +60,7 @@ struct ShotResultContent: View {
                     value: format(result.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
                     unit: SpeedUnit.label(speedUnit)
                 )
-                .modifier(landing(1))
                 MetricTile(title: "Board at Arrows", value: format(result.arrowBoard), unit: "board")
-                    .modifier(landing(2))
                 if let targetBoard {
                     let miss = result.arrowBoard.map { $0 - targetBoard }
                     MetricTile(
@@ -73,30 +69,23 @@ struct ShotResultContent: View {
                         unit: "boards",
                         numeric: miss, ideal: -1...1
                     )
-                    .modifier(landing(3))
                 }
                 MetricTile(title: "Launch Angle", value: format(result.launchAngleDegrees), unit: "°")
-                    .modifier(landing(4))
                 MetricTile(
                     title: "Entry Board", value: format(result.entryBoard), unit: "board",
                     numeric: result.entryBoard, ideal: ShotResult.pocketBoards
                 )
-                .modifier(landing(5))
                 MetricTile(
                     title: "Entry Angle", value: format(result.entryAngleDegrees), unit: "°",
                     numeric: result.entryAngleDegrees, ideal: 4...6
                 )
-                .modifier(landing(6))
                 MetricTile(title: "Breakpoint", value: format(result.breakpointBoard), unit: "board")
-                    .modifier(landing(7))
                 MetricTile(
                     title: "Breakpoint Distance",
                     value: result.breakpointFeet.map { String(format: "%.0f", $0) } ?? "--",
                     unit: "ft"
                 )
-                .modifier(landing(8))
                 MetricTile(title: "Hook", value: format(result.hookBoards), unit: "boards")
-                    .modifier(landing(9))
             }
 
             if looksMiscalibrated {
@@ -124,18 +113,16 @@ struct ShotResultContent: View {
         }
         .onAppear {
             guard reveal, !revealed else { return }
-            // The curtain is still lifting when this appears; the line starts
-            // drawing partway through the wipe, tiles land after it.
-            withAnimation(.easeInOut(duration: 0.9).delay(0.4)) {
+            // The curtain reveals bottom-first and the recording sits at the
+            // top, so the draw waits until its area is actually uncovered.
+            withAnimation(
+                reduceMotion
+                    ? .easeIn(duration: 0.3).delay(0.5)
+                    : .easeInOut(duration: 0.9).delay(0.75)
+            ) {
                 revealed = true
             }
         }
-    }
-
-    /// Entrance for one element of the reveal, staggered by index. Inert when
-    /// the screen isn't revealing (History) — everything sits in place.
-    private func landing(_ index: Int) -> EntranceLanding {
-        EntranceLanding(active: reveal, shown: revealed, index: index, reduceMotion: reduceMotion)
     }
 
     /// The replay, tappable to go full screen — a small expand glyph in the
