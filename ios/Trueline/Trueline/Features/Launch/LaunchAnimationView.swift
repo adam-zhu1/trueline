@@ -37,7 +37,7 @@ struct LaunchAnimationView: View {
         GeometryReader { geo in
             if reduceMotion {
                 ZStack {
-                    Color.black.ignoresSafeArea()
+                    Color.black
                     wordmark(gap: 0, dark: false)
                 }
             } else {
@@ -45,9 +45,12 @@ struct LaunchAnimationView: View {
                     let t = context.date.timeIntervalSince(startDate)
                     scene(t: t, size: geo.size)
                 }
-                .ignoresSafeArea()
             }
         }
+        // Safe area escaped at the reader, not inside it, so geo.size is the
+        // FULL screen — the curtain's travel is computed from it, and a
+        // safe-area-height travel left a mint strip at the dynamic island.
+        .ignoresSafeArea()
         .contentShape(Rectangle())
         .onTapGesture { finish() }
         .task {
@@ -105,7 +108,7 @@ struct LaunchAnimationView: View {
                         .scaleEffect(0.96 + 0.04 * smooth((t - logoAt) / 0.45))
                 }
                 .compositingGroup()
-                .offset(y: -size.height * 1.05 * wipe)
+                .offset(y: -size.height * 1.15 * wipe)
             }
         }
     }
