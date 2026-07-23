@@ -1,8 +1,14 @@
 import PhotosUI
+import SwiftData
 import SwiftUI
 
-/// The primary tab: an entry point that launches the capture flow, either from a
-/// live recording or an existing video (useful without lane access).
+/// The primary tab: an entry point that launches the capture flow, either from
+/// a live recording or an existing video (useful without lane access). Two
+/// states (empty-state research: design first-run and populated separately):
+/// a brand-new user gets the poster — headline, explainer, textbook hero —
+/// and once shots exist the screen becomes a mirror: your last session's
+/// lines in the hero, a stat strip, and real recent shots. One dominant CTA
+/// in both.
 struct BowlHomeView: View {
     /// Owned by ContentView, which renders the capture flow as a root overlay.
     @Binding var capture: CaptureRoute?
@@ -12,6 +18,8 @@ struct BowlHomeView: View {
     var entrance: Bool? = nil
     @Environment(TruelineStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
+    @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
     @State private var pickerItem: PhotosPickerItem?
     @State private var isImporting = false
     @State private var importFailed = false
@@ -25,22 +33,26 @@ struct BowlHomeView: View {
                     .padding(.top, 8)
                     .modifier(landing(0))
 
-                Text("Every throw,\nmeasured.")
-                    .font(.system(size: 40, weight: .bold))
-                    .padding(.top, 28)
-                    .modifier(landing(1))
-
-                Text("Prop your phone behind the approach and bowl. Speed, line, breakpoint, and entry angle for every shot.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 12)
-                    .modifier(landing(2))
+                if shots.isEmpty {
+                    posterHeader
+                } else {
+                    mirrorHeader
+                }
 
                 Spacer()
 
-                LaneHeroView()
-                    .frame(height: 132)
-                    .modifier(landing(3))
+                LaneHeroView(
+                    sessionPaths: heroPaths,
+                    drawLines: entrance ?? true
+                )
+                .frame(height: 132)
+                .modifier(landing(3))
+
+                if !shots.isEmpty {
+                    statStrip
+                        .padding(.top, 14)
+                        .modifier(landing(3))
+                }
 
                 Spacer()
 
@@ -76,6 +88,12 @@ struct BowlHomeView: View {
                         }
                     }
                     .modifier(landing(5))
+                }
+
+                if !shots.isEmpty {
+                    recentShotsRow
+                        .padding(.top, 22)
+                        .modifier(landing(6))
                 }
             }
             .padding(20)
@@ -116,11 +134,146 @@ struct BowlHomeView: View {
         EntranceLanding(
             active: entrance != nil,
             shown: entrance ?? true,
-            index: 5 - index,
+            index: 6 - index,
             reduceMotion: reduceMotion,
             baseDelay: 0.15,
             step: 0.09
         )
+    }
+
+    // MARK: First-run poster vs returning mirror
+
+    /// The brand-new-user poster: what the app is, before there's data.
+    @ViewBuilder
+    private var posterHeader: some View {
+        Text("Every throw,\nmeasured.")
+            .font(.system(size: 40, weight: .bold))
+            .padding(.top, 28)
+            .modifier(landing(1))
+
+        Text("Prop your phone behind the approach and bowl. Speed, line, breakpoint, and entry angle for every shot.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.top, 12)
+            .modifier(landing(2))
+    }
+
+    /// The returning-user greeting: your cadence, not the pitch.
+    @ViewBuilder
+    private var mirrorHeader: some View {
+        Text("Back at it.")
+            .font(.system(size: 34, weight: .bold))
+            .padding(.top, 28)
+            .modifier(landing(1))
+
+        Text(cadenceLine)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.top, 8)
+            .modifier(landing(2))
+    }
+
+    /// "2 sessions this week · last Tuesday" — or graceful fallbacks.
+    private var cadenceLine: String {
+        let calendar = Calendar.current
+        let thisWeek = sessions.filter {
+            calendar.isDate($0.date, equalTo: .now, toGranularity: .weekOfYear)
+                && !$0.shots.isEmpty
+        }.count
+        var parts: [String] = []
+        if thisWeek > 0 {
+            parts.append(thisWeek == 1 ? "1 session this week" : "\(thisWeek) sessions this week")
+        }
+        if let last = shots.first?.date {
+            if calendar.isDateInToday(last) {
+                parts.append("last threw today")
+            } else if calendar.isDateInYesterday(last) {
+                parts.append("last threw yesterday")
+            } else {
+                parts.append("last \(last.formatted(.dateTime.weekday(.wide)))")
+            }
+        }
+        return parts.isEmpty ? "Ready when you are." : parts.joined(separator: " · ")
+    }
+
+    /// The hero's lines: the most recent session's throws (chronological, so
+    /// the newest draws last and brightest); sessionless imports fall back to
+    /// the latest few shots. Empty for first-run — the hero shows the
+    /// textbook shot instead.
+    private var heroPaths: [[(board: Double, feet: Double)]] {
+        let recent: [SavedShot]
+        if let session = shots.first?.session, !session.shots.isEmpty {
+            recent = session.shots.sorted { $0.date < $1.date }.suffix(4)
+        } else {
+            recent = shots.prefix(4).reversed()
+        }
+        return recent.map { zip($0.pathBoards, $0.pathFeet).map { (board: $0, feet: $1) } }
+            .filter { $0.count >= 2 }
+    }
+
+    /// Last session's numbers (or the recent shots that stand in for one).
+    private var statStrip: some View {
+        let recent: [SavedShot]
+        if let session = shots.first?.session, !session.shots.isEmpty {
+            recent = session.shots
+        } else {
+            recent = Array(shots.prefix(6))
+        }
+        let speeds = recent.compactMap(\.speedMph)
+        let avg = speeds.isEmpty ? nil : speeds.reduce(0, +) / Double(speeds.count)
+        let pocket = recent.filter { $0.entryBoard.map(ShotResult.pocketBoards.contains) ?? false }.count
+        let bestEntry = recent.compactMap(\.entryAngleDegrees).min { abs($0 - 5) < abs($1 - 5) }
+
+        return HStack(spacing: 0) {
+            stat(avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph", label: "Last avg")
+            stat("\(pocket)", unit: "/\(recent.count)", label: "Pocket")
+            stat(bestEntry.map { String(format: "%.1f", $0) } ?? "--", unit: "°", label: "Best entry")
+        }
+    }
+
+    private func stat(_ value: String, unit: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            (Text(value).font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+                + Text(" \(unit)").font(.system(size: 12)).foregroundStyle(.white.opacity(0.45)))
+                .monospacedDigit()
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .medium))
+                .kerning(0.6)
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The latest three shots as small tiles: speed plus a thumbnail of the
+    /// lane path.
+    private var recentShotsRow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("RECENT SHOTS")
+                .font(.system(size: 11, weight: .medium))
+                .kerning(0.7)
+                .foregroundStyle(.white.opacity(0.45))
+            HStack(spacing: 10) {
+                ForEach(Array(shots.prefix(3).enumerated()), id: \.offset) { _, shot in
+                    ZStack(alignment: .bottomLeading) {
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(.white.opacity(0.055))
+                        MiniPathShape(boards: shot.pathBoards, feet: shot.pathFeet)
+                            .stroke(
+                                Color.brandMint.opacity(0.85),
+                                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                            )
+                            .padding(.horizontal, 26)
+                            .padding(.vertical, 10)
+                        Text(shot.speedMph.map { String(format: "%.1f", $0) } ?? "--")
+                            .font(.system(size: 11, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.white.opacity(0.75))
+                            .padding(10)
+                    }
+                    .frame(height: 84)
+                }
+            }
+        }
     }
 
     private var importLabel: some View {
@@ -138,9 +291,18 @@ struct BowlHomeView: View {
 /// Home-screen hero: a lane on its side — foul line left, pins right — in
 /// the instrument lane view's full language AND geometry: points-per-foot
 /// length with the standard 3.5× width exaggeration (the strip's thickness
-/// falls out of the ratio, not the frame), rack depth at 75% of that, and
-/// the textbook shot into the 1–3 gap. Decoration, not data.
+/// falls out of the ratio, not the frame), rack depth at 75% of that. With
+/// no data it shows the textbook shot; given `sessionPaths` it becomes the
+/// mirror — your session's lines, earlier throws dim, the latest bright,
+/// each drawing in once (trim-animated, staggered) when `drawLines` flips.
 private struct LaneHeroView: View {
+    /// Session lines, chronological — the last is the latest and drawn hero.
+    var sessionPaths: [[(board: Double, feet: Double)]] = []
+    /// Entrance signal (mirrors the page's landing choreography): false holds
+    /// the lines undrawn, flipping true draws them in staggered.
+    var drawLines = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let ex: Double = 3.5
     private let depthEx: Double = 3.5 * 0.75
     private let surfaceNear = Color(red: 28 / 255, green: 29 / 255, blue: 31 / 255)
@@ -257,34 +419,113 @@ private struct LaneHeroView: View {
                 }
             }
 
-            // The textbook shot: soft glow under the mint core
-            var shot = Path()
-            for step in 0...60 {
-                let feet = Double(step) / 60 * 59.6
-                let pt = CGPoint(x: fx(feet), y: by(shotBoard(at: feet)))
-                if step == 0 { shot.move(to: pt) } else { shot.addLine(to: pt) }
+            // With no session data: the textbook shot, glow + breakpoint.
+            // (Session lines render as trim-animatable shapes on top.)
+            if sessionPaths.isEmpty {
+                var shot = Path()
+                for step in 0...60 {
+                    let feet = Double(step) / 60 * 59.6
+                    let pt = CGPoint(x: fx(feet), y: by(shotBoard(at: feet)))
+                    if step == 0 { shot.move(to: pt) } else { shot.addLine(to: pt) }
+                }
+                context.stroke(
+                    shot, with: .color(Color.brandMint.opacity(0.16)),
+                    style: StrokeStyle(lineWidth: min(6, thick * 0.12), lineCap: .round, lineJoin: .round)
+                )
+                context.stroke(
+                    shot, with: .color(Color.brandMint),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                )
+                let bp = CGPoint(x: fx(42), y: by(6))
+                context.fill(
+                    Path(ellipseIn: CGRect(x: bp.x - 3, y: bp.y - 3, width: 6, height: 6)),
+                    with: .color(Color.brandMint)
+                )
+                context.stroke(
+                    Path(ellipseIn: CGRect(x: bp.x - 3, y: bp.y - 3, width: 6, height: 6)),
+                    with: .color(.white), lineWidth: 1
+                )
             }
-            context.stroke(
-                shot, with: .color(Color.brandMint.opacity(0.16)),
-                style: StrokeStyle(lineWidth: min(6, thick * 0.12), lineCap: .round, lineJoin: .round)
-            )
-            context.stroke(
-                shot, with: .color(Color.brandMint),
-                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-            )
-            // Breakpoint marker
-            let bp = CGPoint(x: fx(42), y: by(6))
-            context.fill(
-                Path(ellipseIn: CGRect(x: bp.x - 3, y: bp.y - 3, width: 6, height: 6)),
-                with: .color(Color.brandMint)
-            )
-            context.stroke(
-                Path(ellipseIn: CGRect(x: bp.x - 3, y: bp.y - 3, width: 6, height: 6)),
-                with: .color(.white), lineWidth: 1
-            )
+        }
+        .overlay {
+            // The mirror's lines: earlier throws dim, the latest bright over
+            // a glow pass. Trim is animatable, so each line draws in once,
+            // staggered, when `drawLines` flips true.
+            ForEach(sessionPaths.indices, id: \.self) { i in
+                let isLatest = i == sessionPaths.count - 1
+                let dimAlpha = 0.14 + 0.07 * Double(i)
+                let shape = HeroSessionLineShape(points: sessionPaths[i], ex: ex, depthEx: depthEx)
+                    .trim(from: 0, to: drawLines ? 1 : 0)
+                ZStack {
+                    if isLatest {
+                        shape.stroke(
+                            Color.brandMint.opacity(0.16),
+                            style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)
+                        )
+                    }
+                    shape.stroke(
+                        Color.brandMint.opacity(isLatest ? 1 : dimAlpha),
+                        style: StrokeStyle(lineWidth: isLatest ? 2 : 1.5, lineCap: .round, lineJoin: .round)
+                    )
+                }
+                .animation(
+                    reduceMotion
+                        ? .easeIn(duration: 0.3)
+                        : .easeOut(duration: 0.65).delay(0.5 + Double(i) * 0.18),
+                    value: drawLines
+                )
+            }
         }
         .background(Color(red: 13 / 255, green: 14 / 255, blue: 15 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// One session line in the hero's sideways lane coordinates. Mirrors the
+/// hero canvas's geometry (points-per-foot with the standard exaggerations)
+/// so the shapes land exactly on the drawn lane.
+private struct HeroSessionLineShape: Shape {
+    var points: [(board: Double, feet: Double)]
+    var ex: Double
+    var depthEx: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard points.count >= 2 else { return path }
+        let inset: CGFloat = 12
+        let usable = rect.width - inset * 2
+        let ppf = usable / (60.0 + 3.0 * depthEx)
+        let thick = ppf * (41.5 / 12) * ex
+        let laneY = (rect.height - thick) / 2
+        for (i, p) in points.enumerated() {
+            let pt = CGPoint(
+                x: inset + ppf * min(p.feet, 60),
+                y: laneY + thick * (1.0 - (p.board - 1) / 38.0)
+            )
+            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        return path
+    }
+}
+
+/// A shot's lane path sketched into a small tile — decoration for the
+/// recent-shots row, drawn portrait (foul line at the bottom).
+private struct MiniPathShape: Shape {
+    var boards: [Double]
+    var feet: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let points = zip(boards, feet)
+        guard boards.count >= 2 else { return path }
+        for (i, p) in points.enumerated() {
+            let pt = CGPoint(
+                x: rect.minX + rect.width * (1.0 - (p.0 - 1) / 38.0),
+                y: rect.minY + rect.height * (1.0 - min(p.1, 60) / 60.0)
+            )
+            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        return path
     }
 }
 
