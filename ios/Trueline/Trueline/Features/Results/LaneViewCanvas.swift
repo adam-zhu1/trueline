@@ -44,11 +44,20 @@ struct LaneViewCanvas: View {
             let topPad: CGFloat = compact ? 14 : 26
             let botPad: CGFloat = compact ? 14 : 26
             let drawnFeet = 60.0 + 3.0 * depthEx
-            let ppf = (size.height - topPad - botPad) / drawnFeet
-            let laneW = min(ppf * (41.5 / 12) * ex, size.width * 0.64)
+            // Scale to the largest strip that fits BOTH dimensions at the
+            // locked ratio — capping width alone squished the ratio and left
+            // dead margins. Full mode keeps side margins for labels; compact
+            // may use nearly the whole card.
+            let stripPerPPF = (41.5 / 12) * ex * 1.36   // lane + both gutters
+            let heightPPF = (size.height - topPad - botPad) / drawnFeet
+            let widthPPF = size.width * (compact ? 0.94 : 0.66) / stripPerPPF
+            let ppf = min(heightPPF, widthPPF)
+            let laneW = ppf * (41.5 / 12) * ex
             let gw = laneW * 0.18
             let laneX = (size.width - laneW) / 2
-            let laneY = topPad + ppf * 3 * depthEx
+            // Center vertically when width-limited leaves vertical slack.
+            let slack = (size.height - topPad - botPad - ppf * drawnFeet) / 2
+            let laneY = topPad + slack + ppf * 3 * depthEx
             let laneH = ppf * 60
             let laneRect = CGRect(x: laneX, y: laneY, width: laneW, height: laneH)
 

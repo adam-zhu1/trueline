@@ -25,16 +25,24 @@ struct ShotResultContent: View {
         VStack(spacing: 16) {
             if let clipURL {
                 if result.videoDisplaySize.height >= result.videoDisplaySize.width {
-                    // Portrait clip: video dominant, thin lane view beside it,
-                    // heights matched to a share of the screen so small phones
-                    // still see the metrics without scrolling far.
-                    HStack(spacing: 12) {
-                        expandableVideo(clipURL)
-                        LaneViewCanvas(result: result, compact: true)
-                            .frame(width: 104)
-                            .modifier(landing(0))
+                    // Portrait clip: the recording takes its natural width
+                    // from the row height, and the lane view gets ALL the
+                    // remaining width — no fixed panel width, no dead space
+                    // at the sides on wide phones.
+                    GeometryReader { geo in
+                        let aspect = result.videoDisplaySize.width
+                            / max(result.videoDisplaySize.height, 1)
+                        let videoW = min(geo.size.height * aspect, geo.size.width * 0.66)
+                        HStack(spacing: 12) {
+                            expandableVideo(clipURL)
+                                .frame(width: videoW)
+                            LaneViewCanvas(result: result, compact: true)
+                                .frame(maxWidth: .infinity)
+                                .modifier(landing(0))
+                        }
+                        .frame(width: geo.size.width, height: geo.size.height)
                     }
-                    .containerRelativeFrame(.vertical) { length, _ in length * 0.52 }
+                    .containerRelativeFrame(.vertical) { length, _ in length * 0.54 }
                     .frame(maxWidth: .infinity)
                 } else {
                     // Landscape clip: no room beside it — stack instead.
