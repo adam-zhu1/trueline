@@ -23,9 +23,27 @@ struct AnalysisProgressView: View {
     var onCancel: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var displayed = 0.0
+    @State private var displayed: Double
     @State private var startDate = Date()
-    @State private var reportedFull = false
+    @State private var reportedFull: Bool
+
+    /// `frozenAtFull` renders the loader's exact final frame (100%,
+    /// "measuring your line") with the counter inert — the result screen
+    /// overlays it as the curtain, so the hand-off is pixel-identical.
+    init(
+        progress: Double = 1,
+        livePath: [CGPoint] = [],
+        onCountedToFull: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil,
+        frozenAtFull: Bool = false
+    ) {
+        self.progress = progress
+        self.livePath = livePath
+        self.onCountedToFull = onCountedToFull
+        self.onCancel = onCancel
+        _displayed = State(initialValue: frozenAtFull ? 1 : 0)
+        _reportedFull = State(initialValue: frozenAtFull)
+    }
 
     var body: some View {
         VStack {

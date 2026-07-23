@@ -90,8 +90,8 @@ struct BowlHomeView: View {
                     .modifier(landing(5))
                 }
 
-                if !shots.isEmpty {
-                    recentShotsRow
+                if speedTrendValues.count >= 3 {
+                    speedTrend
                         .padding(.top, 22)
                         .modifier(landing(6))
                 }
@@ -244,35 +244,50 @@ struct BowlHomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The latest three shots as small tiles: speed plus a thumbnail of the
-    /// lane path.
-    private var recentShotsRow: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("RECENT SHOTS")
-                .font(.system(size: 11, weight: .medium))
-                .kerning(0.7)
-                .foregroundStyle(.white.opacity(0.45))
-            HStack(spacing: 10) {
-                ForEach(Array(shots.prefix(3).enumerated()), id: \.offset) { _, shot in
-                    ZStack(alignment: .bottomLeading) {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(.white.opacity(0.055))
-                        MiniPathShape(boards: shot.pathBoards, feet: shot.pathFeet)
-                            .stroke(
-                                Color.brandMint.opacity(0.85),
-                                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                            )
-                            .padding(.horizontal, 26)
-                            .padding(.vertical, 10)
-                        Text(shot.speedMph.map { String(format: "%.1f", $0) } ?? "--")
-                            .font(.system(size: 11, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(.white.opacity(0.75))
-                            .padding(10)
-                    }
-                    .frame(height: 84)
+    /// Ball speed across the last throws, oldest → newest. The one dimension
+    /// the hero can't show: change over time.
+    private var speedTrendValues: [Double] {
+        Array(shots.prefix(12)).reversed().compactMap(\.speedMph)
+    }
+
+    /// A quiet sparkline of recent speeds — teases the Stats tab without
+    /// repeating the hero (which already shows the lines themselves).
+    private var speedTrend: some View {
+        let values = speedTrendValues
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("SPEED · LAST \(values.count) THROWS")
+                    .font(.system(size: 11, weight: .medium))
+                    .kerning(0.7)
+                    .foregroundStyle(.white.opacity(0.45))
+                Spacer()
+                if let latest = values.last {
+                    (Text(String(format: "%.1f", latest))
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+                        + Text(" mph").font(.system(size: 11)).foregroundStyle(.white.opacity(0.45)))
+                        .monospacedDigit()
                 }
             }
+            ZStack(alignment: .trailing) {
+                SparklineShape(values: values)
+                    .stroke(
+                        Color.brandMint.opacity(0.85),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                    )
+                // The newest throw, marked.
+                GeometryReader { geo in
+                    if let latest = values.last {
+                        Circle()
+                            .fill(Color.brandMint)
+                            .frame(width: 5, height: 5)
+                            .position(
+                                x: geo.size.width - 1,
+                                y: SparklineShape.y(for: latest, in: values, height: geo.size.height)
+                            )
+                    }
+                }
+            }
+            .frame(height: 36)
         }
     }
 
@@ -508,20 +523,25 @@ private struct HeroSessionLineShape: Shape {
     }
 }
 
-/// A shot's lane path sketched into a small tile — decoration for the
-/// recent-shots row, drawn portrait (foul line at the bottom).
-private struct MiniPathShape: Shape {
-    var boards: [Double]
-    var feet: [Double]
+/// Recent speeds as a small line, oldest left to newest right, with the
+/// vertical range padded so a flat stretch doesn't sit on the edge.
+private struct SparklineShape: Shape {
+    var values: [Double]
+
+    static func y(for value: Double, in values: [Double], height: CGFloat) -> CGFloat {
+        let lo = values.min() ?? 0, hi = values.max() ?? 1
+        let pad = max((hi - lo) * 0.15, 0.25)
+        let range = (hi + pad) - (lo - pad)
+        return height * CGFloat(1 - (value - (lo - pad)) / range)
+    }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let points = zip(boards, feet)
-        guard boards.count >= 2 else { return path }
-        for (i, p) in points.enumerated() {
+        guard values.count >= 2 else { return path }
+        for (i, v) in values.enumerated() {
             let pt = CGPoint(
-                x: rect.minX + rect.width * (1.0 - (p.0 - 1) / 38.0),
-                y: rect.minY + rect.height * (1.0 - min(p.1, 60) / 60.0)
+                x: rect.minX + rect.width * CGFloat(i) / CGFloat(values.count - 1),
+                y: rect.minY + Self.y(for: v, in: values, height: rect.height)
             )
             if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
         }

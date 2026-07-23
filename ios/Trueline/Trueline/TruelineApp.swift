@@ -223,17 +223,10 @@ private struct DemoAnalysisFlow: View {
                 AnalysisView(
                     clipURL: clipURL,
                     corners: corners,
-                    onComplete: { newResult in
-                        // Same curtain as the real flow, so the demo
-                        // exercises the reveal end to end.
-                        withAnimation(.timingCurve(0.7, 0, 0.25, 1, duration: 0.85)) {
-                            result = newResult
-                        }
-                    },
+                    // Instant swap — ResultsView(reveal:) runs the curtain.
+                    onComplete: { result = $0 },
                     onFailed: { failed = true }
                 )
-                .zIndex(1)
-                .transition(.move(edge: .top))
             } else {
                 ProgressView("Detecting lane…")
             }
