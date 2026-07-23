@@ -1,280 +1,291 @@
 import SwiftUI
 
-/// Top-down lane diagram — port of draw_lane_view in src/ball_tracking.py
-/// (Specto-style): board grid, foul/dot/pin reference lines, arrow V, pin deck
-/// with pocket highlight, and the smoothed ball path with arrow-crossing and
-/// breakpoint markers. SwiftUI Canvas renders vector-sharp, replacing the
-/// prototype's 2× raster scaling.
+/// Instrument-style lane view (design locked with Adam in the Trueline
+/// Claude Design project, July 2026). Geometry is honest: points-per-foot
+/// with true 60 ft length and 3.5× width exaggeration — his pick from a
+/// rendered width ladder; true 1:17 read too skinny. Lateral-adjacent depth
+/// (pin rows, deck) scales at 75% of that so the rack keeps a near-true
+/// triangle with a slight deliberate squish. Rendering is quiet: gradient
+/// surface with no border box, one hairline seam per arrow board, dim mint
+/// arrows, small soft pins with a glowing pocket pair — and the path as the
+/// unmistakable hero, mint core over a soft glow. Numbers live in the side
+/// margins with leader lines, never inside the strip.
 struct LaneViewCanvas: View {
     var result: ShotResult
-    /// Compact mode shrinks insets/markers so the diagram works as a narrow
-    /// side panel next to the video.
+    /// Compact mode fills whatever frame the caller gives (the side panel
+    /// next to the recording) and drops margin labels.
     var compact = false
     /// Earlier paths from the same session, oldest first, drawn dim beneath
     /// the primary path so a mid-session line change reads at a glance.
     var overlayPaths: [[(board: Double, feet: Double)]] = []
 
-    // Neutrals from src/ui.py; accents are the TrueLine mint brand palette.
-    private let accent = Color.brandMint
-    private let accentDim = Color.brandMintDim
-    private let laneFill = Color(red: 55 / 255, green: 55 / 255, blue: 60 / 255)
-    private let laneBorder = Color(red: 70 / 255, green: 75 / 255, blue: 80 / 255)
-    private let gridColor = Color(red: 65 / 255, green: 70 / 255, blue: 75 / 255)
-    private let gutterColor = Color(red: 38 / 255, green: 38 / 255, blue: 40 / 255)
-    private let refLine = Color.brandMintDim
-    private let deckFill = Color(red: 35 / 255, green: 35 / 255, blue: 38 / 255)
+    /// Width exaggeration over true scale, and the softer factor used for
+    /// depth cheats (pin rows, deck) so the rack shape holds.
+    private let ex: Double = 3.5
+    private let depthEx: Double = 3.5 * 0.75
+
+    private let mint = Color.brandMint
+    private let mintDim = Color.brandMintDim
+    private let cardBase = Color(red: 13 / 255, green: 14 / 255, blue: 15 / 255)
+    private let surfaceNear = Color(red: 28 / 255, green: 29 / 255, blue: 31 / 255)
+    private let surfaceFar = Color(red: 20 / 255, green: 21 / 255, blue: 22 / 255)
 
     var body: some View {
-        // aspectRatio(nil, .fit) doesn't skip fitting — it fits the canvas's
-        // ideal (square) ratio, collapsing the side panel. Compact mode must
-        // fill whatever frame the caller gives it, so no modifier at all.
         if compact {
             laneCanvas
         } else {
-            laneCanvas.aspectRatio(0.62, contentMode: .fit)
+            // Tall card: the lane's long silhouette plus label margins.
+            laneCanvas.aspectRatio(0.5, contentMode: .fit)
         }
     }
 
     private var laneCanvas: some View {
         Canvas { context, size in
-            let inset: CGFloat = compact ? 12 : 22
-            let topExtra: CGFloat = compact ? 8 : 44
-            let laneRect = CGRect(
-                x: inset, y: inset + topExtra,
-                width: size.width - inset * 2,
-                height: size.height - inset * 2 - topExtra - (compact ? 12 : 18)
-            )
+            let topPad: CGFloat = compact ? 14 : 26
+            let botPad: CGFloat = compact ? 14 : 26
+            let drawnFeet = 60.0 + 3.0 * depthEx
+            let ppf = (size.height - topPad - botPad) / drawnFeet
+            let laneW = min(ppf * (41.5 / 12) * ex, size.width * 0.64)
+            let gw = laneW * 0.18
+            let laneX = (size.width - laneW) / 2
+            let laneY = topPad + ppf * 3 * depthEx
+            let laneH = ppf * 60
+            let laneRect = CGRect(x: laneX, y: laneY, width: laneW, height: laneH)
 
             func boardX(_ board: Double) -> CGFloat {
-                let t = (board - 1) / 38.0
-                return laneRect.minX + laneRect.width * (1.0 - t)
+                laneX + laneW * (1.0 - (board - 1) / 38.0)
             }
             func feetY(_ feet: Double) -> CGFloat {
-                laneRect.minY + laneRect.height * (1.0 - feet / 60.0)
+                laneY + laneH * (1.0 - feet / 60.0)
             }
 
-            // Gutters + lane surface
-            let gw: CGFloat = 6
+            // Gutters: dark recessed channels
             context.fill(
-                Path(CGRect(x: laneRect.minX - gw, y: laneRect.minY, width: gw, height: laneRect.height)),
-                with: .color(gutterColor)
+                Path(CGRect(x: laneX - gw, y: laneY, width: gw, height: laneH)),
+                with: .color(.black.opacity(0.5))
             )
             context.fill(
-                Path(CGRect(x: laneRect.maxX, y: laneRect.minY, width: gw, height: laneRect.height)),
-                with: .color(gutterColor)
+                Path(CGRect(x: laneX + laneW, y: laneY, width: gw, height: laneH)),
+                with: .color(.black.opacity(0.5))
             )
-            context.fill(Path(laneRect), with: .color(laneFill))
-            context.stroke(Path(laneRect), with: .color(laneBorder), lineWidth: 1)
 
-            // Board grid every 5 boards
-            for b in stride(from: 5, through: 35, by: 5) {
-                let x = boardX(Double(b))
-                var line = Path()
-                line.move(to: CGPoint(x: x, y: laneRect.minY))
-                line.addLine(to: CGPoint(x: x, y: laneRect.maxY))
-                context.stroke(line, with: .color(gridColor), lineWidth: 1)
-                if !compact || b % 10 == 0 {
-                    context.draw(
-                        Text("\(b)").font(.system(size: compact ? 7 : 9)).foregroundStyle(.secondary),
-                        at: CGPoint(x: x, y: laneRect.maxY + (compact ? 7 : 9))
+            // Surface: barely-there vertical gradient, no border box
+            context.fill(
+                Path(laneRect),
+                with: .linearGradient(
+                    Gradient(colors: [surfaceNear, surfaceFar]),
+                    startPoint: CGPoint(x: laneRect.midX, y: laneRect.maxY),
+                    endPoint: CGPoint(x: laneRect.midX, y: laneRect.minY)
+                )
+            )
+
+            // One hairline seam per arrow board
+            for b in stride(from: 5.0, through: 35.0, by: 5.0) {
+                var seam = Path()
+                seam.move(to: CGPoint(x: boardX(b), y: laneRect.minY))
+                seam.addLine(to: CGPoint(x: boardX(b), y: laneRect.maxY))
+                context.stroke(seam, with: .color(.white.opacity(0.05)), lineWidth: 1)
+            }
+
+            // Foul line, across lane and gutters
+            var foul = Path()
+            foul.move(to: CGPoint(x: laneX - gw, y: feetY(0)))
+            foul.addLine(to: CGPoint(x: laneX + laneW + gw, y: feetY(0)))
+            context.stroke(foul, with: .color(mintDim), lineWidth: compact ? 1.5 : 2)
+
+            // Arrows: the V at ~15 ft, quiet dim-mint triangles
+            let arrowSize = min(6.5, max(2.2, laneW * 0.06))
+            for b in stride(from: 5.0, through: 35.0, by: 5.0) {
+                let depth = 15 + 1.5 * (1 - abs(b - 20) / 15)
+                let pt = CGPoint(x: boardX(b), y: feetY(depth))
+                var tri = Path()
+                tri.move(to: CGPoint(x: pt.x, y: pt.y - arrowSize))
+                tri.addLine(to: CGPoint(x: pt.x - arrowSize * 0.72, y: pt.y + arrowSize * 0.6))
+                tri.addLine(to: CGPoint(x: pt.x + arrowSize * 0.72, y: pt.y + arrowSize * 0.6))
+                tri.closeSubpath()
+                context.fill(tri, with: .color(mintDim.opacity(0.85)))
+            }
+
+            // Pin rack: rows 10.4 in deep (depth-exaggerated), pins 12 in
+            // apart at true boards, small and quiet; pocket pair glows.
+            let rowDY = ppf * (10.4 / 12) * depthEx
+            let pinR = max(1.4, min(ppf * (4.75 / 24) * ex, rowDY * 0.42) * 0.7)
+            let deckTop = feetY(60) - 3 * rowDY - pinR - 4
+            context.fill(
+                Path(CGRect(
+                    x: laneX - gw, y: deckTop,
+                    width: laneW + gw * 2, height: feetY(60) - deckTop + pinR + 4
+                )),
+                with: .color(.black.opacity(0.35))
+            )
+            let boardsPer6In = (6.0 / LaneGeometry.laneWidthInches) * 39.0
+            let pinRows: [[Double]] = [[0], [-1, 1], [-2, 0, 2], [-3, -1, 1, 3]]
+            for (ri, offsets) in pinRows.enumerated() {
+                let py = feetY(60) - CGFloat(ri) * rowDY
+                for off in offsets {
+                    let isPocket = ri == 0 || (ri == 1 && off < 0)
+                    let px = boardX(20.0 + off * boardsPer6In)
+                    if isPocket {
+                        context.fill(
+                            Path(ellipseIn: CGRect(
+                                x: px - pinR * 2.8, y: py - pinR * 2.8,
+                                width: pinR * 5.6, height: pinR * 5.6
+                            )),
+                            with: .radialGradient(
+                                Gradient(colors: [mint.opacity(0.28), mint.opacity(0)]),
+                                center: CGPoint(x: px, y: py),
+                                startRadius: 0, endRadius: pinR * 2.8
+                            )
+                        )
+                    }
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: px - pinR, y: py - pinR, width: pinR * 2, height: pinR * 2)),
+                        with: .color(isPocket ? mint.opacity(0.92) : .white.opacity(0.55))
                     )
                 }
             }
 
-            // Foul line (0 ft) and dashed dot line (6 ft)
-            for (feet, dash, width) in [(0.0, [CGFloat](), 2.0), (6.0, [CGFloat(8), CGFloat(6)], 1.0)] {
-                let y = feetY(feet)
-                var line = Path()
-                line.move(to: CGPoint(x: laneRect.minX, y: y))
-                line.addLine(to: CGPoint(x: laneRect.maxX, y: y))
-                context.stroke(
-                    line, with: .color(refLine),
-                    style: StrokeStyle(lineWidth: width, dash: dash)
-                )
-            }
-
-            // Arrow V
-            let arrowBoards: [Double] = [5, 10, 15, 20, 25, 30, 35]
-            var vPath = Path()
-            for (i, b) in arrowBoards.enumerated() {
-                let pt = CGPoint(x: boardX(b), y: feetY(arrowFeet(atBoard: b)))
-                if i == 0 { vPath.move(to: pt) } else { vPath.addLine(to: pt) }
-            }
-            context.stroke(vPath, with: .color(accentDim), lineWidth: 1)
-            for b in arrowBoards {
-                let pt = CGPoint(x: boardX(b), y: feetY(arrowFeet(atBoard: b)))
-                var tri = Path()
-                tri.move(to: CGPoint(x: pt.x, y: pt.y - 4))
-                tri.addLine(to: CGPoint(x: pt.x - 3.5, y: pt.y + 3))
-                tri.addLine(to: CGPoint(x: pt.x + 3.5, y: pt.y + 3))
-                tri.closeSubpath()
-                context.fill(tri, with: .color(accent))
-            }
-
-            // Pin deck: head pin centered at 60 ft, pins 12 in apart, lateral
-            // positions exact in boards (pocket alignment true); row depth is
-            // schematic because the diagram compresses length ~6× vs width.
-            let boardsPer6In = (6.0 / LaneGeometry.laneWidthInches) * 39.0
-            let headBoard = 20.0
-            let pinLineY = feetY(60)
-            let rowDY: CGFloat = compact ? 9 : 16
-            let pinR: CGFloat = compact ? 3 : 5
-            let pinRows: [[Double]] = [[0], [-1, 1], [-2, 0, 2], [-3, -1, 1, 3]]
-            let deckTop = pinLineY - CGFloat(pinRows.count - 1) * rowDY - pinR - 4
-            context.fill(
-                Path(CGRect(x: laneRect.minX, y: deckTop, width: laneRect.width, height: pinLineY - deckTop)),
-                with: .color(deckFill)
-            )
-            var pinLine = Path()
-            pinLine.move(to: CGPoint(x: laneRect.minX, y: pinLineY))
-            pinLine.addLine(to: CGPoint(x: laneRect.maxX, y: pinLineY))
-            context.stroke(pinLine, with: .color(refLine), lineWidth: 2)
-
-            // Entry-board target zone: boards 17–18 over the last stretch of
-            // lane (17.5 ≈ flush pocket; hand-normalized boards, so valid for
-            // lefties too). Faint fill — a nudge, not a lane marking.
-            let zoneRect = CGRect(
-                x: boardX(18), y: feetY(60),
-                width: boardX(17) - boardX(18),
-                height: feetY(48) - feetY(60)
-            )
-            context.fill(Path(zoneRect), with: .color(accent.opacity(0.14)))
-
-            // Pocket guide: dashed line down-lane from the pocket gap (~board 17.2)
-            let pocketX = boardX(headBoard - boardsPer6In / 2.0)
-            var pocket = Path()
-            pocket.move(to: CGPoint(x: pocketX, y: pinLineY))
-            pocket.addLine(to: CGPoint(x: pocketX, y: feetY(48)))
-            context.stroke(
-                pocket, with: .color(accentDim),
-                style: StrokeStyle(lineWidth: 1, dash: [5, 7])
-            )
-
-            for (ri, offsets) in pinRows.enumerated() {
-                let py = pinLineY - CGFloat(ri) * rowDY
-                for off in offsets {
-                    let b = headBoard + off * boardsPer6In
-                    let px = boardX(b)
-                    // Pocket pins: head pin + the pocket-side row-2 pin.
-                    let isPocket = ri == 0 || (ri == 1 && off < 0)
-                    let rect = CGRect(x: px - pinR, y: py - pinR, width: pinR * 2, height: pinR * 2)
-                    context.fill(Path(ellipseIn: rect), with: .color(isPocket ? accent : Color(white: 0.86)))
-                    context.stroke(Path(ellipseIn: rect), with: .color(Color(white: 0.16)), lineWidth: 1)
-                }
-            }
-
-            // Earlier session paths, dimmer the older they are (0.14–0.34)
-            // so the sequence of line adjustments stays readable.
+            // Earlier session paths, dimmer the older they are
             for (i, overlay) in overlayPaths.enumerated() where overlay.count >= 2 {
                 var path = Path()
                 for (j, sample) in overlay.enumerated() {
-                    let pt = CGPoint(x: boardX(sample.board), y: feetY(sample.feet))
+                    let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, 60)))
                     if j == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                 }
                 let recency = overlayPaths.count > 1
                     ? Double(i) / Double(overlayPaths.count - 1)
                     : 1.0
                 context.stroke(
-                    path, with: .color(accent.opacity(0.14 + 0.20 * recency)),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                    path, with: .color(mint.opacity(0.14 + 0.20 * recency)),
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
                 )
             }
 
-            // Ball path (already smoothed + trimmed by the analyzer)
+            // The path: soft glow pass, then the mint core
             if result.path.count >= 2 {
                 var path = Path()
                 for (i, sample) in result.path.enumerated() {
-                    let pt = CGPoint(x: boardX(sample.board), y: feetY(sample.feet))
+                    let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, 60)))
                     if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                 }
+                let glowW: CGFloat = compact ? 4.5 : min(6, laneW * 0.12)
+                let coreW: CGFloat = compact ? 1.8 : 2.4
                 context.stroke(
-                    path, with: .color(accent),
-                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+                    path, with: .color(mint.opacity(0.16)),
+                    style: StrokeStyle(lineWidth: glowW, lineCap: .round, lineJoin: .round)
+                )
+                context.stroke(
+                    path, with: .color(mint),
+                    style: StrokeStyle(lineWidth: coreW, lineCap: .round, lineJoin: .round)
                 )
             }
 
-            // Markers: arrow crossing (triangle) and breakpoint (circle)
-            if let ab = result.arrowBoard {
-                marker(
-                    &context, at: CGPoint(x: boardX(ab), y: feetY(arrowFeet(atBoard: ab))),
-                    label: String(format: "%.1f", ab), triangle: true
-                )
-            }
+            // Breakpoint: marker on the path, number out in the right margin
             if let bb = result.breakpointBoard, let bf = result.breakpointFeet {
-                marker(
-                    &context, at: CGPoint(x: boardX(bb), y: feetY(bf)),
-                    label: String(format: "%.1f", bb), triangle: false
+                let pt = CGPoint(x: boardX(bb), y: feetY(min(bf, 60)))
+                let r: CGFloat = compact ? 2.6 : 3.4
+                context.fill(
+                    Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
+                    with: .color(mint)
+                )
+                context.stroke(
+                    Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
+                    with: .color(.white), lineWidth: 1.2
+                )
+                if !compact {
+                    marginLabel(
+                        &context,
+                        value: String(format: "%.1f", bb), caption: "BREAK",
+                        from: CGPoint(x: pt.x + r + 2, y: pt.y),
+                        to: laneX + laneW + gw + 10, trailing: false
+                    )
+                }
+            }
+
+            // Entry angle at the pocket, labeled in the left margin
+            if !compact, let ea = result.entryAngleDegrees, let eb = result.entryBoard {
+                let pt = CGPoint(x: boardX(eb), y: feetY(58))
+                marginLabel(
+                    &context,
+                    value: String(format: "%.1f°", ea), caption: "ENTRY",
+                    from: CGPoint(x: pt.x - 4, y: pt.y),
+                    to: laneX - gw - 10, trailing: true
                 )
             }
         }
-        .background(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255))
+        .background(cardBase)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func marker(_ context: inout GraphicsContext, at pt: CGPoint, label: String, triangle: Bool) {
-        if compact {
-            // No room for pills in the side-panel — just the marker dot/triangle.
-            let r: CGFloat = 4
-            if triangle {
-                var tri = Path()
-                tri.move(to: CGPoint(x: pt.x, y: pt.y - r))
-                tri.addLine(to: CGPoint(x: pt.x - r, y: pt.y + r - 1))
-                tri.addLine(to: CGPoint(x: pt.x + r, y: pt.y + r - 1))
-                tri.closeSubpath()
-                context.fill(tri, with: .color(accent))
-            } else {
-                context.fill(
-                    Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
-                    with: .color(accent)
-                )
-                context.stroke(
-                    Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
-                    with: .color(.white), lineWidth: 1
-                )
-            }
-            return
-        }
-        if triangle {
-            var tri = Path()
-            tri.move(to: CGPoint(x: pt.x, y: pt.y - 5))
-            tri.addLine(to: CGPoint(x: pt.x - 5, y: pt.y + 4))
-            tri.addLine(to: CGPoint(x: pt.x + 5, y: pt.y + 4))
-            tri.closeSubpath()
-            context.fill(tri, with: .color(accent))
-        } else {
-            let r: CGFloat = 5
-            context.fill(
-                Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
-                with: .color(accent)
-            )
-        }
-        let text = Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
-        let resolved = context.resolve(text)
-        let size = resolved.measure(in: CGSize(width: 60, height: 20))
-        let pill = CGRect(
-            x: pt.x + 9, y: pt.y - size.height / 2 - 3,
-            width: size.width + 12, height: size.height + 6
+    /// A margin number with a thin leader line back to its point on the lane.
+    private func marginLabel(
+        _ context: inout GraphicsContext,
+        value: String, caption: String,
+        from: CGPoint, to labelX: CGFloat, trailing: Bool
+    ) {
+        var leader = Path()
+        leader.move(to: from)
+        leader.addLine(to: CGPoint(x: labelX + (trailing ? 4 : -4), y: from.y))
+        context.stroke(leader, with: .color(.white.opacity(0.25)), lineWidth: 1)
+
+        let anchor: UnitPoint = trailing ? .trailing : .leading
+        context.draw(
+            context.resolve(
+                Text(value).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+            ),
+            at: CGPoint(x: labelX, y: from.y - 1), anchor: anchor
         )
-        context.fill(Path(roundedRect: pill, cornerRadius: pill.height / 2), with: .color(.black.opacity(0.6)))
-        context.draw(resolved, at: CGPoint(x: pill.midX, y: pill.midY))
+        context.draw(
+            context.resolve(
+                Text(caption).font(.system(size: 8, weight: .medium)).kerning(0.6)
+                    .foregroundStyle(.white.opacity(0.4))
+            ),
+            at: CGPoint(x: labelX, y: from.y + 12), anchor: anchor
+        )
     }
 }
 
-#Preview {
-    LaneViewCanvas(result: ShotResult(
-        speedMph: 17.2,
-        arrowBoard: 14.5,
-        breakpointBoard: 6.8,
-        breakpointFeet: 42,
-        entryAngleDegrees: 4.1,
-        entryBoard: 17.3,
-        path: stride(from: 0.0, through: 58.0, by: 1.0).map { ft in
-            let t = ft / 58.0
-            return (board: 18 - 11 * t + 8 * t * t, feet: ft)
-        },
-        videoPath: [],
-        videoDisplaySize: CGSize(width: 1080, height: 1920),
-        trackedFrames: 120
-    ))
+#Preview("Standalone") {
+    LaneViewCanvas(result: .textbookSample)
+        .padding()
+        .background(Color.black)
+}
+
+#Preview("Compact") {
+    HStack {
+        Color(white: 0.1).frame(width: 220, height: 380)
+        LaneViewCanvas(result: .textbookSample, compact: true)
+            .frame(width: 104, height: 380)
+    }
     .padding()
+    .background(Color.black)
+}
+
+extension ShotResult {
+    /// Textbook right-hand shot for previews: laydown 18.5, breakpoint board
+    /// 6 at 42 ft, entry at board 17.3 into the 1–3 gap at ~6°.
+    static var textbookSample: ShotResult {
+        ShotResult(
+            speedMph: 17.2,
+            arrowBoard: 13.4,
+            breakpointBoard: 6.0,
+            breakpointFeet: 42,
+            entryAngleDegrees: 6.2,
+            entryBoard: 17.3,
+            path: stride(from: 0.0, through: 59.6, by: 0.75).map { ft in
+                let board: Double
+                if ft <= 42 {
+                    let s = sin(ft / 42 * .pi / 2)
+                    board = 18.5 - 12.5 * pow(s, 1.4)
+                } else {
+                    let t = (ft - 42) / 18
+                    board = 6 + 11.3 * t * t
+                }
+                return (board: board, feet: ft)
+            },
+            videoPath: [],
+            videoDisplaySize: CGSize(width: 1080, height: 1920),
+            trackedFrames: 120
+        )
+    }
 }
