@@ -22,15 +22,15 @@ $14.99 one-time (TrueLine Unlimited, non-consumable). 10 free analyzed throws.
 ## Promotional text (170 chars, editable without review)
 
 Pro-style ball tracking without the pro-shop price. Prop your phone behind the
-approach and get the numbers a coach would give you — on every single throw.
+approach and get the numbers a coach would give you, on every single throw.
 
 ## Description
 
 TrueLine turns your iPhone into a ball-motion tracker. Prop it behind the
-approach, bowl, and get the numbers serious bowlers pay thousands to see —
-for every throw, in seconds, right on your phone.
+approach and bowl. Seconds after each throw, you see the numbers serious
+bowlers pay thousands to get, computed entirely on your phone.
 
-EVERY THROW, MEASURED
+WHAT IT MEASURES
 • Ball speed
 • Board at the arrows
 • Launch angle
@@ -48,13 +48,14 @@ SEE YOUR GAME
 • Share cards: one tap turns any shot into a post-ready image
 
 MADE FOR PRACTICE
-• Calibrate once per placement — then just bowl
-• Works at any center, any lane, no hardware
+• Calibrate once per phone placement, then just bowl
+• Works at any center on any lane, no extra hardware needed
 • Analyze footage you already have from your camera roll
 
-PRIVATE BY DESIGN
-Everything runs on your iPhone. No account, no cloud, no subscription.
-Your first 10 throws are free; one purchase unlocks TrueLine forever.
+PRIVACY
+Everything runs on your iPhone. There is no account and no subscription,
+and nothing is ever uploaded anywhere. Your first 10 throws are free.
+A single purchase unlocks TrueLine forever.
 
 ## Keywords (100 chars, comma-separated, no spaces)
 
