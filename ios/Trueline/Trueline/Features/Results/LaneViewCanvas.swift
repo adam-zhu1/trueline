@@ -10,7 +10,7 @@ import SwiftUI
 /// arrows, small soft pins with a glowing pocket pair — and the path as the
 /// unmistakable hero, mint core over a soft glow. Numbers live in the side
 /// margins with leader lines, never inside the strip.
-struct LaneViewCanvas: View {
+struct LaneViewCanvas: View, Animatable {
     var result: ShotResult
     /// Compact mode fills whatever frame the caller gives (the side panel
     /// next to the recording) and drops margin labels.
@@ -18,6 +18,15 @@ struct LaneViewCanvas: View {
     /// Earlier paths from the same session, oldest first, drawn dim beneath
     /// the primary path so a mid-session line change reads at a glance.
     var overlayPaths: [[(board: Double, feet: Double)]] = []
+    /// How much of the hero path is drawn, 0–1, so the result reveal can draw
+    /// it in alongside the footage line. Lane, pins, and overlays stay put;
+    /// the breakpoint/entry annotations fade in as the line finishes.
+    var pathTrim: CGFloat = 1
+
+    var animatableData: CGFloat {
+        get { pathTrim }
+        set { pathTrim = newValue }
+    }
 
     /// Width exaggeration over true scale, and the softer factor used for
     /// depth cheats (pin rows, deck) so the rack shape holds.
@@ -171,39 +180,45 @@ struct LaneViewCanvas: View {
             }
 
             // The path: soft glow pass, then the mint core
-            if result.path.count >= 2 {
+            if result.path.count >= 2, pathTrim > 0 {
                 var path = Path()
                 for (i, sample) in result.path.enumerated() {
                     let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, 60)))
                     if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                 }
+                let drawn = pathTrim < 1 ? path.trimmedPath(from: 0, to: pathTrim) : path
                 let glowW: CGFloat = compact ? 4.5 : min(6, laneW * 0.12)
                 let coreW: CGFloat = compact ? 1.8 : 2.4
                 context.stroke(
-                    path, with: .color(mint.opacity(0.16)),
+                    drawn, with: .color(mint.opacity(0.16)),
                     style: StrokeStyle(lineWidth: glowW, lineCap: .round, lineJoin: .round)
                 )
                 context.stroke(
-                    path, with: .color(mint),
+                    drawn, with: .color(mint),
                     style: StrokeStyle(lineWidth: coreW, lineCap: .round, lineJoin: .round)
                 )
             }
 
+            // Annotations hold back until the line has nearly finished, then
+            // fade in over its last stretch.
+            var annotations = context
+            annotations.opacity = min(1, max(0, (pathTrim - 0.85) / 0.15))
+
             // Breakpoint: marker on the path, number out in the right margin
-            if let bb = result.breakpointBoard, let bf = result.breakpointFeet {
+            if annotations.opacity > 0, let bb = result.breakpointBoard, let bf = result.breakpointFeet {
                 let pt = CGPoint(x: boardX(bb), y: feetY(min(bf, 60)))
                 let r: CGFloat = compact ? 2.6 : 3.4
-                context.fill(
+                annotations.fill(
                     Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
                     with: .color(mint)
                 )
-                context.stroke(
+                annotations.stroke(
                     Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),
                     with: .color(.white), lineWidth: 1.2
                 )
                 if !compact {
                     marginLabel(
-                        &context,
+                        &annotations,
                         value: String(format: "%.1f", bb), caption: "BREAK",
                         from: CGPoint(x: pt.x + r + 2, y: pt.y),
                         to: laneX + laneW + gw + 10, trailing: false
@@ -212,10 +227,10 @@ struct LaneViewCanvas: View {
             }
 
             // Entry angle at the pocket, labeled in the left margin
-            if !compact, let ea = result.entryAngleDegrees, let eb = result.entryBoard {
+            if annotations.opacity > 0, !compact, let ea = result.entryAngleDegrees, let eb = result.entryBoard {
                 let pt = CGPoint(x: boardX(eb), y: feetY(58))
                 marginLabel(
-                    &context,
+                    &annotations,
                     value: String(format: "%.1f°", ea), caption: "ENTRY",
                     from: CGPoint(x: pt.x - 4, y: pt.y),
                     to: laneX - gw - 10, trailing: true

@@ -22,6 +22,10 @@ struct ShotResultContent: View {
     @State private var showFullScreenVideo = false
     @State private var revealed = false
 
+    /// One trim drives the footage line and the lane-view path, so the two
+    /// draw in together during the reveal.
+    private var lineTrim: CGFloat { !reveal || revealed ? 1 : 0 }
+
     var body: some View {
         VStack(spacing: 16) {
             if let clipURL {
@@ -37,7 +41,7 @@ struct ShotResultContent: View {
                         HStack(spacing: 12) {
                             expandableVideo(clipURL)
                                 .frame(width: videoW)
-                            LaneViewCanvas(result: result, compact: true)
+                            LaneViewCanvas(result: result, compact: true, pathTrim: lineTrim)
                                 .frame(maxWidth: .infinity)
                         }
                         .frame(width: geo.size.width, height: geo.size.height)
@@ -47,11 +51,11 @@ struct ShotResultContent: View {
                 } else {
                     // Landscape clip: no room beside it — stack instead.
                     expandableVideo(clipURL)
-                    LaneViewCanvas(result: result, compact: true)
+                    LaneViewCanvas(result: result, compact: true, pathTrim: lineTrim)
                         .frame(height: 320)
                 }
             } else {
-                LaneViewCanvas(result: result)
+                LaneViewCanvas(result: result, pathTrim: lineTrim)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -129,7 +133,7 @@ struct ShotResultContent: View {
     /// corner makes the option visible. The in-place player is a muted loop
     /// with no controls, so the whole surface can take the tap.
     private func expandableVideo(_ clipURL: URL) -> some View {
-        VideoPathView(clipURL: clipURL, result: result, pathTrim: !reveal || revealed ? 1 : 0)
+        VideoPathView(clipURL: clipURL, result: result, pathTrim: lineTrim)
             .allowsHitTesting(false)
             .overlay(alignment: .topTrailing) {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
