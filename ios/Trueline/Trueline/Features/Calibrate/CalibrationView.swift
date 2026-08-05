@@ -33,7 +33,11 @@ struct CalibrationView: View {
         // Hint, image, and buttons stack vertically so the controls never cover
         // the corner handles (near corners sit at the bottom of the frame).
         VStack(spacing: 0) {
-            Group {
+            // The longest hint, hidden, fixes this slot's height up front, so
+            // the detecting → result swap never reflows the frame below.
+            ZStack {
+                hintCapsule(Self.tallestHint)
+                    .hidden()
                 if isDetecting {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -46,18 +50,11 @@ struct CalibrationView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(.black.opacity(0.55), in: Capsule())
-                    .padding(.top, 8)
                 } else {
-                    Text(hintText)
-                    .font(.footnote)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.55), in: Capsule())
-                    .padding(.top, 8)
+                    hintCapsule(hintText)
                 }
             }
+            .padding(.top, 8)
             .frame(minHeight: 44)
 
             Group {
@@ -147,8 +144,23 @@ struct CalibrationView: View {
         case .detected:
             "We found the lane — drag the corners to fine-tune if needed."
         case .none:
-            "Drag the corners onto the lane — foul line at the bottom, pin deck at the top."
+            Self.tallestHint
         }
+    }
+
+    /// The hint that wraps to the most lines; it sizes the hint slot so the
+    /// message swap after detection can't move the layout.
+    private static let tallestHint =
+        "Drag the corners onto the lane — foul line at the bottom, pin deck at the top."
+
+    private func hintCapsule(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.55), in: Capsule())
     }
 
     private func loadFrame() async {
