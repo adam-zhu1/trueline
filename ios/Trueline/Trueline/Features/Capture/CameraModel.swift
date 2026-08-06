@@ -23,6 +23,19 @@ final class CameraModel {
 
     private(set) var status: Status = .idle
     private(set) var isRecording = false
+
+    init() {
+        // A prior denial is knowable synchronously. Setting it here, before
+        // the first frame, lets the record screen's explanation ride the
+        // presentation slide instead of popping in after it. (.notDetermined
+        // stays idle — that path shows the system prompt from start().)
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .denied, .restricted:
+            status = .denied
+        default:
+            break
+        }
+    }
     private(set) var recordingStartedAt: Date?
     /// Set when a recording finishes successfully; observed by the capture flow.
     private(set) var finishedClipURL: URL?
