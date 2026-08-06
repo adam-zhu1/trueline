@@ -15,7 +15,10 @@ struct TruelineApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // The whole debug-route chain compiles out of Release in one
+            // piece — the preview structs it references only exist in DEBUG.
             Group {
+                #if DEBUG
                 if let progress = Self.progressPreviewValue {
                     ZStack {
                         Color.black.ignoresSafeArea()
@@ -28,24 +31,19 @@ struct TruelineApp: App {
                 } else if let demoURL = Self.calibrationDemoURL {
                     DemoAnalysisFlow(clipURL: demoURL)
                 } else if Self.shareCardPreview {
-                    #if DEBUG
                     ShareCardPreview()
-                    #endif
                 } else if Self.paywallPreview {
-                    #if DEBUG
                     PaywallView {}
-                    #endif
                 } else if Self.trendsPreview {
-                    #if DEBUG
                     TrendsPreview()
-                    #endif
                 } else if Self.sessionDetailPreview {
-                    #if DEBUG
                     SessionDetailPreview()
-                    #endif
                 } else {
                     ContentView()
                 }
+                #else
+                ContentView()
+                #endif
             }
             .modelContainer(for: SavedShot.self)
             .environment(store)
