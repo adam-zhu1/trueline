@@ -102,7 +102,7 @@ struct BowlHomeView: View {
                 guard let item else { return }
                 isImporting = true
                 Task {
-                    let file = try? await item.loadTransferable(type: VideoFile.self)
+                    let file = await loadWithTimeout(item)
                     pickerItem = nil
                     isImporting = false
                     // The overlay can appear while the picker sheet is still
@@ -300,6 +300,38 @@ struct BowlHomeView: View {
 
     private func present(_ route: CaptureRoute) {
         withAnimation(.easeInOut(duration: 0.25)) { capture = route }
+    }
+
+    /// loadTransferable has no timeout and ignores task cancellation
+    /// mid-iCloud-download, so a structured race (task group) stalls on
+    /// teardown until the download returns — offline, that's forever. This is
+    /// a first-wins race instead: at 20 s the timeout resumes with nil ("may
+    /// still be downloading" alert); a load that limps in after losing only
+    /// cleans up its file. A download that needed longer keeps going
+    /// server-side, so retrying picks up where it left off.
+    private func loadWithTimeout(_ item: PhotosPickerItem) async -> VideoFile? {
+        @MainActor final class FirstWins {
+            private var claimed = false
+            func claim() -> Bool {
+                defer { claimed = true }
+                return !claimed
+            }
+        }
+        let gate = FirstWins()
+        return await withCheckedContinuation { cont in
+            Task { @MainActor in
+                let file = try? await item.loadTransferable(type: VideoFile.self)
+                if gate.claim() {
+                    cont.resume(returning: file)
+                } else if let file {
+                    try? FileManager.default.removeItem(at: file.url)
+                }
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(20))
+                if gate.claim() { cont.resume(returning: nil) }
+            }
+        }
     }
 }
 

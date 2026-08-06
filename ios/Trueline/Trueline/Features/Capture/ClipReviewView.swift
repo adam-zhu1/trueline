@@ -63,6 +63,10 @@ struct ClipReviewView: View {
         }
         .onAppear {
             let player = AVPlayer(url: clipURL)
+            // Live recordings have no audio track; imported clips might, and
+            // review is a muted surface like every replay in the app — no
+            // imported soundtrack mixing over the bowler's own music.
+            player.isMuted = true
             self.player = player
             player.play()
         }
