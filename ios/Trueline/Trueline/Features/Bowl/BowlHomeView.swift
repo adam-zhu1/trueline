@@ -12,6 +12,10 @@ import SwiftUI
 struct BowlHomeView: View {
     /// Owned by ContentView, which renders the capture flow as a root overlay.
     @Binding var capture: CaptureRoute?
+    /// Flipped by ContentView when the capture flow exits via "Pick Another":
+    /// tapping it is an unambiguous ask for a different video, so the picker
+    /// reopens directly instead of stranding the user on Home.
+    @Binding var repick: Bool
     /// Cold-start entrance: nil renders statically (previews, tab revisits);
     /// non-nil participates in the launch choreography — hidden while false,
     /// landing staggered when it flips true (the curtain starting to lift).
@@ -21,6 +25,7 @@ struct BowlHomeView: View {
     @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
     @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
     @State private var pickerItem: PhotosPickerItem?
+    @State private var showPicker = false
     @State private var isImporting = false
     @State private var importFailed = false
     @State private var showPaywall = false
@@ -73,7 +78,11 @@ struct BowlHomeView: View {
                     // gate anyway, so go straight to the paywall.
                     Group {
                         if store.canAnalyze {
-                            PhotosPicker(selection: $pickerItem, matching: .videos) {
+                            // isPresented form (not the PhotosPicker button) so
+                            // "Pick Another" can reopen the picker programmatically.
+                            Button {
+                                showPicker = true
+                            } label: {
                                 importLabel
                             }
                             .buttonStyle(.secondaryAction)
@@ -115,6 +124,13 @@ struct BowlHomeView: View {
                         importFailed = true
                     }
                 }
+            }
+            .photosPicker(isPresented: $showPicker, selection: $pickerItem, matching: .videos)
+            .onChange(of: repick) { _, wants in
+                guard wants else { return }
+                repick = false
+                // Out of throws funnels to the gate, same as the button.
+                if store.canAnalyze { showPicker = true } else { showPaywall = true }
             }
             .alert("Couldn't load that video", isPresented: $importFailed) {
                 Button("OK", role: .cancel) {}
@@ -582,6 +598,6 @@ private struct SparklineShape: Shape {
 }
 
 #Preview {
-    BowlHomeView(capture: .constant(nil))
+    BowlHomeView(capture: .constant(nil), repick: .constant(false))
         .environment(TruelineStore())
 }

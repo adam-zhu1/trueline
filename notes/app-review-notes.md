@@ -43,7 +43,7 @@ a way out — never a dead end, hang, or crash.
 | 5 | Analyze Existing Video → cancel picker | Home unchanged |
 | 6 | Import an iCloud-only/unloadable video | "Couldn't load that video" alert |
 | 7 | Import a long non-bowling video → start analysis | X on the progress screen backs out to review; no hang |
-| 8 | Import → Pick Another on review | Returns home to re-pick |
+| 8 | Import → Pick Another on review | Video picker reopens directly; cancelling it lands on Home |
 | 9 | Calibrate → Back / Reset / degenerate corners | All recoverable; Looks Good disabled only while the frame loads |
 | 10 | History with nothing saved | "No shots yet" empty state |
 | 11 | Settings → toggle videos off, delete all videos (none) | Delete disabled at zero; footer explains metrics are kept |

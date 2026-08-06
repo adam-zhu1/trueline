@@ -43,12 +43,16 @@ struct CaptureFlowView: View {
     /// Closes the root overlay this flow renders in (there is no presentation
     /// to dismiss).
     private let onExit: () -> Void
+    /// "Pick Another" on an imported clip: exit AND reopen the picker.
+    /// nil falls back to a plain exit.
+    private let onRepick: (() -> Void)?
 
     /// Pass an imported clip to skip recording and start at review.
-    init(importedClipURL: URL? = nil, onExit: @escaping () -> Void) {
+    init(importedClipURL: URL? = nil, onExit: @escaping () -> Void, onRepick: (() -> Void)? = nil) {
         _step = State(initialValue: importedClipURL.map(Step.review) ?? .record)
         isImported = importedClipURL != nil
         self.onExit = onExit
+        self.onRepick = onRepick
     }
 
     var body: some View {
@@ -66,9 +70,9 @@ struct CaptureFlowView: View {
                     onRetake: {
                         if isImported {
                             // No camera to retake with — back to the Photos
-                            // picker on the home screen.
+                            // picker, reopened by the home screen.
                             try? FileManager.default.removeItem(at: clipURL)
-                            onExit()
+                            (onRepick ?? onExit)()
                         } else {
                             camera.discardClip()
                             step = .record

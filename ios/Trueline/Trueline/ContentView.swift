@@ -21,6 +21,9 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showOnboarding = false
     @State private var capture: CaptureRoute?
+    /// Set when the capture flow exits via "Pick Another" — Home reopens the
+    /// video picker so the re-pick is one tap shorter.
+    @State private var repickAfterExit = false
     /// Cold-start brand moment; once per process.
     @State private var showLaunch = true
     /// Flips when the launch curtain starts to lift — Home lands its
@@ -30,7 +33,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             TabView {
-                BowlHomeView(capture: $capture, entrance: homeRevealed)
+                BowlHomeView(capture: $capture, repick: $repickAfterExit, entrance: homeRevealed)
                     .tabItem { Label("Bowl", systemImage: "figure.bowling") }
                 HistoryView()
                     .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
@@ -99,7 +102,10 @@ struct ContentView: View {
         case .record:
             CaptureFlowView(onExit: exit)
         case .imported(let url):
-            CaptureFlowView(importedClipURL: url, onExit: exit)
+            CaptureFlowView(importedClipURL: url, onExit: exit, onRepick: {
+                exit()
+                repickAfterExit = true
+            })
         }
     }
 }
