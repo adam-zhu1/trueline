@@ -46,17 +46,21 @@ final class CameraModel {
             status = .denied
             return
         }
-        do {
-            try configureSession()
-        } catch {
-            status = .failed
-            return
-        }
+        // Configuration blocks for hundreds of ms creating the device input —
+        // do it with startRunning, off the main actor, so the record screen's
+        // slide-up never hitches on it.
         let session = session
-        await Task.detached(priority: .userInitiated) {
+        let movieOutput = movieOutput
+        let configured = await Task.detached(priority: .userInitiated) {
+            do {
+                try Self.configure(session: session, movieOutput: movieOutput)
+            } catch {
+                return false
+            }
             session.startRunning()
+            return true
         }.value
-        status = .previewing
+        status = configured ? .previewing : .failed
     }
 
     func stop() {
@@ -106,7 +110,9 @@ final class CameraModel {
         }
     }
 
-    private func configureSession() throws {
+    private nonisolated static func configure(
+        session: AVCaptureSession, movieOutput: AVCaptureMovieFileOutput
+    ) throws {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
         // Video-only capture has no business touching the audio session;
