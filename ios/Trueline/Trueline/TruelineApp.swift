@@ -6,6 +6,13 @@ import SwiftUI
 struct TruelineApp: App {
     @State private var store = TruelineStore()
 
+    init() {
+        // Recordings are video-only and replays carry no audio track, so the
+        // app never needs the audio session to itself — ambient keeps the
+        // bowler's music playing through capture and replay alike.
+        try? AVAudioSession.sharedInstance().setCategory(.ambient, options: .mixWithOthers)
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

@@ -109,6 +109,9 @@ final class CameraModel {
     private func configureSession() throws {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
+        // Video-only capture has no business touching the audio session;
+        // left on, this pauses the user's music the moment the camera starts.
+        session.automaticallyConfiguresApplicationAudioSession = false
         session.sessionPreset = .hd1920x1080
 
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
