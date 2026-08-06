@@ -39,3 +39,23 @@ extension ButtonStyle where Self == PrimaryButtonStyle {
 extension ButtonStyle where Self == SecondaryButtonStyle {
     static var secondaryAction: SecondaryButtonStyle { SecondaryButtonStyle() }
 }
+
+/// Icon-only square in the secondary treatment, for rows where the primary
+/// bar needs the width (calibration's Back/Reset beside "Looks Good"). Give
+/// these an accessibilityLabel — the icon is all VoiceOver gets otherwise.
+struct IconButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(width: 54, height: 54)
+            .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .opacity(configuration.isPressed ? 0.7 : (isEnabled ? 1 : 0.4))
+    }
+}
+
+extension ButtonStyle where Self == IconButtonStyle {
+    static var iconAction: IconButtonStyle { IconButtonStyle() }
+}

@@ -12,6 +12,9 @@ struct ClipReviewView: View {
     /// Present when session corners exist; lets the user redo calibration
     /// after moving the phone.
     var onRecalibrate: (() -> Void)?
+    /// Leave the flow entirely, discarding the clip — the X in the corner,
+    /// same affordance as the record screen.
+    var onClose: () -> Void
 
     @State private var player: AVPlayer?
 
@@ -20,6 +23,25 @@ struct ClipReviewView: View {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // The X gets its own row above the player — floated over the
+                // video it fights the playback controls and reads as part of
+                // the clip.
+                HStack {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.headline)
+                            .padding(12)
+                            .background(.black.opacity(0.5), in: Circle())
+                            .foregroundStyle(.white)
+                    }
+                    .accessibilityLabel("Close")
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+
                 if let player {
                     VideoPlayer(player: player)
                 }

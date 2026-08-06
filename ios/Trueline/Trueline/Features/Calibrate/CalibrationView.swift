@@ -106,27 +106,29 @@ struct CalibrationView: View {
                 }
             }
 
+            // Back and Reset as icon squares so the confirm — the action this
+            // screen exists for — gets the width.
             HStack(spacing: 12) {
                     Button {
                         onBack()
                     } label: {
-                        Label("Back", systemImage: "chevron.left")
+                        Image(systemName: "chevron.left")
                     }
-                    .buttonStyle(.secondaryAction)
+                    .buttonStyle(.iconAction)
+                    .accessibilityLabel("Back")
 
                     Button {
                         corners = proposal ?? .defaultGuess
                     } label: {
-                        Label("Reset", systemImage: "arrow.counterclockwise")
+                        Image(systemName: "arrow.counterclockwise")
                     }
-                    .buttonStyle(.secondaryAction)
+                    .buttonStyle(.iconAction)
+                    .accessibilityLabel("Reset corners")
 
                     Button {
                         onConfirm(corners)
                     } label: {
                         Label("Looks Good", systemImage: "checkmark")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
                     }
                     .buttonStyle(.primaryAction)
                     .disabled(frame == nil)

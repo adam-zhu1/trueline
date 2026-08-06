@@ -87,6 +87,15 @@ struct CaptureFlowView: View {
                     },
                     onRecalibrate: sessionCorners == nil ? nil : {
                         step = .calibrate(clipURL)
+                    },
+                    onClose: {
+                        if isImported {
+                            try? FileManager.default.removeItem(at: clipURL)
+                        } else {
+                            camera.discardClip()
+                        }
+                        camera.stop()
+                        onExit()
                     }
                 )
             case .paywall(let clipURL):
