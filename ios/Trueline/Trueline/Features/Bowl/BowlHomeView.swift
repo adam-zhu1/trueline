@@ -26,6 +26,8 @@ struct BowlHomeView: View {
     @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
     @State private var pickerItem: PhotosPickerItem?
     @State private var showPicker = false
+    /// Picked once per launch; nil until shots exist (poster) or after pick.
+    @State private var greeting: HomeGreeting?
     @State private var isImporting = false
     @State private var importFailed = false
     @State private var showPaywall = false
@@ -140,6 +142,13 @@ struct BowlHomeView: View {
             .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView { showPaywall = false }
             }
+            .onAppear {
+                // Once per launch, not per tab revisit — the greeting should
+                // change between visits to the app, not between taps.
+                if greeting == nil, !shots.isEmpty {
+                    greeting = HomeGreeting.pick(shots: Array(shots))
+                }
+            }
         }
     }
 
@@ -174,15 +183,16 @@ struct BowlHomeView: View {
             .modifier(landing(2))
     }
 
-    /// The returning-user greeting: your cadence, not the pitch.
+    /// The returning-user greeting: a data-backed headline that varies per
+    /// launch (HomeGreeting), with the cadence line as its default subline.
     @ViewBuilder
     private var mirrorHeader: some View {
-        Text("Back at it.")
+        Text(greeting?.headline ?? "Back at it.")
             .font(.system(size: 34, weight: .bold))
             .padding(.top, 28)
             .modifier(landing(1))
 
-        Text(cadenceLine)
+        Text(greeting?.subline ?? cadenceLine)
             .font(.callout)
             .foregroundStyle(.secondary)
             .padding(.top, 8)
