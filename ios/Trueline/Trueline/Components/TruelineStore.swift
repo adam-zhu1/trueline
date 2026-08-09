@@ -35,6 +35,17 @@ final class TruelineStore {
         // `-freeThrowsUsed <n>` (DEBUG launch arg) lands here too: the
         // argument domain shadows the persistent one in UserDefaults.
         freeThrowsUsed = UserDefaults.standard.integer(forKey: "freeThrowsUsed")
+        // `-bankFreeThrows <n>` (launch arg, positive value — argument-domain
+        // parsing drops dash-prefixed values): field-test insurance. Persists
+        // immediately so every later normal launch keeps the bank. Requires a
+        // paired Mac to trigger; App Store launches can't pass arguments.
+        let bank = UserDefaults.standard.integer(forKey: "bankFreeThrows")
+        if bank > 0 {
+            let banked = Self.freeThrowLimit - bank
+            freeThrowsUsed = banked
+            // didSet doesn't fire in init — persist by hand.
+            UserDefaults.standard.set(banked, forKey: "freeThrowsUsed")
+        }
         isUnlocked = UserDefaults.standard.bool(forKey: "unlimitedUnlocked")
         #if DEBUG
         // `-unlockAll` — field-test a build without the gate in the way.
