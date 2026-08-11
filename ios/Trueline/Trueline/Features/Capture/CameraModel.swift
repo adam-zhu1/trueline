@@ -57,6 +57,9 @@ final class CameraModel {
             } catch {
                 return false
             }
+            // After the commit — applying the preset can reset the format,
+            // and with it any frame durations set during configuration.
+            Self.requestSixtyFPS(session: session)
             session.startRunning()
             return true
         }.value
@@ -134,6 +137,25 @@ final class CameraModel {
 
         guard session.canAddOutput(movieOutput) else { throw CameraError.setupFailed }
         session.addOutput(movieOutput)
+    }
+
+    /// 1080p60 when the active format allows it: a thrown ball covers about a
+    /// foot between 30 fps frames, so 60 halves the per-frame motion blur and
+    /// doubles the tracker's samples. Fixed rate (min == max) keeps frame
+    /// spacing uniform for the speed math. Formats capped at 30 keep the
+    /// default — capturing at the preset's rate beats not capturing.
+    private nonisolated static func requestSixtyFPS(session: AVCaptureSession) {
+        guard let device = session.inputs
+            .compactMap({ ($0 as? AVCaptureDeviceInput)?.device })
+            .first(where: { $0.hasMediaType(.video) }),
+            device.activeFormat.videoSupportedFrameRateRanges.contains(where: { $0.maxFrameRate >= 60 })
+        else { return }
+        do {
+            try device.lockForConfiguration()
+            device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 60)
+            device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 60)
+            device.unlockForConfiguration()
+        } catch {}
     }
 
     private enum CameraError: Error {
