@@ -138,6 +138,9 @@ struct ResultsView: View {
                 if let session, session.ball.isEmpty {
                     session.ball = selectedBall
                 }
+                // Before store() claims the file — the pipeline trims and
+                // re-encodes, and field mode wants the untouched original.
+                FieldFootage.keepCopy(of: clipURL)
                 if saveShotVideos,
                    let rawName = ShotVideoStore.store(clipURL: clipURL) {
                     // Claim the clip synchronously (move) so the flow's

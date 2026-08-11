@@ -11,6 +11,7 @@ struct TruelineApp: App {
         // app never needs the audio session to itself — ambient keeps the
         // bowler's music playing through capture and replay alike.
         try? AVAudioSession.sharedInstance().setCategory(.ambient, options: .mixWithOthers)
+        FieldFootage.syncFromLaunchArguments()
     }
 
     var body: some Scene {

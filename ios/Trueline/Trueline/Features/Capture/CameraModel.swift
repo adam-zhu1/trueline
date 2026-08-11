@@ -78,7 +78,13 @@ final class CameraModel {
                 guard let self else { return }
                 self.isRecording = false
                 self.recordingStartedAt = nil
-                if error == nil { self.finishedClipURL = url }
+                if error == nil {
+                    self.finishedClipURL = url
+                } else {
+                    // An interrupted recording (call, lock, disk) still leaves
+                    // a partial file worth keeping in the field.
+                    _ = FieldFootage.rescue(url)
+                }
             }
         }
         movieOutput.startRecording(to: url, recordingDelegate: recordingDelegate)
@@ -93,7 +99,7 @@ final class CameraModel {
 
     /// Clears the finished clip so the flow can return to the record step.
     func discardClip() {
-        if let finishedClipURL {
+        if let finishedClipURL, !FieldFootage.rescue(finishedClipURL) {
             try? FileManager.default.removeItem(at: finishedClipURL)
         }
         finishedClipURL = nil
