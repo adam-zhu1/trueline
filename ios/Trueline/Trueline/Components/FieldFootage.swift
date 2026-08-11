@@ -37,10 +37,13 @@ enum FieldFootage {
         return dir
     }
 
-    /// Keep a clip that stays in the normal save pipeline (which will move,
-    /// trim, and re-encode it): copy, original left in place.
+    /// Keep a clip whose original stays where it is: copy. Camera recordings
+    /// only — the "throw-" prefix comes from CameraModel's naming; imported
+    /// clips keep their originals in Photos and don't belong in the corpus.
+    /// A no-op when the copy already exists (made when the recording
+    /// finished), so later callers are backstops.
     static func keepCopy(of url: URL) {
-        guard isEnabled else { return }
+        guard isEnabled, url.lastPathComponent.hasPrefix("throw-") else { return }
         try? FileManager.default.copyItem(at: url, to: directory.appendingPathComponent(url.lastPathComponent))
     }
 

@@ -138,8 +138,9 @@ struct ResultsView: View {
                 if let session, session.ball.isEmpty {
                     session.ball = selectedBall
                 }
-                // Before store() claims the file — the pipeline trims and
-                // re-encodes, and field mode wants the untouched original.
+                // Backstop for the copy made when recording finished — the
+                // pipeline below trims and re-encodes, and field mode wants
+                // the untouched original.
                 FieldFootage.keepCopy(of: clipURL)
                 if saveShotVideos,
                    let rawName = ShotVideoStore.store(clipURL: clipURL) {

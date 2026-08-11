@@ -78,15 +78,22 @@ final class CameraModel {
             .appendingPathComponent("throw-\(UUID().uuidString).mov")
         recordingDelegate.onFinish = { [weak self] url, error in
             Task { @MainActor in
-                guard let self else { return }
-                self.isRecording = false
-                self.recordingStartedAt = nil
-                if error == nil {
+                // Interruptions (call, lock, disk limit) usually finalize a
+                // playable file — AVFoundation flags that on the error.
+                let finished = error == nil || ((error as NSError?)?
+                    .userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool == true)
+                self?.isRecording = false
+                self?.recordingStartedAt = nil
+                if let self, finished {
+                    // Durable the moment it exists (same-volume clone) —
+                    // every later cleanup can treat the tmp file as
+                    // disposable, and no exit path can lose the throw.
+                    FieldFootage.keepCopy(of: url)
                     self.finishedClipURL = url
-                } else {
-                    // An interrupted recording (call, lock, disk) still leaves
-                    // a partial file worth keeping in the field.
-                    _ = FieldFootage.rescue(url)
+                } else if !FieldFootage.rescue(url) {
+                    // Flow torn down mid-recording, or the file is unusable:
+                    // nobody will claim it.
+                    try? FileManager.default.removeItem(at: url)
                 }
             }
         }
@@ -139,19 +146,38 @@ final class CameraModel {
         session.addOutput(movieOutput)
     }
 
-    /// 1080p60 when the active format allows it: a thrown ball covers about a
+    /// 1080p60 when the hardware allows it: a thrown ball covers about a
     /// foot between 30 fps frames, so 60 halves the per-frame motion blur and
     /// doubles the tracker's samples. Fixed rate (min == max) keeps frame
-    /// spacing uniform for the speed math. Formats capped at 30 keep the
-    /// default — capturing at the preset's rate beats not capturing.
+    /// spacing uniform for the speed math. The 1080p preset often selects a
+    /// 30-capped format even when a 60 fps sibling exists, so search the
+    /// device's formats for one matching the preset's dimensions and pixel
+    /// format — only the rate changes. No match keeps the default: capturing
+    /// at the preset's rate beats not capturing.
     private nonisolated static func requestSixtyFPS(session: AVCaptureSession) {
         guard let device = session.inputs
             .compactMap({ ($0 as? AVCaptureDeviceInput)?.device })
-            .first(where: { $0.hasMediaType(.video) }),
-            device.activeFormat.videoSupportedFrameRateRanges.contains(where: { $0.maxFrameRate >= 60 })
+            .first(where: { $0.hasMediaType(.video) })
         else { return }
+        let supports60 = { (format: AVCaptureDevice.Format) in
+            format.videoSupportedFrameRateRanges.contains { $0.maxFrameRate >= 60 }
+        }
+        let current = device.activeFormat
+        var target: AVCaptureDevice.Format? = supports60(current) ? current : nil
+        if target == nil {
+            let dims = CMVideoFormatDescriptionGetDimensions(current.formatDescription)
+            let subType = CMFormatDescriptionGetMediaSubType(current.formatDescription)
+            target = device.formats.first { format in
+                let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                return d.width == dims.width && d.height == dims.height
+                    && CMFormatDescriptionGetMediaSubType(format.formatDescription) == subType
+                    && supports60(format)
+            }
+        }
+        guard let target else { return }
         do {
             try device.lockForConfiguration()
+            if target !== current { device.activeFormat = target }
             device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 60)
             device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 60)
             device.unlockForConfiguration()
