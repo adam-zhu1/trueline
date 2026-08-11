@@ -6,6 +6,17 @@ can be tested from the couch.
 
 ## Before leaving home
 
+- [ ] Install the field-test build (branch `field-test`) from Xcode with
+      launch arguments `-fieldFootageMode 1 -bankFreeThrows 100`, scheme set
+      to the Release configuration. Both persist, so home-screen launches at
+      the alley keep them.
+- [ ] Verify on the phone after that launch: Settings shows ~100 free throws
+      left, and "Save video with each shot" is ON.
+- [ ] Verify footage capture end to end: record a few seconds of anything,
+      discard it, then check Finder → iPhone → Files → TrueLine →
+      FieldFootage (or the Files app on the phone) shows the clip. Field mode
+      keeps every raw camera recording there — saved, discarded, and
+      failed-tracking throws alike.
 - [ ] On-device tracking confirmed working (task #1). If the phone still
       returns zero detection boxes, the visit is still worth it, but treat it
       as a footage-collection trip only and analyze at home.
@@ -50,14 +61,29 @@ can be tested from the couch.
 - [ ] A full 10-throw session completed and saved in-app, so History, Stats,
       and Session Lines have real data for the remaining screenshots.
 
+## Habits during the session
+
+- Prefer "Save Shot" over "Discard" even when a result looks wrong — Discard
+  drops the metrics, and the metrics are the accuracy corpus.
+- Finish every throw with a button tap before pocketing the phone. Don't
+  force-quit or leave the app suspended mid-flow: an unsaved result on screen
+  has no auto-save, and a clip is only rescued into FieldFootage once a
+  button runs its cleanup.
+- If the record button ever seems to stop without landing on the review
+  screen (a call came in, the phone locked), just record the throw again —
+  the partial clip is already rescued.
+
 ## Before leaving the alley
 
 - [ ] Play back two or three clips on the phone to confirm they recorded.
 - [ ] Confirm the saved session shows up in History.
+- [ ] Files app → On My iPhone → TrueLine → FieldFootage roughly matches the
+      number of throws taken.
 - [ ] Nothing deleted at the alley. Triage at home.
 
 ## At home afterward
 
-- [ ] Back up all raw clips to the Mac.
+- [ ] Pull FieldFootage off the phone: Finder → iPhone → Files → TrueLine,
+      or AirDrop from the Files app. Back up all raw clips to the Mac.
 - [ ] Run the baseline set through the parity harness (Python vs iOS).
 - [ ] File anything broken from the robustness set as its own task.
