@@ -10,6 +10,13 @@ can be tested from the couch.
       launch arguments `-fieldFootageMode 1 -bankFreeThrows 100`, scheme set
       to the Release configuration. Both persist, so home-screen launches at
       the alley keep them.
+- [ ] Prefer a TestFlight install if the build is uploaded by then: TestFlight
+      apps skip the developer-profile trust check that needs internet — the
+      exact failure that killed the Aug 12 visit in a dead-zone alley. (The
+      launch args don't ride along with TestFlight; set fieldFootageMode via
+      the Xcode-installed build first if raw footage is the goal, or accept
+      a footage-only TestFlight run.) Either way, run the airplane-mode
+      launch test at home the night before.
 - [ ] Verify on the phone after that launch: Settings shows ~100 free throws
       left, and "Save video with each shot" is ON.
 - [ ] Verify footage capture end to end: record a few seconds of anything,
@@ -21,8 +28,10 @@ can be tested from the couch.
       returns zero detection boxes, the visit is still worth it, but treat it
       as a footage-collection trip only and analyze at home.
 - [ ] Phone charged, at least 10 GB free storage.
-- [ ] Decide how the phone will stand: small tripod, phone stand, or propped
-      against a ball bag. Bring whatever that is.
+- [ ] Phone stand: the ball bag is the plan (no tripod needed — lean the
+      phone against it on the table behind the approach, or stand it in a
+      half-open zipper pocket). A misplaced phone is fine; that's what the
+      robustness set is for, and recalibrating after a bump costs a minute.
 - [ ] Print or load this checklist.
 
 ## Setup at the alley
