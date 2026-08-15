@@ -66,14 +66,22 @@ bowling,tracker,rev,hook,league,pba,usbc,lane,strike,spare,oil,pattern,tenpin,co
 
 ## Screenshots (6.9" required; plan)
 
-1. Results screen — real throw, path overlay, metric tiles (hero)
-2. Stats dashboard — hero count, histogram, ball bars
+Decision (Aug 15): screenshots are the real app UI showing seeded demo data
+(`-seedDemoHistory`), captured on the iPhone 17 Pro Max simulator at
+1320×2868. Compliant with 2.3.3 (actual UI in use), needs no lane time, and
+keeps IG footage out entirely. Refresh with real-footage variants in an
+update if we want them later. Drafts live in output/appstore-screenshots/.
+
+1. Results screen — lane view with tracked path + metric tiles (hero)
+2. Stats dashboard — throw count, entry histogram, per-ball bars
 3. Session Lines view — all throws fanned on one lane
-4. Calibration — corner handles on the lane ("your first throw calibrates")
+4. Home — session headline, sparkline, Start Session
 5. Share card
 6. Onboarding pocket diagram + "Which hand do you bowl with?"
+7. (post-alley, optional) Calibration corner handles over real footage
 
-All screenshots must use our own field-test footage — never the IG clips.
+The IG clips stay banned from every Apple-facing asset — we don't hold
+rights to them. The App Review sample video still must be our own footage.
 
 ## Review notes (for App Review)
 
