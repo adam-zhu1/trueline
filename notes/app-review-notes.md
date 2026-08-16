@@ -60,13 +60,14 @@ Not runnable in sim, do on device before submitting: 4 (record a real wall
 clip), 6 (iCloud-only import), and a manual check that calibration's Reset
 button restores corners (automated click was inconclusive).
 
-Findings to decide/fix before launch:
-- Quota fairness: an analysis whose track dies mid-lane (entry board "--")
-  still consumes a free throw, and Discard does not refund it. Defensible
-  as "analyzed = consumed", but decide deliberately.
-- Calibration polish: the async lane proposal replaces the corners whenever
-  it lands, clobbering any dragging the user already did. Small window,
-  worth a guard (skip apply once any corner has been touched).
+Findings, resolved Aug 15:
+- Quota: a partial result (entry board "--") consumes a free throw and
+  Discard does not refund. DECIDED (Adam): keep as-is — analyzed = consumed.
+- Calibration proposal-clobbers-drag: RETRACTED. CalibrationView already
+  guards this (`userAdjusted` flag); the automated drag had missed the
+  window. Reset restores the proposal by design, so a no-op when corners
+  equal the proposal is correct. Remaining: one 30-second feel-check of
+  Reset on device.
 
 ## Submission-time checklist
 
