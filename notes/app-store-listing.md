@@ -70,7 +70,11 @@ Decision (Aug 15): screenshots are the real app UI showing seeded demo data
 (`-seedDemoHistory`), captured on the iPhone 17 Pro Max simulator at
 1320×2868. Compliant with 2.3.3 (actual UI in use), needs no lane time, and
 keeps IG footage out entirely. Refresh with real-footage variants in an
-update if we want them later. Drafts live in output/appstore-screenshots/.
+update if we want them later. CAPTURED (Aug 15, evening timestamps): the
+full set is in output/appstore-screenshots/ — home hero, history, session
+consistency, session lines, shot result (lane + tiles), stats, first-run
+home, two onboarding pages, and the 1080×1350 share card pulled straight
+from the app's share pipeline. Upload-ready at 1320×2868.
 
 1. Results screen — lane view with tracked path + metric tiles (hero)
 2. Stats dashboard — throw count, entry histogram, per-ball bars
