@@ -79,3 +79,14 @@ Findings, resolved Aug 15:
       (UserDefaults / CA92.1 only); `ITSAppUsesNonExemptEncryption = NO`.
 - [ ] Support URL + privacy policy live (task #18) before submitting.
 - [ ] Don't name Specto or USBC anywhere in metadata.
+
+## Submission log
+
+- **1.0 (build 2) submitted Aug 16, 2026 ~12:53 AM** together with the
+  TrueLine Unlimited IAP. Deliberately submitted before the alley visit:
+  review notes offer a sample video on request instead of linking one.
+  If Guideline 2.1 comes back, reply in Resolution Center with the alley
+  clip and resubmit — that video gets recorded Monday regardless.
+- Build 2 is iPhone-only (build 1 accidentally declared iPad and ASC
+  demanded iPad screenshots). Manual release selected, so approval does
+  not auto-publish.
