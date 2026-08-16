@@ -7,12 +7,9 @@
 	     motion. Merged with the generated Info.plist at build time. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<!-- Documents visible in Finder and the Files app — the only way to pull
-	     field-test footage (Documents/FieldFootage) off the phone. Nothing
-	     else writes to Documents, so outside field mode the folder is empty. -->
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
+	<!-- File-sharing keys (UIFileSharingEnabled +
+	     LSSupportsOpeningDocumentsInPlace) live only on the field-test
+	     branch: they exist to pull Documents/FieldFootage off the phone, and
+	     shipping them would show users an empty TrueLine folder in Files. -->
 </dict>
 </plist>
