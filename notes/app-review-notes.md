@@ -50,6 +50,24 @@ a way out — never a dead end, hang, or crash.
 | 12 | Reduce Motion on | Static launch wordmark, no animation |
 | 13 | Kill the app mid-analysis, relaunch | Clean launch; orphan sweep clears any leftover replay file |
 
+### Sim run, Aug 15 2026 (automated, iPhone 17 Pro Max sim)
+
+Passed: 1, 2, 3, 5, 7, 8, 9 (drag recovery), 10, 11, 12, 13. The full
+import → calibrate → analyze → result pipeline ran end to end on the June
+regression clip, path overlay drawn on the video, discard cleanup verified.
+
+Not runnable in sim, do on device before submitting: 4 (record a real wall
+clip), 6 (iCloud-only import), and a manual check that calibration's Reset
+button restores corners (automated click was inconclusive).
+
+Findings to decide/fix before launch:
+- Quota fairness: an analysis whose track dies mid-lane (entry board "--")
+  still consumes a free throw, and Discard does not refund it. Defensible
+  as "analyzed = consumed", but decide deliberately.
+- Calibration polish: the async lane proposal replaces the corners whenever
+  it lands, clobbering any dragging the user already did. Small window,
+  worth a guard (skip apply once any corner has been touched).
+
 ## Submission-time checklist
 
 - [ ] Replace the sample-video placeholder with a link to Adam's own
