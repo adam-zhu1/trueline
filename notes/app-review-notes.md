@@ -90,3 +90,11 @@ Findings, resolved Aug 15:
 - Build 2 is iPhone-only (build 1 accidentally declared iPad and ASC
   demanded iPad screenshots). Manual release selected, so approval does
   not auto-publish.
+
+- **Aug 16, 10:55 PM — rejected 2.1 "Information Needed"** (the expected,
+  mild outcome; the IAP itself shows Ready for Review, i.e. accepted).
+  Apple wants an on-device screen recording of the core flow (launch,
+  camera prompt, a real analysis, the purchase sheet) plus an 8-point
+  questionnaire. Reply drafted at output/review-reply-draft.md; recording
+  to be captured at the Aug 17 alley visit on a clean release install,
+  then Reply + Resubmit (same build 2, no new binary).
