@@ -98,3 +98,18 @@ Findings, resolved Aug 15:
   questionnaire. Reply drafted at output/review-reply-draft.md; recording
   to be captured at the Aug 17 alley visit on a clean release install,
   then Reply + Resubmit (same build 2, no new binary).
+- **Aug 18 — alley visit done** (Perfect Games, lane 14, iPhone 16 Pro,
+  iOS 26.5.2, build 2 confirmed on device). Main screen recording covers
+  onboarding, camera prompt, a real analyzed throw, save, History/Stats,
+  and the paywall screen — but ends before the App Store payment sheet
+  appears, so a short supplemental recording of Settings -> Unlock ->
+  payment sheet -> cancel gets captured at home and attached alongside
+  (reply draft item 1 updated to describe two recordings). Two blemishes
+  understood, neither blocking: the visible "99 of 10 free throws left"
+  is leftover `-bankFreeThrows` field-test state (TruelineStore reads the
+  launch arg in release; fix by relaunching with a realistic bank before
+  the supplemental clip), and the wrong-looking ball line traces to
+  calibration corner placement — the bottom-left corner was dropped on
+  the approach past the foul line, skewing the homography near launch
+  while leaving speed plausible. Re-import with careful corners before
+  trusting the strike clip's metrics.
