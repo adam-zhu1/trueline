@@ -113,3 +113,14 @@ Findings, resolved Aug 15:
   the approach past the foul line, skewing the homography near launch
   while leaving speed plausible. Re-import with careful corners before
   trusting the strike clip's metrics.
+- **Aug 18 harness cross-check:** the strike clip (IMG_5108) through the
+  Mac pipeline with a carefully hand-placed calibration gives entry
+  ~board 14-15 — pocket side, matching the on-camera strike within a few
+  boards. Pipeline geometry is sound; the app's Brooklyn-looking line for
+  the same clip came from user calibration. Prime suspect is the top
+  corners landing on a NEIGHBOR's pin deck: with the camera left of the
+  lane, the lane's own deck sits far right in frame and the deck that
+  looks centered belongs to the next lane over. Supplemental
+  purchase-sheet recording captured and verified sufficient (sheet with
+  price shown; sign-in only after Pay). v1.1 backlog: calibration
+  wrong-deck guidance + mid-session drift check + record-screen zoom.
