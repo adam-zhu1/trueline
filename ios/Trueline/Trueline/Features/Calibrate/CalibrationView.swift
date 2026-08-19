@@ -14,6 +14,9 @@ struct CalibrationView: View {
     /// Live sessions seed from the last human-confirmed calibration (same
     /// phone placement usually); imported clips always auto-detect.
     var preferSavedCalibration = false
+    /// The capture zoom the clip was recorded at — saved corners only apply
+    /// when it matches the zoom they were confirmed at.
+    var captureZoom: Double = 1.0
     var onBack: () -> Void
     var onConfirm: (LaneCorners) -> Void
 
@@ -173,7 +176,7 @@ struct CalibrationView: View {
             frame = UIImage(cgImage: cgImage)
             // A human-confirmed calibration from the last session beats any
             // detector proposal — same placement means one confirming tap.
-            if preferSavedCalibration, let saved = LaneCorners.loadLastConfirmed() {
+            if preferSavedCalibration, let saved = LaneCorners.loadLastConfirmed(forZoom: captureZoom) {
                 proposal = saved
                 proposalSource = .saved
                 if !userAdjusted {

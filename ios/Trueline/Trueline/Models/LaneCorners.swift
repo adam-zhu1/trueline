@@ -35,14 +35,20 @@ struct LaneCorners: Equatable {
     }
 
     private static let lastConfirmedKey = "lastCalibration"
+    private static let lastConfirmedZoomKey = "lastCalibrationZoom"
 
     /// The last human-confirmed calibration from a live session. Normalized
     /// coordinates, so it applies to any recording from the same placement —
     /// the next session starts from it and usually needs one confirming tap.
-    static func loadLastConfirmed() -> LaneCorners? {
+    /// Corners are only meaningful at the zoom they were confirmed at, so a
+    /// mismatched capture zoom returns nil (pre-zoom saves count as 1x).
+    static func loadLastConfirmed(forZoom zoom: Double) -> LaneCorners? {
         guard let v = UserDefaults.standard.array(forKey: lastConfirmedKey) as? [Double],
               v.count == 8
         else { return nil }
+        let savedZoom = UserDefaults.standard.object(forKey: lastConfirmedZoomKey)
+            as? Double ?? 1.0
+        guard savedZoom == zoom else { return nil }
         return LaneCorners(
             farLeft: CGPoint(x: v[0], y: v[1]),
             farRight: CGPoint(x: v[2], y: v[3]),
@@ -51,7 +57,7 @@ struct LaneCorners: Equatable {
         )
     }
 
-    func saveAsLastConfirmed() {
+    func saveAsLastConfirmed(zoom: Double) {
         UserDefaults.standard.set(
             [
                 Double(farLeft.x), Double(farLeft.y),
@@ -61,6 +67,7 @@ struct LaneCorners: Equatable {
             ],
             forKey: Self.lastConfirmedKey
         )
+        UserDefaults.standard.set(zoom, forKey: Self.lastConfirmedZoomKey)
     }
 
     /// Same trapezoid as the record screen's framing guide — a sensible seed until

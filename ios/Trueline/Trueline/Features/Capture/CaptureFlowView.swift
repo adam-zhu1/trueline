@@ -112,6 +112,7 @@ struct CaptureFlowView: View {
                 CalibrationView(
                     clipURL: clipURL,
                     preferSavedCalibration: !isImported,
+                    captureZoom: camera.zoomFactor,
                     onBack: {
                         step = .review(clipURL)
                     },
@@ -119,7 +120,7 @@ struct CaptureFlowView: View {
                         // Imported clips come from arbitrary cameras — only a
                         // live placement is worth remembering for next time.
                         if !isImported {
-                            corners.saveAsLastConfirmed()
+                            corners.saveAsLastConfirmed(zoom: camera.zoomFactor)
                         }
                         sessionCorners = corners
                         step = .analyze(clipURL, corners)
@@ -180,6 +181,11 @@ struct CaptureFlowView: View {
         }
         .onChange(of: camera.finishedClipURL) { _, clipURL in
             if let clipURL { step = .review(clipURL) }
+        }
+        .onChange(of: camera.zoomFactor) {
+            // A different zoom is a different frame — this session's corners
+            // no longer describe it, so the next throw recalibrates.
+            sessionCorners = nil
         }
     }
 
