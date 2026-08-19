@@ -93,6 +93,7 @@ struct RecordView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(.black.opacity(0.5), in: Capsule())
+                            ZoomPicker(camera: camera)
                         }
                         RecordButton(isRecording: camera.isRecording) {
                             if camera.isRecording {
@@ -180,6 +181,33 @@ private struct TargetPickerSheet: View {
                 board = Int(targetBoard)
             }
         }
+    }
+}
+
+/// Camera-style lens chips. Discrete steps only — 2x doubles the pixels per
+/// board at the pin deck, which is what entry-board precision lives on.
+private struct ZoomPicker: View {
+    var camera: CameraModel
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(CameraModel.zoomOptions, id: \.self) { factor in
+                let selected = camera.zoomFactor == factor
+                Button {
+                    camera.setZoom(factor)
+                } label: {
+                    Text(selected ? "\(factor.formatted())x" : factor.formatted())
+                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(.black.opacity(selected ? 0.7 : 0.4), in: Circle())
+                        .foregroundStyle(selected ? Color.brandMint : .white)
+                }
+                .accessibilityLabel("\(factor.formatted())x zoom")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(.black.opacity(0.3), in: Capsule())
     }
 }
 
