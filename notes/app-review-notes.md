@@ -124,3 +124,14 @@ Findings, resolved Aug 15:
   purchase-sheet recording captured and verified sufficient (sheet with
   price shown; sign-in only after Pay). v1.1 backlog: calibration
   wrong-deck guidance + mid-session drift check + record-screen zoom.
+- **Aug 19, ~2:02 AM — replied in Resolution Center** with the 8 answers
+  and three attachments (alley core-flow recording, purchase-sheet
+  recording, IMG_5108 strike clip), sent from the phone via remote
+  control. "Resubmit to App Review" stays greyed out by design — no item
+  was edited; for an information-needed rejection the reply itself
+  returns the submission to the reviewer. Ball is with Apple; watch
+  email. Correction to the Aug 18 diagnosis: pin-deck choice was right
+  (pinfall-verified, lane 15); the wrong-looking lines come from far-end
+  corner precision — the deck is ~90 px wide in 1x footage, ~2.3 px per
+  board, so ~10 px of corner slop moves entry readings 4+ boards. This
+  promotes record-at-2x zoom to the top of the v1.1 accuracy list.
