@@ -29,6 +29,20 @@ off-nominal placement real users will produce. Batch 2 clips are held OUT
 of training until re-shot equivalents exist, or split train/test carefully
 per training/README's leakage rule.
 
+## Aug 19 — positional accuracy on the labeled val set (47 frames)
+
+Adam's correct pushback: coverage/confidence measure *finding* the ball, not
+placing it. Measured predicted-center vs human-labeled-center on
+dataset/ball_yolo val: **recall 40/41, 1 false positive on 6 empty frames;
+center error median 3.0 px, p90 5.3 px, max 15.4 px on balls of median
+radius 27 px** (error ≈ 11% of ball radius). At ball scale that's ~6.7 px
+per board → median ≈ 0.45 boards, p90 ≈ 0.8 boards, before path smoothing
+averages it down further. Conclusion: detector position error is roughly
+half a board — it cannot produce a 5+ board pocket→Brooklyn swap. That
+error channel is calibration's, as established. Caveats: 47 frames, mostly
+nominal placements (tilted batch-2-style views untested for position),
+and labels carry their own pixel-level error.
+
 **Accuracy error budget (state of knowledge tonight):**
 1. Board numbers are dominated by far-end calibration precision: the pin
    deck spans ~90 px at 1x ≈ 2.3 px/board; 10 px of corner slop = 4+
