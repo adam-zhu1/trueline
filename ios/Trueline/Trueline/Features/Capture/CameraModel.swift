@@ -24,6 +24,18 @@ final class CameraModel {
     private(set) var status: Status = .idle
     private(set) var isRecording = false
 
+    /// Discrete lens steps only: free digital zoom between steps costs the
+    /// tracker pixels, and a fixed factor keeps the saved calibration
+    /// meaningful across sessions. 2x doubles pixels-per-board at the pin
+    /// deck — the entry-board reading's precision bottleneck.
+    static let zoomOptions: [Double] = [1.0, 2.0]
+    private static let zoomKey = "captureZoomFactor"
+
+    private(set) var zoomFactor: Double = {
+        let stored = UserDefaults.standard.double(forKey: CameraModel.zoomKey)
+        return CameraModel.zoomOptions.contains(stored) ? stored : 1.0
+    }()
+
     init() {
         // A prior denial is knowable synchronously. Setting it here, before
         // the first frame, lets the record screen's explanation ride the
@@ -63,7 +75,36 @@ final class CameraModel {
             session.startRunning()
             return true
         }.value
+        if configured {
+            Self.applyZoom(session: session, factor: zoomFactor)
+        }
         status = configured ? .previewing : .failed
+    }
+
+    /// Snaps to one of `zoomOptions`. Ignored while recording — a zoom change
+    /// mid-throw would break the frame the calibration was confirmed against.
+    func setZoom(_ factor: Double) {
+        guard Self.zoomOptions.contains(factor), !isRecording, factor != zoomFactor else { return }
+        zoomFactor = factor
+        UserDefaults.standard.set(factor, forKey: Self.zoomKey)
+        guard status == .previewing else { return }
+        let session = session
+        Task.detached(priority: .userInitiated) {
+            Self.applyZoom(session: session, factor: factor)
+        }
+    }
+
+    private nonisolated static func applyZoom(session: AVCaptureSession, factor: Double) {
+        guard let device = session.inputs
+            .compactMap({ ($0 as? AVCaptureDeviceInput)?.device })
+            .first(where: { $0.hasMediaType(.video) })
+        else { return }
+        let clamped = min(CGFloat(factor), device.maxAvailableVideoZoomFactor)
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clamped
+            device.unlockForConfiguration()
+        } catch {}
     }
 
     func stop() {
