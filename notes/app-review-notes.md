@@ -124,6 +124,13 @@ Findings, resolved Aug 15:
   purchase-sheet recording captured and verified sufficient (sheet with
   price shown; sign-in only after Pay). v1.1 backlog: calibration
   wrong-deck guidance + mid-session drift check + record-screen zoom.
+- **Aug 19, 5:24 PM — RESUBMITTED, "Waiting for Review"** (both items:
+  app version + IAP). The path that worked: reply alone left the version
+  "Rejected" with the submission-level Resubmit greyed out; editing the
+  version's Notes field (now pointing reviewers at the Aug 19 reply's
+  attachments) enabled the version page's "Update Review" button, which
+  flipped the whole submission back into the queue. Next signal: Apple's
+  status emails (In Review → verdict).
 - **Aug 19, ~2:02 AM — replied in Resolution Center** with the 8 answers
   and three attachments (alley core-flow recording, purchase-sheet
   recording, IMG_5108 strike clip), sent from the phone via remote
