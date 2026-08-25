@@ -86,3 +86,40 @@ notes/calibration-v1.1-plan.md.
 Batch-2 placement note: the phone was re-propped between EVERY batch-2
 clip (5112/5113≈5114/5115 all differ; 5114 is rolled). Real users will do
 this too — supports per-throw drift checking and cheap recalibration.
+
+## Experiment 1a: tap-noise Monte Carlo (monte_carlo.py, Aug 25)
+
+2000 trials x 8 references x 5 entry boards; entry-board |error| at 60 ft.
+Noise model documented in the script header. Pooled results (boards):
+
+| Scheme | median | p90 | p99 |
+|--------|--------|-----|-----|
+| corners4 (today's flow) | 2.95 | 7.76 | 18.6 |
+| corners4 + wrong-edge trap | 3.58 | 10.1 | 30.2 |
+| landmarks6 (easy taps only) | 1.76 | 4.39 | 7.4 |
+| landmarks16 (+CV dots) | 1.76 | 4.39 | 7.3 |
+| overlay-refined corners (2.5 px) | 0.72 | 1.79 | 2.9 |
+| landmarks6 + refined headpin (2 px) | 0.71 | 1.79 | 2.9 |
+| sloppy foul (8 px) + refined deck | 0.73 | 1.81 | 2.9 |
+| landmarks6 + refined deck corners | **0.52** | **1.29** | **2.1** |
+
+Conclusions (identical across all 8 camera placements):
+1. Today's 4-corner flow is structurally bad: ~3 boards median error,
+   double-digit tail with the measured wrong-edge failure mode.
+2. Entry accuracy is decided ENTIRELY by far-field precision. Foul-line
+   taps can be sloppy (8 px) with no cost; guide dots add nothing.
+3. Easy-landmark taps alone give ~1.8 boards — a good coarse stage, not
+   an endpoint.
+4. ONE far-field refinement takes it sub-board: dragging the overlay
+   until the drawn rack sits on the real pins (2 px there) yields 0.7
+   median; adding deck-corner refinement reaches 0.5 / p90 1.3.
+5. iOS design therefore: (a) coarse = 6 easy taps (foul corners x2,
+   arrows x3, headpin); (b) refine = drag/nudge the live overlay until
+   the drawn PINS align with the real rack — pins, not gutter edges, are
+   the refinement target (high contrast, unmistakable, immune to the
+   wrong-edge trap). Combined with detector error (~0.5 board), total
+   median error ~1 board — Specto-class.
+
+Caveat: sigmas are modeling assumptions; the drag-refinement precision
+(2-2.5 px) must be validated in the real UI, and the ground-truth alley
+session remains the acceptance test.

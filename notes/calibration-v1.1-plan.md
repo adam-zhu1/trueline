@@ -66,10 +66,20 @@ undistortion into the pipeline. No checkerboards, no user steps, ever.
    a. Landmark-set comparison — Monte-Carlo realistic tap noise on the 8
       alley clips; compare entry-board error for: current 4 corners,
       easy-landmarks-only, easy landmarks + overlay-refined deck.
+      **DONE Aug 25** — see experiments/calibration_v11/README.md.
+      Winner: 6 easy taps + drag-overlay-onto-the-pins refinement
+      (0.5-0.7 board median vs 3.0 for today's corners). Far-field
+      precision is everything; foul taps can be sloppy; dots add nothing
+      as tap targets. Refinement target = the PIN RACK, not gutter edges.
    b. Plumb-line distortion measurement on the same clips; decide
-      whether k1 is warranted at 1x and 2x.
+      whether k1 is warranted at 1x and 2x. **Partial answer Aug 21:**
+      landmarks can't constrain k; k=0 fits all 8 clips to ~0.5 board.
+      Treat distortion as below the noise floor for v1.1.
    c. Line-snap feasibility: local edge detection around hand-placed
-      corners; success rate + px improvement.
+      corners; success rate + px improvement. **Deprioritized Aug 25:**
+      the specular gutter band offers multiple false edges (measured 66 px
+      trap); snapping to edges is the wrong primitive — snap/align to
+      markings (dots, arrows, pins) instead.
 2. **iOS calibration flow rebuild:** easy-landmark taps -> live overlay
    -> drag-to-match refine + loupe + quality warnings. Informed by 1a.
 3. **Drift check on throw confirm** (reuses overlay renderer).
