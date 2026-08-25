@@ -59,3 +59,30 @@ Monte Carlo, distortion measurement, and line-snap feasibility.
    same throw — right answer near the pocket, but its gutter lines are
    ~5+ boards off at the edges (errors cancel mid-lane). Explains why the
    Aug 18 "verification" passed while edge geometry was wrong.
+
+## Full-sweep validation (all 8 clips, Aug 25)
+
+Ball detected per frame (models/ball.pt, conf 0.30), entry board at 60 ft
+via each clip's own reference. Adam's stated batch-1 outcomes: 1 strike,
+2 misses, 1 gutter.
+
+| Clip | Coverage | Entry/read | Interpretation |
+|------|----------|------------|----------------|
+| 5105 | full lane, 1-68 ft | entry 11.9 | miss, light/right ✓ |
+| 5106 | dies 45 ft | board −3.4 to −4.5 at 39-45 ft | GUTTER ball, mapped outside lane ✓ |
+| 5107 | full lane, 1-68 ft | entry 11.7 | miss, light/right ✓ |
+| 5108 | full lane, 2-69 ft | entry 17.56 | STRIKE, textbook pocket ✓ |
+| 5112 | dies 20 ft | ~board 9 mid-lane | detection gap (tilted view) |
+| 5113 | only 45-59 ft | ~15.3 at 58.8 ft | detection gap near lane |
+| 5114 | only 49-57 ft | ~13.1 at 57 ft | detection gap |
+| 5115 | dies 36 ft | ~9.9 at 36 ft | detection gap |
+
+Every batch-1 outcome is reproduced by the references, including the
+gutter ball reading negative boards. Batch-2 boards are physically
+sensible where detections exist; coverage, not calibration, is batch-2's
+limiter — the placement-sensitivity retraining item in
+notes/calibration-v1.1-plan.md.
+
+Batch-2 placement note: the phone was re-propped between EVERY batch-2
+clip (5112/5113≈5114/5115 all differ; 5114 is rolled). Real users will do
+this too — supports per-throw drift checking and cheap recalibration.
