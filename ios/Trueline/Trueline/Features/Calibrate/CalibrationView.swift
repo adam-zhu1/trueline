@@ -1,18 +1,25 @@
 import AVFoundation
 import SwiftUI
 
-/// The calibration step: a frame from the clip with the four proposed lane corners
-/// overlaid. The user drags each corner onto the lane's actual corners (foul line
-/// near, pin deck far); a loupe magnifies the area under the active handle.
-/// The static default seed is replaced by lane auto-detect in task #4.
+/// The calibration step, v1.1 flow: six guided taps on recognizable landmarks
+/// (foul line corners, three arrows, head pin) seed a least-squares homography,
+/// then the lane's geometry is drawn over the frame and the user drags the
+/// corners until the drawn pin spots sit on the real rack. The harness Monte
+/// Carlo picked this design: 0.5-0.7 boards median entry error vs 3.0 for the
+/// old tap-four-corners flow. A saved same-zoom calibration skips the taps and
+/// opens directly on the refine overlay, which is also the phone-moved check.
 struct CalibrationView: View {
+    private enum Phase {
+        case tapping, refining
+    }
+
     private enum ProposalSource {
-        case saved, detected, none
+        case saved, fitted
     }
 
     let clipURL: URL
     /// Live sessions seed from the last human-confirmed calibration (same
-    /// phone placement usually); imported clips always auto-detect.
+    /// phone placement usually); imported clips always start from taps.
     var preferSavedCalibration = false
     /// The capture zoom the clip was recorded at — saved corners only apply
     /// when it matches the zoom they were confirmed at.
@@ -22,40 +29,29 @@ struct CalibrationView: View {
 
     @State private var frame: UIImage?
     @State private var loadFailed = false
+    @State private var phase: Phase = .tapping
+    /// Placed taps in normalized image coords, parallel to LandmarkFit.targets.
+    @State private var taps: [CGPoint] = []
     @State private var corners: LaneCorners = .defaultGuess
+    /// What Reset restores: the fitted result of the taps, or the saved corners.
     @State private var proposal: LaneCorners?
-    @State private var proposalSource: ProposalSource = .none
-    @State private var isDetecting = true
-    /// Once the user drags a corner, a late-arriving auto-detect proposal must
-    /// not overwrite their adjustment.
-    @State private var userAdjusted = false
+    @State private var proposalSource: ProposalSource = .fitted
+    @State private var fitFailed = false
+    /// Active drag target: a tap index while tapping, a corner while refining.
+    @State private var activeTap: Int?
     @State private var activeCorner: LaneCorners.Corner?
-    @State private var dragStartCorner: CGPoint?
+    @State private var dragStartPoint: CGPoint?
 
     var body: some View {
         // Hint, image, and buttons stack vertically so the controls never cover
-        // the corner handles (near corners sit at the bottom of the frame).
+        // the handles (near corners sit at the bottom of the frame).
         VStack(spacing: 0) {
-            // The longest hint, hidden, fixes this slot's height up front, so
-            // the detecting → result swap never reflows the frame below.
+            // The longest hint, hidden, fixes this slot's height up front so
+            // hint changes between steps never reflow the frame below.
             ZStack {
                 hintCapsule(Self.tallestHint)
                     .hidden()
-                if isDetecting {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white)
-                        Text("Finding the lane…")
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.55), in: Capsule())
-                } else {
-                    hintCapsule(hintText)
-                }
+                hintCapsule(hintText)
             }
             .padding(.top, 8)
             .frame(minHeight: 44)
@@ -70,25 +66,27 @@ struct CalibrationView: View {
                                 .frame(width: rect.width, height: rect.height)
                                 .position(x: rect.midX, y: rect.midY)
 
-                            let outline = LaneCorners.Corner.allCases.map { viewPoint(corners[$0], in: rect) }
-                            QuadShape(points: outline)
-                                .fill(Color.accentColor.opacity(0.12))
-                            QuadShape(points: outline)
-                                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 5]))
-
-                            ForEach(LaneCorners.Corner.allCases, id: \.self) { corner in
-                                handle(for: corner, in: rect)
+                            if phase == .refining {
+                                LaneOverlayView(corners: corners, imageSize: frame.size, fittedRect: rect)
+                                ForEach(LaneCorners.Corner.allCases, id: \.self) { corner in
+                                    handle(at: corners[corner], active: activeCorner == corner, in: rect)
+                                }
+                            } else {
+                                ForEach(taps.indices, id: \.self) { index in
+                                    handle(at: taps[index], active: activeTap == index, in: rect)
+                                }
                             }
 
-                            if let activeCorner {
-                                LoupeView(image: frame, normalizedPoint: corners[activeCorner], fittedRect: rect)
-                                    .position(loupeCenter(for: activeCorner, in: rect))
+                            if let point = activePoint {
+                                LoupeView(image: frame, normalizedPoint: point, fittedRect: rect)
+                                    .position(loupeCenter(for: point, in: rect))
                                     .allowsHitTesting(false)
                             }
                         }
                         .coordinateSpace(name: "calibration")
                         .contentShape(Rectangle())
-                        .gesture(cornerDragGesture(in: rect))
+                        .gesture(phase == .tapping ? tapPhaseGesture(in: rect) : nil)
+                        .gesture(phase == .refining ? refineDragGesture(in: rect) : nil)
                     }
                     // Breathing room so edge handles stay under the finger, not
                     // clipped against the hint or button rows.
@@ -109,32 +107,54 @@ struct CalibrationView: View {
                 }
             }
 
-            // Back and Reset as icon squares so the confirm — the action this
-            // screen exists for — gets the width.
+            // Back and Undo/Reset as icon squares so the confirm — the action
+            // this screen exists for — gets the width.
             HStack(spacing: 12) {
-                    Button {
+                Button {
+                    if phase == .refining {
+                        phase = .tapping
+                        fitFailed = false
+                    } else {
                         onBack()
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.iconAction)
+                .accessibilityLabel(phase == .refining ? "Back to taps" : "Back")
+
+                if phase == .tapping {
+                    Button {
+                        if !taps.isEmpty {
+                            taps.removeLast()
+                        }
+                        fitFailed = false
                     } label: {
-                        Image(systemName: "chevron.left")
+                        Image(systemName: "arrow.uturn.backward")
                     }
                     .buttonStyle(.iconAction)
-                    .accessibilityLabel("Back")
-
+                    .disabled(taps.isEmpty)
+                    .accessibilityLabel("Undo last tap")
+                } else {
                     Button {
-                        corners = proposal ?? .defaultGuess
+                        if let proposal {
+                            corners = proposal
+                        }
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                     }
                     .buttonStyle(.iconAction)
+                    .disabled(proposal == nil)
                     .accessibilityLabel("Reset corners")
+                }
 
-                    Button {
-                        onConfirm(corners)
-                    } label: {
-                        Label("Looks Good", systemImage: "checkmark")
-                    }
-                    .buttonStyle(.primaryAction)
-                    .disabled(frame == nil)
+                Button {
+                    onConfirm(corners)
+                } label: {
+                    Label("Looks Good", systemImage: "checkmark")
+                }
+                .buttonStyle(.primaryAction)
+                .disabled(phase != .refining)
             }
             .padding()
         }
@@ -142,21 +162,43 @@ struct CalibrationView: View {
         .task { await loadFrame() }
     }
 
+    // MARK: - Hints
+
     private var hintText: String {
-        switch proposalSource {
-        case .saved:
-            "Corners from your last session — adjust if the phone moved."
-        case .detected:
-            "We found the lane — drag the corners to fine-tune if needed."
-        case .none:
-            Self.tallestHint
+        switch phase {
+        case .tapping:
+            if fitFailed {
+                return "Those taps don't line up with a lane. Undo and adjust them."
+            }
+            if taps.count < LandmarkFit.targets.count {
+                return LandmarkFit.targets[taps.count].hint
+            }
+            return "Adjust any point, or lift your finger to continue."
+        case .refining:
+            var hint = switch proposalSource {
+            case .saved: "From your last session. Check the drawn pins still sit on the real pins."
+            case .fitted: "Drag the corners until the drawn pins sit on the real pins."
+            }
+            if farEndTooSmall {
+                hint += " Far end looks tiny. Record at 2x next time."
+            }
+            return hint
         }
     }
 
-    /// The hint that wraps to the most lines; it sizes the hint slot so the
-    /// message swap after detection can't move the layout.
+    /// The hint that wraps to the most lines; it sizes the hint slot so hint
+    /// swaps can't move the layout.
     private static let tallestHint =
-        "Drag the corners onto the lane — foul line at the bottom, pin deck at the top."
+        "From your last session. Check the drawn pins still sit on the real pins. Far end looks tiny. Record at 2x next time."
+
+    /// Below ~3 px per board at the deck, sub-board reads are physically out of
+    /// reach; nudge toward 2x capture (which roughly doubles it).
+    private var farEndTooSmall: Bool {
+        guard let frame, captureZoom < 2 else { return false }
+        let l = CGPoint(x: corners.farLeft.x * frame.size.width, y: corners.farLeft.y * frame.size.height)
+        let r = CGPoint(x: corners.farRight.x * frame.size.width, y: corners.farRight.y * frame.size.height)
+        return hypot(l.x - r.x, l.y - r.y) / 39 < 3
+    }
 
     private func hintCapsule(_ text: String) -> some View {
         Text(text)
@@ -168,58 +210,101 @@ struct CalibrationView: View {
             .background(.black.opacity(0.55), in: Capsule())
     }
 
+    // MARK: - Frame loading
+
     private func loadFrame() async {
         do {
             let generator = AVAssetImageGenerator(asset: AVURLAsset(url: clipURL))
             generator.appliesPreferredTrackTransform = true
             let (cgImage, _) = try await generator.image(at: .zero)
             frame = UIImage(cgImage: cgImage)
-            // A human-confirmed calibration from the last session beats any
-            // detector proposal — same placement means one confirming tap.
+            // A human-confirmed calibration from the last session beats
+            // re-tapping — same placement means one confirming look at the
+            // overlay, and any phone bump is immediately visible against it.
             if preferSavedCalibration, let saved = LaneCorners.loadLastConfirmed(forZoom: captureZoom) {
+                corners = saved
                 proposal = saved
                 proposalSource = .saved
-                if !userAdjusted {
-                    corners = saved
-                }
-                isDetecting = false
-                return
+                phase = .refining
             }
-            // Otherwise propose via lane auto-detect; the user adjusts from there.
-            let detected = await Task.detached(priority: .userInitiated) {
-                LaneAutoDetector.detectLaneCorners(in: cgImage)
-            }.value
-            if let detected {
-                proposal = detected
-                proposalSource = .detected
-                if !userAdjusted {
-                    corners = detected
-                }
-            }
-            isDetecting = false
         } catch {
             loadFailed = true
-            isDetecting = false
         }
     }
 
-    /// Visual dot only — dragging is handled by the shared gesture below, so the
-    /// user never has to hit the dot exactly.
-    private func handle(for corner: LaneCorners.Corner, in rect: CGRect) -> some View {
-        Circle()
-            .fill(.white)
-            .frame(width: 20, height: 20)
-            .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
-            .scaleEffect(activeCorner == corner ? 1.35 : 1.0)
-            .animation(.easeOut(duration: 0.12), value: activeCorner == corner)
-            .position(viewPoint(corners[corner], in: rect))
-            .allowsHitTesting(false)
+    // MARK: - Gestures
+
+    private var activePoint: CGPoint? {
+        if phase == .refining, let activeCorner {
+            return corners[activeCorner]
+        }
+        if phase == .tapping, let activeTap, taps.indices.contains(activeTap) {
+            return taps[activeTap]
+        }
+        return nil
     }
 
-    /// Document-scanner style adjustment: touch anywhere near a corner to grab
-    /// it, then the corner moves by the drag *delta* (not to the finger), so the
-    /// point stays visible and precise placement doesn't need a precise grab.
-    private func cornerDragGesture(in rect: CGRect) -> some Gesture {
+    /// Tap phase: a touch near an existing point grabs and adjusts it (moving
+    /// by the drag delta, document-scanner style); a touch elsewhere places the
+    /// next target under the finger, adjustable until lift. When the sixth
+    /// point lands, the fit runs and the refine overlay appears.
+    private func tapPhaseGesture(in rect: CGRect) -> some Gesture {
+        let grabRadius: CGFloat = 40
+        return DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
+            .onChanged { value in
+                if activeTap == nil {
+                    let nearest = taps.indices.min { a, b in
+                        distance(viewPoint(taps[a], in: rect), value.startLocation)
+                            < distance(viewPoint(taps[b], in: rect), value.startLocation)
+                    }
+                    if let nearest,
+                       distance(viewPoint(taps[nearest], in: rect), value.startLocation) <= grabRadius {
+                        activeTap = nearest
+                        dragStartPoint = taps[nearest]
+                    } else if taps.count < LandmarkFit.targets.count {
+                        let placed = normalizedPoint(value.startLocation, in: rect)
+                        taps.append(placed)
+                        activeTap = taps.count - 1
+                        dragStartPoint = placed
+                    } else {
+                        return
+                    }
+                    fitFailed = false
+                }
+                guard let index = activeTap, let start = dragStartPoint else { return }
+                let dx = (value.location.x - value.startLocation.x) / rect.width
+                let dy = (value.location.y - value.startLocation.y) / rect.height
+                taps[index] = CGPoint(
+                    x: min(max(start.x + dx, 0), 1),
+                    y: min(max(start.y + dy, 0), 1)
+                )
+            }
+            .onEnded { _ in
+                activeTap = nil
+                dragStartPoint = nil
+                if taps.count == LandmarkFit.targets.count {
+                    fitFromTaps()
+                }
+            }
+    }
+
+    private func fitFromTaps() {
+        guard let frame,
+              let fitted = LandmarkFit.corners(fromTaps: taps, imageSize: frame.size)
+        else {
+            fitFailed = true
+            return
+        }
+        corners = fitted
+        proposal = fitted
+        proposalSource = .fitted
+        phase = .refining
+    }
+
+    /// Refine phase: same document-scanner drag as the old flow, but against
+    /// the live overlay — touch anywhere near a corner to grab it, then it
+    /// moves by the drag delta so precise placement doesn't need a precise grab.
+    private func refineDragGesture(in rect: CGRect) -> some Gesture {
         let grabRadius: CGFloat = 70
         return DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
             .onChanged { value in
@@ -232,10 +317,9 @@ struct CalibrationView: View {
                           distance(viewPoint(corners[nearest], in: rect), value.startLocation) <= grabRadius
                     else { return }
                     activeCorner = nearest
-                    dragStartCorner = corners[nearest]
+                    dragStartPoint = corners[nearest]
                 }
-                guard let corner = activeCorner, let start = dragStartCorner else { return }
-                userAdjusted = true
+                guard let corner = activeCorner, let start = dragStartPoint else { return }
                 let dx = (value.location.x - value.startLocation.x) / rect.width
                 let dy = (value.location.y - value.startLocation.y) / rect.height
                 corners[corner] = CGPoint(
@@ -245,7 +329,7 @@ struct CalibrationView: View {
             }
             .onEnded { _ in
                 activeCorner = nil
-                dragStartCorner = nil
+                dragStartPoint = nil
             }
     }
 
@@ -253,10 +337,23 @@ struct CalibrationView: View {
         hypot(a.x - b.x, a.y - b.y)
     }
 
+    // MARK: - Layout helpers
+
+    private func handle(at normalized: CGPoint, active: Bool, in rect: CGRect) -> some View {
+        Circle()
+            .fill(.white)
+            .frame(width: 20, height: 20)
+            .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
+            .scaleEffect(active ? 1.35 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: active)
+            .position(viewPoint(normalized, in: rect))
+            .allowsHitTesting(false)
+    }
+
     /// Keeps the loupe near the active handle but off the finger — above it when
     /// there's room, below when the handle is near the top edge.
-    private func loupeCenter(for corner: LaneCorners.Corner, in rect: CGRect) -> CGPoint {
-        let handle = viewPoint(corners[corner], in: rect)
+    private func loupeCenter(for normalized: CGPoint, in rect: CGRect) -> CGPoint {
+        let handle = viewPoint(normalized, in: rect)
         let offset: CGFloat = handle.y - rect.minY > 160 ? -110 : 110
         return CGPoint(
             x: min(max(handle.x, rect.minX + 70), rect.maxX - 70),
@@ -290,23 +387,8 @@ struct CalibrationView: View {
     }
 }
 
-private struct QuadShape: Shape {
-    var points: [CGPoint]
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        guard let first = points.first else { return path }
-        path.move(to: first)
-        for point in points.dropFirst() {
-            path.addLine(to: point)
-        }
-        path.closeSubpath()
-        return path
-    }
-}
-
 /// Magnified view of the frame around the point being dragged, with a crosshair
-/// marking the exact corner position.
+/// marking the exact position.
 private struct LoupeView: View {
     let image: UIImage
     let normalizedPoint: CGPoint
