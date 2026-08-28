@@ -87,6 +87,15 @@ Batch-2 placement note: the phone was re-propped between EVERY batch-2
 clip (5112/5113≈5114/5115 all differ; 5114 is rolled). Real users will do
 this too — supports per-throw drift checking and cheap recalibration.
 
+Batch-2 correction (Aug 28): Adam's overlay review caught the 5113/5114/
+5115 foul lines drawn on the approach (5113 ~85 px low) and 5115 tilted.
+Cause: the foul-line sampling corridors were seeded below the real line,
+so the edge sampler locked onto approach seams; with the headpin pinned
+at 60 ft the fit stretched past the rack too. Corridors re-centered on
+the painted line (64-89 edge samples each), references re-fit. Entry
+boards moved <0.2; the Monte Carlo table below reproduced unchanged.
+5112 was verified correct as-is.
+
 ## Experiment 1a: tap-noise Monte Carlo (monte_carlo.py, Aug 25)
 
 2000 trials x 8 references x 5 entry boards; entry-board |error| at 60 ft.
