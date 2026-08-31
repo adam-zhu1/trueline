@@ -17,6 +17,15 @@ struct ShotResult {
     /// Positive = launched toward the gutter (a righty playing outside
     /// launches positive and hooks back at a positive entry angle).
     var launchAngleDegrees: Double? = nil
+    /// Board where the launch stretch crosses the foul line (extrapolated
+    /// back; only when the track starts in the first 8 ft).
+    var foulLineBoard: Double? = nil
+    /// Speed over the whole measured span, release area to the pins.
+    var averageSpeedMph: Double? = nil
+    /// Release to pins, seconds (tail projected to 59.5 ft).
+    var shotTimeSeconds: Double? = nil
+    /// Lateral acceleration through the hook phase, boards per second squared.
+    var hookFactor: Double? = nil
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
     /// Smoothed ball-contact points in display-oriented normalized coordinates,
@@ -483,6 +492,29 @@ struct ShotAnalyzer {
             }
         }
 
+        // Average speed and shot time over release-to-pins, the measurement
+        // capped at 59.5 ft (tracks run past the deck into pin scatter) and a
+        // short track's remainder projected at its tail velocity. Long-baseline
+        // numbers only: the far lane is too few pixels at 1x for an honest
+        // last-6-ft impact speed (measured ±5 mph segment noise past 50 ft),
+        // so impact speed and speed loss wait for 2x footage.
+        if feet[settleSkip] <= 8.0, let lastFeet = feet.last, let lastFrame = frames.last, lastFeet >= 50,
+           let t0 = crossingFrame(feet: feet, frames: frames, target: f0, requireStartBelow: f0 + 0.5) {
+            let endFeet = min(lastFeet, LaneGeometry.entryBoardFeet)
+            if let tTail = crossingFrame(feet: feet, frames: frames, target: endFeet - 6.0, requireStartBelow: f0 + 0.5),
+               let tEnd = lastFeet >= LaneGeometry.entryBoardFeet
+                   ? crossingFrame(feet: feet, frames: frames, target: LaneGeometry.entryBoardFeet, requireStartBelow: f0 + 0.5)
+                   : lastFrame,
+               tEnd > tTail {
+                let tailFtPerSec = 6.0 / ((tEnd - tTail) / fps)
+                let secondsToPins = (tEnd - t0) / fps + max(0, LaneGeometry.entryBoardFeet - endFeet) / tailFtPerSec
+                if secondsToPins > 0 {
+                    result.shotTimeSeconds = (secondsToPins * 100).rounded() / 100
+                    result.averageSpeedMph = ((LaneGeometry.entryBoardFeet - f0) / secondsToPins) * 0.681818
+                }
+            }
+        }
+
         // Arrow board: first crossing of the arrow V on the smoothed series,
         // linearly interpolated (port of arrow_board_from_path).
         let sbAll = savgolSmooth(boards, window: 11)
@@ -518,6 +550,15 @@ struct ShotAnalyzer {
                     let dbIn = db * (LaneGeometry.laneWidthInches / 39.0)
                     let angle = -atan2(dbIn, df * 12.0) * 180 / .pi
                     result.launchAngleDegrees = (angle * 10).rounded() / 10
+                    // Foul-line board: the same launch slope walked back to
+                    // 0 ft. Short walk only — a track that starts deep would
+                    // extrapolate a guess, not a measurement.
+                    if feet[skipHead] <= 8.0 {
+                        let projected = sbAll[skipHead] - (db / df) * sfAll[skipHead]
+                        if projected >= 1, projected <= 39 {
+                            result.foulLineBoard = (projected * 10).rounded() / 10
+                        }
+                    }
                 }
             }
         }
@@ -535,6 +576,25 @@ struct ShotAnalyzer {
                 let minIdx = smooth.indices.min(by: { smooth[$0] < smooth[$1] })!
                 result.breakpointBoard = (smooth[minIdx] * 10).rounded() / 10
                 result.breakpointFeet = wf[minIdx]
+                // Hook factor: lateral acceleration through the hook — board
+                // velocity over the tail minus board velocity approaching the
+                // breakpoint, per second between the two windows.
+                let wframes = Array(frames[startIdx..<endIdx])
+                let k = max(5, smooth.count / 6)
+                if minIdx >= k, smooth.count - minIdx > k,
+                   let pre = linearSlope(
+                       Array(smooth[(minIdx - k)...minIdx]),
+                       wframes[(minIdx - k)...minIdx].map { $0 / fps }
+                   ),
+                   let post = linearSlope(
+                       Array(smooth.suffix(k)),
+                       wframes.suffix(k).map { $0 / fps }
+                   ) {
+                    let dt = (wframes[wframes.count - 1 - k / 2] - wframes[minIdx - k / 2]) / fps
+                    if dt > 0.1 {
+                        result.hookFactor = (((post - pre) / dt) * 10).rounded() / 10
+                    }
+                }
                 // Entry angle from the tail slope of the smoothed series.
                 if smooth.count >= 5 {
                     let sfWin = savgolSmooth(wf, window: 11)
@@ -581,6 +641,22 @@ struct ShotAnalyzer {
             return frames[i - 1] + t * (frames[i] - frames[i - 1])
         }
         return nil
+    }
+
+    /// Least-squares slope of y against t; nil when t has no spread.
+    private static func linearSlope(_ y: [Double], _ t: [Double]) -> Double? {
+        guard y.count == t.count, y.count >= 2 else { return nil }
+        let n = Double(y.count)
+        let mt = t.reduce(0, +) / n
+        let my = y.reduce(0, +) / n
+        var num = 0.0
+        var den = 0.0
+        for i in 0..<y.count {
+            num += (t[i] - mt) * (y[i] - my)
+            den += (t[i] - mt) * (t[i] - mt)
+        }
+        guard den > 1e-9 else { return nil }
+        return num / den
     }
 
     // MARK: - Measurement refinement
