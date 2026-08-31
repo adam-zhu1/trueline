@@ -1,98 +1,117 @@
-# Alley visit checklist
+# Alley visit checklist — ground-truth session (v1.1 acceptance)
 
-One page, one hour of lane time. The goal is to stress-test capture and to
-bring home footage we cannot get any other way. Everything else about the app
-can be tested from the couch.
+One page, 60-90 minutes of lane time. This session is the acceptance gate
+for v1.1: the app's numbers against physically verified truth. It also
+collects the footage for the rev-rate experiment and detector retraining.
+Everything else about the app can be tested from the couch.
+
+## What to bring
+
+- [ ] Phone, charged, 10+ GB free.
+- [ ] White tape (painter's or athletic) — for the target-board mark and
+      the rev-rate ball marker.
+- [ ] Tape measure (25 ft or longer helps but any works).
+- [ ] A second phone or a friend's phone for 240 fps slow-mo clips, if at
+      all possible.
+- [ ] Your ball. If you own more than one, bring the one with the most
+      visible graphic/logo.
+- [ ] This checklist.
 
 ## Before leaving home
 
-- [ ] Install the field-test build (branch `field-test`) from Xcode with
-      launch arguments `-fieldFootageMode 1 -bankFreeThrows 100`, scheme set
-      to the Release configuration. Both persist, so home-screen launches at
-      the alley keep them.
-- [ ] Prefer a TestFlight install if the build is uploaded by then: TestFlight
-      apps skip the developer-profile trust check that needs internet — the
-      exact failure that killed the Aug 12 visit in a dead-zone alley. (The
-      launch args don't ride along with TestFlight; set fieldFootageMode via
-      the Xcode-installed build first if raw footage is the goal, or accept
-      a footage-only TestFlight run.) Either way, run the airplane-mode
-      launch test at home the night before.
-- [ ] Verify on the phone after that launch: Settings shows ~100 free throws
-      left, and "Save video with each shot" is ON.
-- [ ] Verify footage capture end to end: record a few seconds of anything,
-      discard it, then check Finder → iPhone → Files → TrueLine →
-      FieldFootage (or the Files app on the phone) shows the clip. Field mode
-      keeps every raw camera recording there — saved, discarded, and
-      failed-tracking throws alike.
-- [ ] On-device tracking confirmed working (task #1). If the phone still
-      returns zero detection boxes, the visit is still worth it, but treat it
-      as a footage-collection trip only and analyze at home.
-- [ ] Phone charged, at least 10 GB free storage.
-- [ ] Phone stand: the ball bag is the plan (no tripod needed — lean the
-      phone against it on the table behind the approach, or stand it in a
-      half-open zipper pocket). A misplaced phone is fine; that's what the
-      robustness set is for, and recalibrating after a bump costs a minute.
-- [ ] Print or load this checklist.
+- [ ] Build to install: v1.1 branch WITH the field-test additions merged in
+      (`-fieldFootageMode 1 -bankFreeThrows 100`, Release config). Raw
+      footage extraction is non-negotiable for this visit — every analysis
+      below happens on the Mac afterward.
+- [ ] Run the airplane-mode launch test at home the night before (the
+      developer-profile trust check killed the Aug 12 visit).
+- [ ] Verify: ~100 free throws in Settings, "Save video with each shot" ON,
+      and a discarded test recording shows up in Files → TrueLine →
+      FieldFootage.
+- [ ] Device-test the new calibration flow at home first on an imported
+      alley clip, so alley time isn't spent learning the taps.
 
 ## Setup at the alley
 
-- Placement: behind the approach, down-lane view, single lane, per the
-  capture spec. Note roughly how high and how far back the phone sits.
-- Calibrate once for that placement before the first throw.
+- Placement per the capture spec: behind the approach, down-lane view.
+  Note how high and how far back the phone sits.
 - Write down: center name, lane number, oil pattern if the desk knows it.
+- If the house has overhead speed displays, note it — then photograph the
+  display after every scored throw. That's free ground-truth speed.
 
 ## Shot list
 
-### 1. Baseline set (the accuracy corpus)
+### 1. Calibration flow, for real
 
-- [ ] 10 throws from your normal placement, bowled normally.
-- [ ] After each throw, jot what you expected vs what the app showed:
-      board at the arrows, pocket hit or not, rough speed feel. Guesses are
-      fine. We only need to know if the numbers are directionally right.
+- [ ] Run the full 6-tap calibration at the alley. Rough-time it with a
+      clock glance; note anything that felt clumsy or ambiguous.
+- [ ] Check the drawn pins against the real rack before confirming — that
+      judgment call is the product now.
 
-### 2. Robustness set (try to break capture)
+### 2. Ground-truth accuracy set (the acceptance test)
 
-- [ ] 3 throws with the phone deliberately misplaced: one too low, one
-      off-center, one tilted.
-- [ ] 2 throws opposite-handed, if you can fake a lefty release at all.
-- [ ] 1 recording stopped too early, before the ball reaches the pins.
-- [ ] 1 recording started late, with the ball already halfway down the lane.
-- [ ] 1 throw with someone walking through the frame mid-shot.
-- [ ] 1 throw of a neighbor bowling on the adjacent lane visible in frame,
-      if the house is busy anyway.
+- [ ] Put a small tape mark on a known board at the arrows (count boards
+      from the right gutter; write the board number down).
+- [ ] 10 throws aiming over the mark. After each: jot the board you
+      actually crossed (your read), pocket/Brooklyn/miss by eye, pinfall,
+      and the overhead speed display if there is one.
+- [ ] Acceptance bar: app entry board within ~1 board of reality on clean
+      pocket hits, arrow board within ~1 board of the mark when you hit it,
+      speeds consistent with the display.
 
-### 3. Keeper footage (App Store needs)
+### 3. Drift + re-prop set (the failure modes that burned Aug 17)
 
-- [ ] One clean, well-lit, textbook shot saved as a raw clip. This becomes
-      the App Review sample video and the source for the results-screen
-      screenshot. Listing notes say screenshots must come from our own
-      field footage, never the IG clips.
-- [ ] A full 10-throw session completed and saved in-app, so History, Stats,
-      and Session Lines have real data for the remaining screenshots.
+- [ ] Mid-session, deliberately bump the phone a little. Confirm the review
+      screen's overlay visibly slides off the lane, then recalibrate.
+- [ ] Fully re-prop the phone once (pick it up, put it back) and
+      recalibrate via the overlay-check path. Note how long it took.
+
+### 4. 2x zoom set
+
+- [ ] 5 throws recorded at 2x. Same note-taking as the accuracy set.
+      This footage decides whether impact speed / speed loss become real
+      metrics, and whether 2x should be the recommended default.
+
+### 5. Rev-rate experiment set
+
+- [ ] Put a strip of white tape on the ball near your PAP (ask the desk if
+      unsure; roughly: right of the fingers for a righty, where the track
+      ring doesn't touch).
+- [ ] 5 throws with the taped ball recorded normally in the app.
+      (Hypothesis: the tape flash is a periodic brightness signal the
+      harness can FFT into RPM at 30/60 fps.)
+- [ ] 3-5 throws of the same taped ball recorded at 240 fps slow-mo from
+      the second phone, close behind the release. These give hand-countable
+      ground-truth revs to validate the FFT against.
+
+### 6. Placement robustness set (detector retraining corpus)
+
+- [ ] 3 throws with the phone deliberately misplaced: one low, one
+      off-center, one tilted. These extend the batch-2 corpus.
 
 ## Habits during the session
 
-- Prefer "Save Shot" over "Discard" even when a result looks wrong — Discard
-  drops the metrics, and the metrics are the accuracy corpus.
-- Finish every throw with a button tap before pocketing the phone. Don't
-  force-quit or leave the app suspended mid-flow: an unsaved result on screen
-  has no auto-save, and a clip is only rescued into FieldFootage once a
-  button runs its cleanup.
-- If the record button ever seems to stop without landing on the review
-  screen (a call came in, the phone locked), just record the throw again —
-  the partial clip is already rescued.
+- Prefer "Save Shot" over "Discard" even when a result looks wrong — the
+  metrics are the accuracy corpus.
+- Finish every throw with a button tap before pocketing the phone; a clip
+  is only rescued into FieldFootage once a button runs its cleanup.
+- Notes beat memory. A board number scribbled per throw is the whole
+  point of the visit.
 
 ## Before leaving the alley
 
-- [ ] Play back two or three clips on the phone to confirm they recorded.
-- [ ] Confirm the saved session shows up in History.
-- [ ] Files app → On My iPhone → TrueLine → FieldFootage roughly matches the
-      number of throws taken.
+- [ ] Play back two or three clips to confirm they recorded.
+- [ ] Files app → TrueLine → FieldFootage roughly matches the throw count.
+- [ ] Photos has the speed-display shots and slow-mo clips.
 - [ ] Nothing deleted at the alley. Triage at home.
 
 ## At home afterward
 
-- [ ] Pull FieldFootage off the phone: Finder → iPhone → Files → TrueLine,
-      or AirDrop from the Files app. Back up all raw clips to the Mac.
-- [ ] Run the baseline set through the parity harness (Python vs iOS).
-- [ ] File anything broken from the robustness set as its own task.
+- [ ] Pull FieldFootage + slow-mo clips to the Mac, back everything up.
+- [ ] Ground-truth scorecard: app vs notes for every accuracy-set throw.
+      This table is the v1.1 ship/no-ship evidence.
+- [ ] Speed adjudication: launch vs average speed against the display
+      photos (the loft-artifact question from the IMG_5108 profiling).
+- [ ] Rev-rate harness experiment on the taped-ball clips; hand-count revs
+      in the slow-mo for truth.
+- [ ] File anything broken as its own task.
