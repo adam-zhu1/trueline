@@ -14,6 +14,19 @@ struct LaneOverlayView: View {
 
     private static let arrowBoards: [Double] = [5, 10, 15, 20, 25, 30, 35]
 
+    /// The aspect-fit rect a frame of `imageSize` occupies inside `container`,
+    /// matching both the calibration screen's layout and AVKit's video gravity.
+    static func fittedRect(imageSize: CGSize, in container: CGSize) -> CGRect {
+        let scale = min(container.width / imageSize.width, container.height / imageSize.height)
+        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(
+            x: (container.width - size.width) / 2,
+            y: (container.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
     var body: some View {
         Canvas { context, _ in
             guard let geometry = LaneGeometry(corners: corners, imageSize: imageSize, hand: .right) else { return }

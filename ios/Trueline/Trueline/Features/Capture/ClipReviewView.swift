@@ -2,11 +2,18 @@ import AVKit
 import SwiftUI
 
 /// The review step: play back the recorded throw, then keep it or retake.
+/// When the session already has confirmed corners, the calibration's lane
+/// overlay is drawn over the playback — a bumped phone shows up immediately
+/// as the drawn lane sliding off the real one, before the throw is analyzed
+/// with stale corners.
 struct ClipReviewView: View {
     let clipURL: URL
     /// Imported clips came from the Photos picker, so "retake" means picking a
     /// different video, not opening the camera.
     var isImported = false
+    /// The session's confirmed calibration, drawn over the clip as the drift
+    /// check. nil until the first throw of a session is calibrated.
+    var sessionCorners: LaneCorners?
     var onRetake: () -> Void
     var onUse: () -> Void
     /// Present when session corners exist; lets the user redo calibration
@@ -17,6 +24,8 @@ struct ClipReviewView: View {
     var onClose: () -> Void
 
     @State private var player: AVPlayer?
+    /// Display-oriented pixel size of the clip, for aligning the overlay.
+    @State private var videoSize: CGSize?
 
     var body: some View {
         ZStack {
@@ -43,7 +52,18 @@ struct ClipReviewView: View {
                 .padding(.vertical, 4)
 
                 if let player {
-                    VideoPlayer(player: player)
+                    GeometryReader { geo in
+                        ZStack {
+                            VideoPlayer(player: player)
+                            if let sessionCorners, let videoSize {
+                                LaneOverlayView(
+                                    corners: sessionCorners,
+                                    imageSize: videoSize,
+                                    fittedRect: LaneOverlayView.fittedRect(imageSize: videoSize, in: geo.size)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 VStack(spacing: 12) {
@@ -54,9 +74,7 @@ struct ClipReviewView: View {
                         .font(.footnote)
                         .tint(Color.brandMint)
                     }
-                    Text(onRecalibrate != nil
-                        ? "Corners from this session will be reused."
-                        : "Next: mark the lane corners so the ball path can be measured.")
+                    Text(reviewCaption)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -92,8 +110,24 @@ struct ClipReviewView: View {
             self.player = player
             player.play()
         }
+        .task {
+            guard sessionCorners != nil else { return }
+            let asset = AVURLAsset(url: clipURL)
+            guard let track = try? await asset.loadTracks(withMediaType: .video).first,
+                  let (size, transform) = try? await track.load(.naturalSize, .preferredTransform)
+            else { return }
+            let displayed = size.applying(transform)
+            videoSize = CGSize(width: abs(displayed.width), height: abs(displayed.height))
+        }
         .onDisappear {
             player?.pause()
         }
+    }
+
+    private var reviewCaption: String {
+        if onRecalibrate != nil {
+            return "The drawn lane is this session's calibration. If it slid off the real lane, recalibrate."
+        }
+        return "Next: mark the lane so the ball path can be measured."
     }
 }

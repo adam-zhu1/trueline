@@ -67,6 +67,7 @@ struct CaptureFlowView: View {
                 ClipReviewView(
                     clipURL: clipURL,
                     isImported: isImported,
+                    sessionCorners: sessionCorners,
                     onRetake: {
                         if isImported {
                             // No camera to retake with — back to the Photos
