@@ -90,6 +90,18 @@ struct ShotResultContent: View {
                     unit: "ft"
                 )
                 MetricTile(title: "Hook", value: format(result.hookBoards), unit: "boards")
+                MetricTile(title: "Foul Line", value: format(result.foulLineBoard), unit: "board")
+                MetricTile(
+                    title: "Average Speed",
+                    value: format(result.averageSpeedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
+                    unit: SpeedUnit.label(speedUnit)
+                )
+                MetricTile(
+                    title: "Shot Time",
+                    value: result.shotTimeSeconds.map { String(format: "%.2f", $0) } ?? "--",
+                    unit: "s"
+                )
+                MetricTile(title: "Hook Factor", value: format(result.hookFactor), unit: "boards/s²")
             }
 
             if looksMiscalibrated {

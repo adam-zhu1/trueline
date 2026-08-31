@@ -15,6 +15,10 @@ final class SavedShot {
     var entryAngleDegrees: Double?
     var entryBoard: Double?
     var launchAngleDegrees: Double?
+    var foulLineBoard: Double?
+    var averageSpeedMph: Double?
+    var shotTimeSeconds: Double?
+    var hookFactor: Double?
     var pathBoards: [Double]
     var pathFeet: [Double]
     var session: BowlingSession?
@@ -40,6 +44,10 @@ final class SavedShot {
         entryAngleDegrees = result.entryAngleDegrees
         entryBoard = result.entryBoard
         launchAngleDegrees = result.launchAngleDegrees
+        foulLineBoard = result.foulLineBoard
+        averageSpeedMph = result.averageSpeedMph
+        shotTimeSeconds = result.shotTimeSeconds
+        hookFactor = result.hookFactor
         pathBoards = result.path.map(\.board)
         pathFeet = result.path.map(\.feet)
         videoPathX = result.videoPath.map { Double($0.x) }
@@ -65,6 +73,10 @@ final class SavedShot {
             entryAngleDegrees: entryAngleDegrees,
             entryBoard: entryBoard,
             launchAngleDegrees: launchAngleDegrees,
+            foulLineBoard: foulLineBoard,
+            averageSpeedMph: averageSpeedMph,
+            shotTimeSeconds: shotTimeSeconds,
+            hookFactor: hookFactor,
             path: zip(pathBoards, pathFeet).map { (board: $0, feet: $1) },
             videoPath: zip(videoPathX, videoPathY).map { CGPoint(x: $0, y: $1) },
             videoDisplaySize: CGSize(width: videoWidth, height: videoHeight),
