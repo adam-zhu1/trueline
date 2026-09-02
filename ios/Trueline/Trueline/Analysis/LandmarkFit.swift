@@ -39,7 +39,7 @@ enum LandmarkFit {
         Target(lane: CGPoint(x: boardX(5), y: arrowOuterFeet),
                hint: "Tap the rightmost arrow."),
         Target(lane: CGPoint(x: boardX(20), y: 60),
-               hint: "Tap the base of the head pin."),
+               hint: "Tap the base of the head pin. That's the front pin, nearest to you."),
     ]
 
     /// Pin spot positions for the overlay: (feet, boards) per rack row.
