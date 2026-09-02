@@ -80,9 +80,15 @@ Everything else about the app can be tested from the couch.
 - [ ] 5 throws with the taped ball recorded normally in the app.
       (Hypothesis: the tape flash is a periodic brightness signal the
       harness can FFT into RPM at 30/60 fps.)
-- [ ] 3-5 throws of the same taped ball recorded at 240 fps slow-mo from
-      the second phone, close behind the release. These give hand-countable
-      ground-truth revs to validate the FFT against.
+- [ ] 3-5 throws of the SAME ball UNTAPED, also recorded in the app.
+      Product decision (Sep 2): rev rate ships marker-less by default —
+      the Aug 17 clips already read ~350 RPM off the ball's graphic alone.
+      These throws measure how much accuracy the untaped path loses.
+- [ ] 3-5 throws at 240 fps slow-mo from the second phone, close behind
+      the release — cover BOTH taped and untaped throws if clip count
+      allows. These give hand-countable ground-truth revs to validate the
+      FFT against, including the flashes-per-rev=1 assumption (a graphic
+      visible twice per rev would double the reading).
 
 ### 6. Placement robustness set (detector retraining corpus)
 
