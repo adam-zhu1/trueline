@@ -59,6 +59,10 @@ struct CalibrationView: View {
                         .font(.callout.weight(.medium))
                         .foregroundStyle(.white)
                         .fixedSize(horizontal: false, vertical: true)
+                    Text(subHintText)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -214,13 +218,24 @@ struct CalibrationView: View {
             return "Adjust any point, or lift your finger to continue."
         case .refining:
             var hint = switch proposalSource {
-            case .saved: "From your last session. Check the drawn pins still sit on the real pins."
-            case .fitted: "Drag the corners until the drawn pins sit on the real pins."
+            case .saved: "From your last session. Check that every drawn ring still circles its pin."
+            case .fitted: "The far end starts as a rough guess. Drag the corners until every drawn ring circles its pin, front row and back."
             }
             if farEndTooSmall {
                 hint += " Far end looks tiny. Record at 2x next time."
             }
             return hint
+        }
+    }
+
+    /// Second line under the hint: the touch mechanics that are otherwise
+    /// invisible (the loupe, the generous grab radius).
+    private var subHintText: String {
+        switch phase {
+        case .tapping:
+            return "Hold and drag to fine-tune. A magnifier follows your finger."
+        case .refining:
+            return "Hold near a corner to grab it, then drag. The magnifier shows the exact spot."
         }
     }
 
