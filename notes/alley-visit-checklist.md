@@ -47,6 +47,10 @@ Everything else about the app can be tested from the couch.
       clock glance; note anything that felt clumsy or ambiguous.
 - [ ] Check the drawn pins against the real rack before confirming — that
       judgment call is the product now.
+- [ ] Tripod habit: tapping a mounted phone can nudge it AFTER you
+      calibrate. Steady the mount with the other hand while tapping, and
+      glance at the first throw's review overlay — if it slid off the
+      lane, recalibrate before continuing.
 
 ### 2. Ground-truth accuracy set (the acceptance test)
 
