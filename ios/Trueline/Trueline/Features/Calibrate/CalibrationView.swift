@@ -43,18 +43,28 @@ struct CalibrationView: View {
     @State private var dragStartPoint: CGPoint?
 
     var body: some View {
-        // Hint, image, and buttons stack vertically so the controls never cover
-        // the handles (near corners sit at the bottom of the frame).
+        // Guide header, image, and buttons stack vertically so the controls
+        // never cover the handles (near corners sit at the bottom of the frame).
         VStack(spacing: 0) {
-            // The longest hint, hidden, fixes this slot's height up front so
-            // hint changes between steps never reflow the frame below.
-            ZStack {
-                hintCapsule(Self.tallestHint)
-                    .hidden()
-                hintCapsule(hintText)
+            // Fixed-height header: a mini lane showing where the current
+            // target sits, a step counter, and the instruction. The diagram
+            // fixes the slot height so step changes never reflow the frame.
+            HStack(spacing: 16) {
+                CalibrationGuideDiagram(stage: guideStage)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(stepLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.brandMint)
+                    Text(hintText)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.horizontal, 20)
             .padding(.top, 8)
-            .frame(minHeight: 44)
+            .frame(minHeight: CalibrationGuideDiagram.size.height + 16)
 
             Group {
                 if let frame {
@@ -159,10 +169,38 @@ struct CalibrationView: View {
             .padding()
         }
         .background(Color.black.ignoresSafeArea())
+        .sensoryFeedback(.impact(weight: .light), trigger: taps.count)
+        .sensoryFeedback(.success, trigger: phase) { _, newPhase in
+            newPhase == .refining
+        }
         .task { await loadFrame() }
     }
 
-    // MARK: - Hints
+    // MARK: - Guide header
+
+    private var guideStage: CalibrationGuideDiagram.Stage {
+        phase == .refining
+            ? .refining
+            : .tapping(
+                active: taps.count < LandmarkFit.targets.count ? taps.count : nil,
+                placed: taps.count
+            )
+    }
+
+    private var stepLabel: String {
+        switch phase {
+        case .tapping:
+            if fitFailed {
+                return "Try again"
+            }
+            if taps.count >= LandmarkFit.targets.count {
+                return "All 6 placed"
+            }
+            return "Point \(taps.count + 1) of 6"
+        case .refining:
+            return proposalSource == .saved ? "Checking saved calibration" : "Last step: match the lane"
+        }
+    }
 
     private var hintText: String {
         switch phase {
@@ -186,11 +224,6 @@ struct CalibrationView: View {
         }
     }
 
-    /// The hint that wraps to the most lines; it sizes the hint slot so hint
-    /// swaps can't move the layout.
-    private static let tallestHint =
-        "From your last session. Check the drawn pins still sit on the real pins. Far end looks tiny. Record at 2x next time."
-
     /// Below ~3 px per board at the deck, sub-board reads are physically out of
     /// reach; nudge toward 2x capture (which roughly doubles it).
     private var farEndTooSmall: Bool {
@@ -198,16 +231,6 @@ struct CalibrationView: View {
         let l = CGPoint(x: corners.farLeft.x * frame.size.width, y: corners.farLeft.y * frame.size.height)
         let r = CGPoint(x: corners.farRight.x * frame.size.width, y: corners.farRight.y * frame.size.height)
         return hypot(l.x - r.x, l.y - r.y) / 39 < 3
-    }
-
-    private func hintCapsule(_ text: String) -> some View {
-        Text(text)
-            .font(.footnote)
-            .foregroundStyle(.white)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.black.opacity(0.55), in: Capsule())
     }
 
     // MARK: - Frame loading
