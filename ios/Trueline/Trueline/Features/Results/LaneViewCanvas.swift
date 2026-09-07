@@ -71,7 +71,7 @@ struct LaneViewCanvas: View, Animatable {
             let laneRect = CGRect(x: laneX, y: laneY, width: laneW, height: laneH)
 
             func boardX(_ board: Double) -> CGFloat {
-                laneX + laneW * (1.0 - (board - 1) / 38.0)
+                laneX + laneW * (1.0 - board / 39.0)
             }
             func feetY(_ feet: Double) -> CGFloat {
                 laneY + laneH * (1.0 - feet / 60.0)

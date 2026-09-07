@@ -7,8 +7,8 @@ import Foundation
 /// tests) goes through the homography — no horizontal-line assumptions.
 ///
 /// Lane space: t_across 0 = right-gutter corner, 1 = left-gutter corner;
-/// feet 0 = foul line, 60 = pin line. Board 1 is the outside board for both
-/// hands (right gutter for right-handers).
+/// feet 0 = foul line, 60 = pin line. Boards count from the outside gutter
+/// edge for both hands (right gutter for right-handers); see boardFeet.
 struct LaneGeometry {
     enum Hand { case right, left }
 
@@ -58,17 +58,21 @@ struct LaneGeometry {
         pixelsPerFoot = Double(hypot(p6.x - p0.x, p6.y - p0.y)) / Self.dotDistanceFeet
     }
 
-    /// (board 1–39, feet 0–60) of an image pixel; both clamped like the prototype.
+    /// (board 0–39, feet 0–60) of an image pixel; both clamped like the
+    /// prototype. Board is continuous boards from the outside gutter edge
+    /// (0 = edge, 17.5 = flush pocket, 19.5 = lane center) — the harness's
+    /// x * 39 convention, mirrored for left-handers. The old 1 + 38t mapping
+    /// skewed everything up to half a board (18.1 for a flush pocket).
     func boardFeet(atImage p: CGPoint) -> (board: Double, feet: Double) {
         let lane = toLane.apply(p)
         let t = min(max(Double(lane.x), 0), 1)
         let feet = min(max(Double(lane.y), 0), Self.laneLengthFeet)
         let board: Double
         switch hand {
-        case .right: board = 1.0 + t * 38.0
-        case .left: board = 1.0 + (1.0 - t) * 38.0
+        case .right: board = t * 39.0
+        case .left: board = (1.0 - t) * 39.0
         }
-        return (min(max(board, 1), 39), feet)
+        return (min(max(board, 0), 39), feet)
     }
 
     /// Feet down-lane without clamping across (used for far-lane confidence logic).

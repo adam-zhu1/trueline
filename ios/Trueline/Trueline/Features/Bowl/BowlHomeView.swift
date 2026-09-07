@@ -405,7 +405,7 @@ private struct LaneHeroView: View {
                 width: ppf * 60, height: thick
             )
             func fx(_ feet: Double) -> CGFloat { laneRect.minX + ppf * feet }
-            func by(_ board: Double) -> CGFloat { laneRect.maxY - thick * (board - 1) / 38.0 }
+            func by(_ board: Double) -> CGFloat { laneRect.maxY - thick * board / 39.0 }
 
             // Gutters above and below the strip
             context.fill(
@@ -573,7 +573,7 @@ private struct HeroSessionLineShape: Shape {
         for (i, p) in points.enumerated() {
             let pt = CGPoint(
                 x: inset + ppf * min(p.feet, 60),
-                y: laneY + thick * (1.0 - (p.board - 1) / 38.0)
+                y: laneY + thick * (1.0 - p.board / 39.0)
             )
             if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
         }

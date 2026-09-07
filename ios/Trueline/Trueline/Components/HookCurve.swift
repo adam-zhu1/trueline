@@ -26,10 +26,10 @@ enum HookCurve {
         }
     }
 
-    /// Point in `rect` for travel `u`, using the lane-view convention (board 1
-    /// on the right edge, foul line at the bottom).
+    /// Point in `rect` for travel `u`, using the lane-view convention (board 0
+    /// at the right gutter edge, foul line at the bottom).
     static func point(at u: Double, in rect: CGRect) -> CGPoint {
-        let t = (board(at: u) - 1) / 38.0
+        let t = board(at: u) / 39.0
         return CGPoint(
             x: rect.minX + rect.width * (1.0 - t),
             y: rect.maxY - rect.height * min(max(u, 0), 1)

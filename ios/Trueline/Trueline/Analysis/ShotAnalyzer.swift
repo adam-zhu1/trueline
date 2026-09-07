@@ -222,7 +222,9 @@ struct ShotAnalyzer {
                     sy = kf.state[1]
                 }
                 positions.append(Sample(x: sx!, y: sy!, frame: frameNumber, radius: lastR))
-                lastMeasuredFeet = geometry.feet(atImage: CGPoint(x: sx!, y: sy! + lastR))
+                lastMeasuredFeet = geometry.feet(
+                    atImage: Self.contactRaw(x: sx!, y: sy!, radius: lastR, orientation: orientation)
+                )
                 trackMeasured += 1
                 if trackMeasured == 1 { trackStartFeet = lastMeasuredFeet }
                 if var seg = measSegments.last, frameNumber - seg.f1 <= 15 {
@@ -269,7 +271,7 @@ struct ShotAnalyzer {
             }
 
             if let sx, let sy {
-                let contact = CGPoint(x: sx, y: sy + lastR)
+                let contact = Self.contactRaw(x: sx, y: sy, radius: lastR, orientation: orientation)
                 let ft = geometry.feet(atImage: contact)
                 if dotCrossedFrame == nil, ft >= LaneGeometry.dotDistanceFeet {
                     dotCrossedFrame = frameNumber
@@ -404,8 +406,9 @@ struct ShotAnalyzer {
     private static func displayPoint(
         _ s: Sample, rawSize: CGSize, orientation: CGImagePropertyOrientation
     ) -> CGPoint {
-        let rx = s.x / Double(rawSize.width)
-        let ry = (s.y + s.radius) / Double(rawSize.height)
+        let contact = contactRaw(x: s.x, y: s.y, radius: s.radius, orientation: orientation)
+        let rx = Double(contact.x) / Double(rawSize.width)
+        let ry = Double(contact.y) / Double(rawSize.height)
         let (u, v) = BallDetector.rawToOriented(rx: rx, ry: ry, orientation: orientation)
         return CGPoint(x: u, y: v)
     }
@@ -427,7 +430,8 @@ struct ShotAnalyzer {
         var feet: [Double] = []
         var frames: [Double] = []
         for s in positions {
-            let (b, f) = geometry.boardFeet(atImage: CGPoint(x: s.x, y: s.y + s.radius))
+            let contact = contactRaw(x: s.x, y: s.y, radius: s.radius, orientation: orientation)
+            let (b, f) = geometry.boardFeet(atImage: contact)
             boards.append(b)
             feet.append(f)
             frames.append(Double(s.frame))
@@ -450,8 +454,11 @@ struct ShotAnalyzer {
         let smoothX = savgolSmooth(positions.map(\.x), window: 15)
         let smoothY = savgolSmooth(positions.map(\.y), window: 15)
         result.videoPath = (0..<positions.count).map { i in
-            let rx = smoothX[i] / Double(rawSize.width)
-            let ry = (smoothY[i] + positions[i].radius) / Double(rawSize.height)
+            let contact = contactRaw(
+                x: smoothX[i], y: smoothY[i], radius: positions[i].radius, orientation: orientation
+            )
+            let rx = Double(contact.x) / Double(rawSize.width)
+            let ry = Double(contact.y) / Double(rawSize.height)
             let (u, v) = BallDetector.rawToOriented(rx: rx, ry: ry, orientation: orientation)
             return CGPoint(x: u, y: v)
         }
@@ -555,7 +562,7 @@ struct ShotAnalyzer {
                     // extrapolate a guess, not a measurement.
                     if feet[skipHead] <= 8.0 {
                         let projected = sbAll[skipHead] - (db / df) * sfAll[skipHead]
-                        if projected >= 1, projected <= 39 {
+                        if projected >= 0, projected <= 39 {
                             result.foulLineBoard = (projected * 10).rounded() / 10
                         }
                     }
@@ -614,7 +621,7 @@ struct ShotAnalyzer {
                         let lastF = sfWin[sfWin.count - 1]
                         if lastF >= 50 {
                             let projected = lastB + (db / df) * (LaneGeometry.entryBoardFeet - lastF)
-                            result.entryBoard = (min(max(projected, 1), 39) * 10).rounded() / 10
+                            result.entryBoard = (min(max(projected, 0), 39) * 10).rounded() / 10
                         }
                     }
                 }
@@ -753,6 +760,22 @@ struct ShotAnalyzer {
     }
 
     // MARK: - Orientation plumbing
+
+    /// Ball contact point (bottom of the ball as displayed) in raw buffer
+    /// coords. Display-down is a different raw axis per orientation — adding
+    /// the radius to raw y on a rotated buffer shifts the point ACROSS the
+    /// lane instead of down it, which read pocket hits as Brooklyn (one ball
+    /// radius of sideways error, ~7 boards at the deck).
+    static func contactRaw(
+        x: Double, y: Double, radius: Double, orientation: CGImagePropertyOrientation
+    ) -> CGPoint {
+        switch orientation {
+        case .right: return CGPoint(x: x + radius, y: y)
+        case .left: return CGPoint(x: x - radius, y: y)
+        case .down: return CGPoint(x: x, y: y - radius)
+        default: return CGPoint(x: x, y: y + radius)
+        }
+    }
 
     static func orientation(from transform: CGAffineTransform) -> CGImagePropertyOrientation {
         if transform.a == 0, transform.b == 1, transform.c == -1, transform.d == 0 {
