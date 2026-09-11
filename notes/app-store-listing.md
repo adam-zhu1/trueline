@@ -95,5 +95,33 @@ non-consumable, unlocks unlimited analyzed throws after the 10 free ones.
 
 ## URLs
 
-- Privacy: https://adam-zhu1.github.io/trueline/privacy
-- Support: https://adam-zhu1.github.io/trueline/support
+- Privacy: https://adamzhu.dev/trueline/privacy
+- Support: https://adamzhu.dev/trueline/support
+
+Both were registered with Apple in the `https://adam-zhu1.github.io/trueline/...`
+form. That form still resolves — it 301s to adamzhu.dev — but check the live App
+Store Connect entries, since the repo only records what was pasted, and no
+marketing URL is recorded anywhere.
+
+### Serving moved, 2026-09-11
+
+These pages used to be served by this repo's own Pages site (`main` branch,
+`/docs`, Jekyll). The portfolio repo (`adam-zhu1/adam-zhu1.github.io`) now owns
+the whole `/trueline/*` path on adamzhu.dev, so this repo's Pages site was
+deleted and the rendered privacy/support pages are mirrored there. `docs/` stays
+here as the source of truth; re-mirror after editing.
+
+Two things this constrains:
+
+1. **adamzhu.dev must remain the custom domain on the user site.** The app's
+   Settings links break if it ever changes, no matter which repo serves the path.
+2. **The `adam-zhu1.github.io/trueline/` form has to keep resolving** for as long
+   as any already-installed copy is in use. Copies shipped before v1.1 hardcode
+   it (`SettingsView.swift`, the pre-f8119de version); an app update only
+   repoints future installs. Verified after the cutover that the redirect
+   survives the project Pages site being deleted: with a custom domain on the
+   user site, `adam-zhu1.github.io/*` keeps redirecting to `adamzhu.dev/*` and
+   the user site's own files serve the path.
+
+v1.1 onward points Settings at adamzhu.dev directly (commit f8119de), which skips
+the redirect hop for new installs but changes nothing for existing ones.
