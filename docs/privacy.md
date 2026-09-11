@@ -2,6 +2,13 @@
 title: Privacy Policy
 ---
 
+<!--
+Source of truth for this page. It is published from the portfolio repo
+(adam-zhu1/adam-zhu1.github.io) at https://adamzhu.dev/trueline/privacy; this
+repo no longer serves it — its Pages site was removed on 2026-09-11. Edit here,
+then re-mirror from the portfolio repo (npm run mirror:trueline).
+-->
+
 # Privacy Policy
 
 **Last updated: July 7, 2026**

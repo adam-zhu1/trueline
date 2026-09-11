@@ -2,6 +2,13 @@
 title: Support
 ---
 
+<!--
+Source of truth for this page. It is published from the portfolio repo
+(adam-zhu1/adam-zhu1.github.io) at https://adamzhu.dev/trueline/support; this
+repo no longer serves it — its Pages site was removed on 2026-09-11. Edit here,
+then re-mirror from the portfolio repo (npm run mirror:trueline).
+-->
+
 # Support
 
 Need help with TrueLine? Send a message below. Include what happened, which iPhone you have, and what the screen showed if it was about a specific throw. You'll usually hear back within a couple of days.
