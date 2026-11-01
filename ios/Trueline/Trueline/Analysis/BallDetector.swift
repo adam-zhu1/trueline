@@ -36,16 +36,25 @@ final class BallDetector {
         in pixelBuffer: CVPixelBuffer,
         orientation: CGImagePropertyOrientation,
         geometry: LaneGeometry,
+        focus: CGPoint? = nil,
         diag: DetectorDiagnostics? = nil
     ) -> [Candidate] {
         let request = VNCoreMLRequest(model: vnModel)
+        let rawW = Double(CVPixelBufferGetWidth(pixelBuffer))
+        let rawH = Double(CVPixelBufferGetHeight(pixelBuffer))
+        // Focus crop: the model letterboxes its input to 640 px, so on a full
+        // 1080p frame a far-lane ball shrinks to a few pixels. Around a tracked
+        // ball's predicted position, run on a native-resolution square instead.
+        // Vision reports boxes relative to the region, mapped back below.
+        let roi = focus.map { Self.focusRegion(around: $0, rawW: rawW, rawH: rawH, orientation: orientation) }
+        if let roi { request.regionOfInterest = roi }
         // Letterbox like Ultralytics training/inference; stretching the frame
         // square (scaleFill) squashes the ball on portrait clips and costs
         // detections. Vision maps the boxes back to original-image normalized
         // coordinates either way.
         request.imageCropAndScaleOption = .scaleFit
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
-        diag?.frames += 1
+        if roi == nil { diag?.frames += 1 }
         do {
             try handler.perform([request])
         } catch {
@@ -58,10 +67,8 @@ final class BallDetector {
         }
 
         diag?.rawBoxes += observations.count
-        if !observations.isEmpty { diag?.framesWithRaw += 1 }
-
-        let rawW = Double(CVPixelBufferGetWidth(pixelBuffer))
-        let rawH = Double(CVPixelBufferGetHeight(pixelBuffer))
+        if !observations.isEmpty, roi == nil { diag?.framesWithRaw += 1 }
+        let region = roi ?? CGRect(x: 0, y: 0, width: 1, height: 1)
 
         var out: [Candidate] = []
         for obs in observations {
@@ -71,7 +78,13 @@ final class BallDetector {
                 continue
             }
             // Vision box: normalized, origin bottom-left, in the *oriented* image.
-            let box = obs.boundingBox
+            let rel = obs.boundingBox
+            let box = CGRect(
+                x: region.minX + rel.minX * region.width,
+                y: region.minY + rel.minY * region.height,
+                width: rel.width * region.width,
+                height: rel.height * region.height
+            )
             let u = Double(box.midX)
             let v = 1.0 - Double(box.midY)  // → origin top-left
             let (rx, ry) = Self.orientedToRaw(u: u, v: v, orientation: orientation)
@@ -119,6 +132,24 @@ final class BallDetector {
         }
         diag?.accepted += out.count
         return out
+    }
+
+    /// Side of the focus crop in pixels: the model's input size, so the crop
+    /// runs at native resolution instead of being downscaled.
+    static let focusSidePx = 640.0
+
+    /// Vision region (display-oriented, normalized, origin bottom-left) for a
+    /// focusSidePx square centered on a raw-buffer point, slid inside the frame.
+    static func focusRegion(
+        around p: CGPoint, rawW: Double, rawH: Double, orientation: CGImagePropertyOrientation
+    ) -> CGRect {
+        let (u, v) = rawToOriented(rx: Double(p.x) / rawW, ry: Double(p.y) / rawH, orientation: orientation)
+        let (ow, oh) = orientedSizeToRaw(w: rawW, h: rawH, orientation: orientation)
+        let w = min(focusSidePx / ow, 1)
+        let h = min(focusSidePx / oh, 1)
+        let x = min(max(u - w / 2, 0), 1 - w)
+        let y = min(max((1 - v) - h / 2, 0), 1 - h)
+        return CGRect(x: x, y: y, width: w, height: h)
     }
 
     /// Map a normalized point (origin top-left) in the display-oriented image
