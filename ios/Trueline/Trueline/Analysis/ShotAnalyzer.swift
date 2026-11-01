@@ -54,6 +54,9 @@ struct ShotAnalyzer {
     var corners: LaneCorners
     var hand: LaneGeometry.Hand
 
+    /// Ball radius (raw px) below which the focus crop is used.
+    static let focusMaxRadiusPx = 22.0
+
     private struct Sample {
         var x: Double
         var y: Double
@@ -131,6 +134,7 @@ struct ShotAnalyzer {
         var trackStartFeet = 0.0
         var trackMeasured = 0
         var kalmanResets = 0
+        var focusHits = 0
         // positions index where the current lock began.
         var trackStartIndex = 0
         // Contiguous runs of real measurements (frame + feet), for the debug log.
@@ -152,15 +156,28 @@ struct ShotAnalyzer {
                 })
             }
 
-            let candidates = detector.candidates(
+            // Predict before detecting: when the full frame finds nothing, a
+            // confirmed track's prediction aims a second, native-resolution
+            // pass (the focus crop) at where the ball should be. Full frame
+            // stays first: its boxes are what the metrics were validated on,
+            // and the crop only fills the gaps where the downscaled frame
+            // loses a small far-lane ball.
+            let pred = kalman?.predict()
+            var candidates = detector.candidates(
                 in: pixelBuffer, orientation: orientation, geometry: geometry, diag: diag
             )
+            if candidates.isEmpty, let pred, trackMeasured >= 3, lastR <= Self.focusMaxRadiusPx {
+                candidates = detector.candidates(
+                    in: pixelBuffer, orientation: orientation, geometry: geometry,
+                    focus: CGPoint(x: pred.x, y: pred.y), diag: diag
+                )
+                if !candidates.isEmpty { focusHits += 1 }
+            }
 
             var measurement: BallDetector.Candidate?
             var coastPred: (x: Double, y: Double)?
 
-            if let kf = kalman {
-                let pred = kf.predict()
+            if let kf = kalman, let pred {
                 coastPred = pred
                 if let nearest = candidates.min(by: {
                     Self.dist2($0, x: pred.x, y: pred.y) < Self.dist2($1, x: pred.x, y: pred.y)
@@ -303,6 +320,7 @@ struct ShotAnalyzer {
         if reader.status == .reading { reader.cancelReading() }
 
         #if DEBUG
+        print("focus crop: hits on \(focusHits) frames")
         if let diag {
             Self.logDiagnostics(
                 diag: diag, geometry: geometry, rawSize: naturalSize,
