@@ -102,10 +102,14 @@ struct ShotAnalyzer {
         var kalman: BallKalman?
         var lastR = 30.0
         var noMeasStreak = 0
-        let maxPredOnlyFrames = 75
+        // Every frame-count heuristic below was tuned on 30 fps footage; fpsScale
+        // converts them to the same wall-clock span at any capture rate.
+        let fpsScale = fpsSafe / 30.0
+        let maxPredOnlyFrames = Int((75 * fpsScale).rounded())
         // Past 45 ft a coasting prediction paints a straight line exactly where
         // the hook matters; a short cap there corrupts far less path.
-        let farCoastCap = 12
+        let farCoastCap = Int((12 * fpsScale).rounded())
+        let tentativeCoastCap = Int((10 * fpsScale).rounded())
         var maxJumpPx = geometry.pixelsPerFoot * 72.0 / fpsSafe
         maxJumpPx = min(max(maxJumpPx, 32), 320)
         var lastMeasSmooth: (Double, Double)?
@@ -127,6 +131,8 @@ struct ShotAnalyzer {
         var trackStartFeet = 0.0
         var trackMeasured = 0
         var kalmanResets = 0
+        // positions index where the current lock began.
+        var trackStartIndex = 0
         // Contiguous runs of real measurements (frame + feet), for the debug log.
         var measSegments: [(f0: Int, f1: Int, ft0: Double, ft1: Double)] = []
 
@@ -162,7 +168,7 @@ struct ShotAnalyzer {
                     let d = Self.dist2(nearest, x: pred.x, y: pred.y).squareRoot()
                     // Widen gate early (release noise) and later (hook lag).
                     let jumpScale: Double
-                    if frameNumber <= 140 {
+                    if Double(frameNumber) <= 140 * fpsScale {
                         jumpScale = 1.55
                     } else if let dc = dotCrossedFrame, frameNumber >= dc {
                         jumpScale = 1.48
@@ -173,7 +179,7 @@ struct ShotAnalyzer {
                     // Coasting compounds prediction error; the gate must grow
                     // with the blind streak or the ball can't re-attach after a
                     // detection gap.
-                    let coastGrow = 1.0 + min(Double(noMeasStreak) * 0.04, 1.5)
+                    let coastGrow = 1.0 + min(Double(noMeasStreak) / fpsScale * 0.04, 1.5)
                     let jumpOK = max(28.0, maxJumpPx * jumpScale * scale * coastGrow)
                     if d <= jumpOK { measurement = nearest } else { assocRejects += 1 }
                 }
@@ -197,12 +203,13 @@ struct ShotAnalyzer {
 
             if let m = measurement {
                 measuredFrames += 1
+                let gapFrames = noMeasStreak
                 noMeasStreak = 0
                 var (rx, ry, rr) = Self.refineCenter(
                     pixelBuffer: pixelBuffer, x: m.x, y: m.y, r: m.radius
                 )
-                if let last = lastMeasSmooth, framesSinceTrack > 7 {
-                    let a = 0.42
+                if let last = lastMeasSmooth, gapFrames == 0, framesSinceTrack > Int((7 * fpsScale).rounded()) {
+                    let a = 1 - pow(1 - 0.42, 1 / fpsScale)
                     rx = a * rx + (1 - a) * last.0
                     ry = a * ry + (1 - a) * last.1
                 }
@@ -216,6 +223,7 @@ struct ShotAnalyzer {
                 } else {
                     let kf = BallKalman(x: rx, y: ry)
                     kalman = kf
+                    trackStartIndex = positions.count
                     framesSinceTrack = 0
                     lastR = rr
                     sx = kf.state[0]
@@ -227,7 +235,7 @@ struct ShotAnalyzer {
                 )
                 trackMeasured += 1
                 if trackMeasured == 1 { trackStartFeet = lastMeasuredFeet }
-                if var seg = measSegments.last, frameNumber - seg.f1 <= 15 {
+                if var seg = measSegments.last, Double(frameNumber - seg.f1) <= 15 * fpsScale {
                     seg.f1 = frameNumber
                     seg.ft1 = lastMeasuredFeet
                     measSegments[measSegments.count - 1] = seg
@@ -237,7 +245,11 @@ struct ShotAnalyzer {
             } else if let kf = kalman, let pred = coastPred {
                 noMeasStreak += 1
                 let predFt = geometry.feet(atImage: CGPoint(x: pred.x, y: pred.y))
-                let coastCap = predFt > 45.0 ? farCoastCap : maxPredOnlyFrames
+                // An unconfirmed lock (a stray box before the throw) carries no velocity;
+                // letting it coast for seconds blocks the real ball from locking.
+                let coastCap = trackMeasured < 3
+                    ? tentativeCoastCap
+                    : (predFt > 45.0 ? farCoastCap : maxPredOnlyFrames)
                 if noMeasStreak > coastCap {
                     // However the track ends, the coasted tail is prediction-only,
                     // not data — drop the whole blind streak from the path (it can
@@ -254,7 +266,10 @@ struct ShotAnalyzer {
                         // painting a second pass over this track.
                         trackFinished = true
                     } else {
+                        // Not a throw (a stray lock that never moved): its
+                        // samples aren't part of any path.
                         kalmanResets += 1
+                        positions.removeLast(max(0, positions.count - trackStartIndex))
                     }
                     kalman = nil
                     noMeasStreak = 0
@@ -448,11 +463,17 @@ struct ShotAnalyzer {
             result.throwEndSeconds = Double(last.frame) / fps
         }
         guard boards.count >= 3 else { return result }
+        // Smoothing windows are counted in samples and were tuned at 30 fps;
+        // keep the same time span at other rates (odd, as Savitzky–Golay needs).
+        func win(_ samplesAt30: Int) -> Int {
+            let n = Int((Double(samplesAt30) * fps / 30).rounded())
+            return n % 2 == 0 ? n + 1 : n
+        }
 
         // Video-overlay trail: smoothed contact points (window 15, like the
         // prototype's display smoothing) mapped into display-normalized coords.
-        let smoothX = savgolSmooth(positions.map(\.x), window: 15)
-        let smoothY = savgolSmooth(positions.map(\.y), window: 15)
+        let smoothX = savgolSmooth(positions.map(\.x), window: win(15))
+        let smoothY = savgolSmooth(positions.map(\.y), window: win(15))
         result.videoPath = (0..<positions.count).map { i in
             let contact = contactRaw(
                 x: smoothX[i], y: smoothY[i], radius: positions[i].radius, orientation: orientation
@@ -471,8 +492,8 @@ struct ShotAnalyzer {
             pb.removeLast(trim)
             pf.removeLast(trim)
         }
-        let sbPath = savgolSmooth(pb, window: 41)
-        let sfPath = savgolSmooth(pf, window: 41)
+        let sbPath = savgolSmooth(pb, window: win(41))
+        let sfPath = savgolSmooth(pf, window: win(41))
         result.path = zip(sbPath, sfPath).map { (board: $0, feet: $1) }
 
         // Launch speed: the earliest 6 ft the track covers, timed from
@@ -486,7 +507,7 @@ struct ShotAnalyzer {
         // line reduces to the prototype's foul → dot measurement.
         // Crossings run on the RAW feet series — the prototype's line tests
         // use raw positions, and smoothing first shifts the timing measurably.
-        let settleSkip = min(3, feet.count - 1)
+        let settleSkip = min(Int((3 * fps / 30).rounded()), feet.count - 1)
         let f0 = max(feet[settleSkip], 0.05)
         let f1 = f0 + LaneGeometry.dotDistanceFeet
         if f0 <= 15.0,
@@ -524,8 +545,8 @@ struct ShotAnalyzer {
 
         // Arrow board: first crossing of the arrow V on the smoothed series,
         // linearly interpolated (port of arrow_board_from_path).
-        let sbAll = savgolSmooth(boards, window: 11)
-        let sfAll = savgolSmooth(feet, window: 11)
+        let sbAll = savgolSmooth(boards, window: win(11))
+        let sfAll = savgolSmooth(feet, window: win(11))
         var prevG = sfAll[0] - arrowFeet(atBoard: sbAll[0])
         for i in 1..<sbAll.count {
             let g = sfAll[i] - arrowFeet(atBoard: sbAll[i])
@@ -579,7 +600,7 @@ struct ShotAnalyzer {
             let wb = Array(boards[startIdx..<endIdx])
             let wf = Array(feet[startIdx..<endIdx])
             if wb.count >= 3 {
-                let smooth = savgolSmooth(wb, window: 11)
+                let smooth = savgolSmooth(wb, window: win(11))
                 let minIdx = smooth.indices.min(by: { smooth[$0] < smooth[$1] })!
                 result.breakpointBoard = (smooth[minIdx] * 10).rounded() / 10
                 result.breakpointFeet = wf[minIdx]
@@ -604,7 +625,7 @@ struct ShotAnalyzer {
                 }
                 // Entry angle from the tail slope of the smoothed series.
                 if smooth.count >= 5 {
-                    let sfWin = savgolSmooth(wf, window: 11)
+                    let sfWin = savgolSmooth(wf, window: win(11))
                     let tail = min(max(5, smooth.count / 6), smooth.count - 1)
                     let db = smooth[smooth.count - 1] - smooth[smooth.count - tail]
                     let df = sfWin[sfWin.count - 1] - sfWin[sfWin.count - tail]
