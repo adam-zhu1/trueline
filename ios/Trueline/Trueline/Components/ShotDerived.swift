@@ -6,7 +6,7 @@ extension ShotResult {
     /// The strike pocket, as an entry-board range from the bowler's side.
     /// One definition shared by the results tile, session pocket counts, and
     /// the trends chart.
-    static let pocketBoards: ClosedRange<Double> = 17...18
+    static let pocketBoards = LaneModel.pocketBoards
 
     /// Boards of lateral travel from the breakpoint to the pins — the one
     /// number for "how much did it hook." abs() so a backup ball reads as

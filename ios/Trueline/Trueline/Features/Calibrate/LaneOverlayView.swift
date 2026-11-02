@@ -12,8 +12,6 @@ struct LaneOverlayView: View {
     /// Where the frame is drawn in the container (aspect-fit rect).
     let fittedRect: CGRect
 
-    private static let arrowBoards: [Double] = [5, 10, 15, 20, 25, 30, 35]
-
     /// The aspect-fit rect a frame of `imageSize` occupies inside `container`,
     /// matching both the calibration screen's layout and AVKit's video gravity.
     static func fittedRect(imageSize: CGSize, in container: CGSize) -> CGRect {
@@ -46,20 +44,20 @@ struct LaneOverlayView: View {
             }
 
             // Board seams every fifth board, dim so the frame stays readable.
+            let length = LaneModel.lengthFeet
             for board in stride(from: 5.0, through: 35.0, by: 5.0) {
-                let t = board / 39.0
-                line(view(t, 0), view(t, 60), .white.opacity(0.22), 1)
+                let t = LaneModel.tAcross(boardPosition: board)
+                line(view(t, 0), view(t, length), .white.opacity(0.22), 1)
             }
             // Lane outline: gutters, foul line, pin line.
-            line(view(0, 0), view(0, 60), .accentColor, 2)
-            line(view(1, 0), view(1, 60), .accentColor, 2)
+            line(view(0, 0), view(0, length), .accentColor, 2)
+            line(view(1, 0), view(1, length), .accentColor, 2)
             line(view(0, 0), view(1, 0), .accentColor, 2)
-            line(view(0, 60), view(1, 60), .accentColor, 2)
+            line(view(0, length), view(1, length), .accentColor, 2)
 
             // Arrows: small triangles at the nominal V.
-            for board in Self.arrowBoards {
-                let feet = 15.0 - abs(board - 20.0) / 5.0 * 0.5
-                let tip = view((board - 0.5) / 39.0, feet)
+            for board in LaneModel.arrowBoards {
+                let tip = view(LaneModel.tAcross(boardCenter: board), LaneModel.arrowFeet(atBoard: board))
                 var tri = Path()
                 tri.move(to: CGPoint(x: tip.x, y: tip.y - 5))
                 tri.addLine(to: CGPoint(x: tip.x - 4, y: tip.y + 4))
@@ -69,19 +67,17 @@ struct LaneOverlayView: View {
             }
 
             // Pin spots, sized to a real pin's width (about 4.5 boards).
-            let deckLeft = view(1, 60)
-            let deckRight = view(0, 60)
-            let pxPerBoard = hypot(deckLeft.x - deckRight.x, deckLeft.y - deckRight.y) / 39
+            let deckLeft = view(1, length)
+            let deckRight = view(0, length)
+            let pxPerBoard = hypot(deckLeft.x - deckRight.x, deckLeft.y - deckRight.y) / LaneModel.boardCount
             let radius = max(2.23 * pxPerBoard, 3)
-            for row in LandmarkFit.pinRows {
-                for board in row.boards {
-                    let center = view((board - 0.5) / 39.0, row.feet)
-                    let circle = Path(ellipseIn: CGRect(
-                        x: center.x - radius, y: center.y - radius,
-                        width: radius * 2, height: radius * 2
-                    ))
-                    context.stroke(circle, with: .color(.white), lineWidth: 1.5)
-                }
+            for pin in LaneModel.pins {
+                let center = view(LaneModel.tAcross(boardCenter: pin.board), pin.feet)
+                let circle = Path(ellipseIn: CGRect(
+                    x: center.x - radius, y: center.y - radius,
+                    width: radius * 2, height: radius * 2
+                ))
+                context.stroke(circle, with: .color(.white), lineWidth: 1.5)
             }
         }
         .allowsHitTesting(false)

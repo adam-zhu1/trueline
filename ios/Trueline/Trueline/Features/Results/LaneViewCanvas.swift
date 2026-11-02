@@ -52,30 +52,32 @@ struct LaneViewCanvas: View, Animatable {
         Canvas { context, size in
             let topPad: CGFloat = compact ? 14 : 26
             let botPad: CGFloat = compact ? 14 : 26
-            let drawnFeet = 60.0 + 3.0 * depthEx
+            let drawnFeet = LaneModel.lengthFeet + 3.0 * depthEx
             // Scale to the largest strip that fits BOTH dimensions at the
             // locked ratio — capping width alone squished the ratio and left
             // dead margins. Full mode keeps side margins for labels; compact
             // may use nearly the whole card.
-            let stripPerPPF = (41.5 / 12) * ex * 1.36   // lane + both gutters
+            let stripPerPPF = (LaneModel.widthInches / 12) * ex * 1.36   // lane + both gutters
             let heightPPF = (size.height - topPad - botPad) / drawnFeet
             let widthPPF = size.width * (compact ? 0.94 : 0.66) / stripPerPPF
             let ppf = min(heightPPF, widthPPF)
-            let laneW = ppf * (41.5 / 12) * ex
+            let laneW = ppf * (LaneModel.widthInches / 12) * ex
             let gw = laneW * 0.18
             let laneX = (size.width - laneW) / 2
             // Center vertically when width-limited leaves vertical slack.
             let slack = (size.height - topPad - botPad - ppf * drawnFeet) / 2
             let laneY = topPad + slack + ppf * 3 * depthEx
-            let laneH = ppf * 60
+            let laneH = ppf * LaneModel.lengthFeet
             let laneRect = CGRect(x: laneX, y: laneY, width: laneW, height: laneH)
 
-            func boardX(_ board: Double) -> CGFloat {
-                laneX + laneW * (1.0 - board / 39.0)
+            /// x of a continuous board position (path samples, readings).
+            func boardX(_ position: Double) -> CGFloat {
+                laneX + laneW * (1.0 - LaneModel.tAcross(boardPosition: position))
             }
             func feetY(_ feet: Double) -> CGFloat {
-                laneY + laneH * (1.0 - feet / 60.0)
+                laneY + laneH * (1.0 - LaneModel.alongFraction(feet: feet))
             }
+            let pinDeckY = feetY(LaneModel.lengthFeet)
 
             // Gutters: dark recessed channels
             context.fill(
@@ -126,48 +128,45 @@ struct LaneViewCanvas: View, Animatable {
 
             // Pin rack: rows 10.4 in deep (depth-exaggerated), pins 12 in
             // apart at true boards, small and quiet; pocket pair glows.
-            let rowDY = ppf * (10.4 / 12) * depthEx
+            let rowDY = ppf * LaneModel.pinRowDepthFeet * depthEx
             let pinR = max(1.4, min(ppf * (4.75 / 24) * ex, rowDY * 0.42) * 0.7)
-            let deckTop = feetY(60) - 3 * rowDY - pinR - 4
+            let deckTop = pinDeckY - 3 * rowDY - pinR - 4
             context.fill(
                 Path(CGRect(
                     x: laneX - gw, y: deckTop,
-                    width: laneW + gw * 2, height: feetY(60) - deckTop + pinR + 4
+                    width: laneW + gw * 2, height: pinDeckY - deckTop + pinR + 4
                 )),
                 with: .color(.black.opacity(0.35))
             )
-            let boardsPer6In = (6.0 / LaneGeometry.laneWidthInches) * 39.0
-            let pinRows: [[Double]] = [[0], [-1, 1], [-2, 0, 2], [-3, -1, 1, 3]]
-            for (ri, offsets) in pinRows.enumerated() {
-                let py = feetY(60) - CGFloat(ri) * rowDY
-                for off in offsets {
-                    let isPocket = ri == 0 || (ri == 1 && off < 0)
-                    let px = boardX(20.0 + off * boardsPer6In)
-                    if isPocket {
-                        context.fill(
-                            Path(ellipseIn: CGRect(
-                                x: px - pinR * 2.8, y: py - pinR * 2.8,
-                                width: pinR * 5.6, height: pinR * 5.6
-                            )),
-                            with: .radialGradient(
-                                Gradient(colors: [mint.opacity(0.28), mint.opacity(0)]),
-                                center: CGPoint(x: px, y: py),
-                                startRadius: 0, endRadius: pinR * 2.8
-                            )
-                        )
-                    }
+            let pocketPins = LaneModel.pocketPins(hand: .right)
+            for pin in LaneModel.pins {
+                let py = pinDeckY - CGFloat(pin.row) * rowDY
+                let isPocket = pocketPins.contains(pin.number)
+                let px = boardX(pin.board)
+                if isPocket {
                     context.fill(
-                        Path(ellipseIn: CGRect(x: px - pinR, y: py - pinR, width: pinR * 2, height: pinR * 2)),
-                        with: .color(isPocket ? mint.opacity(0.92) : .white.opacity(0.55))
+                        Path(ellipseIn: CGRect(
+                            x: px - pinR * 2.8, y: py - pinR * 2.8,
+                            width: pinR * 5.6, height: pinR * 5.6
+                        )),
+                        with: .radialGradient(
+                            Gradient(colors: [mint.opacity(0.28), mint.opacity(0)]),
+                            center: CGPoint(x: px, y: py),
+                            startRadius: 0, endRadius: pinR * 2.8
+                        )
                     )
                 }
+                context.fill(
+                    Path(ellipseIn: CGRect(x: px - pinR, y: py - pinR, width: pinR * 2, height: pinR * 2)),
+                    with: .color(isPocket ? mint.opacity(0.92) : .white.opacity(0.55))
+                )
             }
 
             // Earlier session paths, dimmer the older they are
             for (i, overlay) in overlayPaths.enumerated() where overlay.count >= 2 {
                 var path = Path()
                 for (j, sample) in overlay.enumerated() {
-                    let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, 60)))
+                    let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, LaneModel.lengthFeet)))
                     if j == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                 }
                 let recency = overlayPaths.count > 1
@@ -183,7 +182,7 @@ struct LaneViewCanvas: View, Animatable {
             if result.path.count >= 2, pathTrim > 0 {
                 var path = Path()
                 for (i, sample) in result.path.enumerated() {
-                    let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, 60)))
+                    let pt = CGPoint(x: boardX(sample.board), y: feetY(min(sample.feet, LaneModel.lengthFeet)))
                     if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                 }
                 let drawn = pathTrim < 1 ? path.trimmedPath(from: 0, to: pathTrim) : path
@@ -206,7 +205,7 @@ struct LaneViewCanvas: View, Animatable {
 
             // Breakpoint: marker on the path, number out in the right margin
             if annotations.opacity > 0, let bb = result.breakpointBoard, let bf = result.breakpointFeet {
-                let pt = CGPoint(x: boardX(bb), y: feetY(min(bf, 60)))
+                let pt = CGPoint(x: boardX(bb), y: feetY(min(bf, LaneModel.lengthFeet)))
                 let r: CGFloat = compact ? 2.6 : 3.4
                 annotations.fill(
                     Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2)),

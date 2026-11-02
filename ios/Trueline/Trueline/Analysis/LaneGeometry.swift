@@ -8,15 +8,16 @@ import Foundation
 ///
 /// Lane space: t_across 0 = right-gutter corner, 1 = left-gutter corner;
 /// feet 0 = foul line, 60 = pin line. Boards count from the outside gutter
-/// edge for both hands (right gutter for right-handers); see boardFeet.
+/// edge for both hands (right gutter for right-handers); the board and lane
+/// constants live in LaneModel.
 struct LaneGeometry {
-    enum Hand { case right, left }
+    typealias Hand = LaneModel.Hand
 
-    static let laneLengthFeet = 60.0
-    static let laneWidthInches = 41.5
-    static let dotDistanceFeet = 6.0
+    static let laneLengthFeet = LaneModel.lengthFeet
+    static let laneWidthInches = LaneModel.widthInches
+    static let dotDistanceFeet = LaneModel.dotRowFeet
     /// Where Specto reads entry board — just ahead of the head pin.
-    static let entryBoardFeet = 59.5
+    static let entryBoardFeet = LaneModel.entryBoardFeet
     /// Detections may sit slightly outside an imperfect quad; accept centers up
     /// to this far outside the lane polygon (pixels, matches Python).
     static let laneMarginPx = 22.0
@@ -67,12 +68,8 @@ struct LaneGeometry {
         let lane = toLane.apply(p)
         let t = min(max(Double(lane.x), 0), 1)
         let feet = min(max(Double(lane.y), 0), Self.laneLengthFeet)
-        let board: Double
-        switch hand {
-        case .right: board = t * 39.0
-        case .left: board = (1.0 - t) * 39.0
-        }
-        return (min(max(board, 0), 39), feet)
+        let board = LaneModel.boardPosition(tAcross: t, hand: hand)
+        return (min(max(board, 0), LaneModel.boardCount), feet)
     }
 
     /// Feet down-lane without clamping across (used for far-lane confidence logic).

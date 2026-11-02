@@ -593,7 +593,7 @@ struct ShotAnalyzer {
                 let db = sbAll[skipHead + head] - sbAll[skipHead]
                 let df = sfAll[skipHead + head] - sfAll[skipHead]
                 if df > 0.5 {
-                    let dbIn = db * (LaneGeometry.laneWidthInches / 39.0)
+                    let dbIn = db * LaneModel.inchesPerBoard
                     let angle = -atan2(dbIn, df * 12.0) * 180 / .pi
                     result.launchAngleDegrees = (angle * 10).rounded() / 10
                     // Foul-line board: the same launch slope walked back to
@@ -648,7 +648,7 @@ struct ShotAnalyzer {
                     let db = smooth[smooth.count - 1] - smooth[smooth.count - tail]
                     let df = sfWin[sfWin.count - 1] - sfWin[sfWin.count - tail]
                     if df > 0.5 {
-                        let dbIn = db * (LaneGeometry.laneWidthInches / 39.0)
+                        let dbIn = db * LaneModel.inchesPerBoard
                         let dfIn = df * 12.0
                         let angle = atan2(dbIn, dfIn) * 180 / .pi
                         result.entryAngleDegrees = (angle * 10).rounded() / 10

@@ -397,15 +397,18 @@ private struct LaneHeroView: View {
         Canvas { context, size in
             let inset: CGFloat = 12
             let usable = size.width - inset * 2
-            let ppf = usable / (60.0 + 3.0 * depthEx)   // length runs left → right
-            let thick = ppf * (41.5 / 12) * ex          // strip thickness, to standard
+            let ppf = usable / (LaneModel.lengthFeet + 3.0 * depthEx)   // length runs left → right
+            let thick = ppf * (LaneModel.widthInches / 12) * ex          // strip thickness, to standard
             let gw = thick * 0.18
             let laneRect = CGRect(
                 x: inset, y: (size.height - thick) / 2,
-                width: ppf * 60, height: thick
+                width: ppf * LaneModel.lengthFeet, height: thick
             )
             func fx(_ feet: Double) -> CGFloat { laneRect.minX + ppf * feet }
-            func by(_ board: Double) -> CGFloat { laneRect.maxY - thick * board / 39.0 }
+            /// y of a continuous board position (path samples, readings).
+            func by(_ position: Double) -> CGFloat {
+                laneRect.maxY - thick * LaneModel.tAcross(boardPosition: position)
+            }
 
             // Gutters above and below the strip
             context.fill(
@@ -456,40 +459,37 @@ private struct LaneHeroView: View {
             // Pin rack past the 60 ft line: rows 10.4 in deep
             // (depth-exaggerated), true lateral boards, quiet dots with the
             // pocket pair glowing.
-            let rowDX = ppf * (10.4 / 12) * depthEx
+            let rowDX = ppf * LaneModel.pinRowDepthFeet * depthEx
             let pinR = max(1.4, min(ppf * (4.75 / 24) * ex, rowDX * 0.42) * 0.7)
-            let boardsPer6In = (6.0 / LaneGeometry.laneWidthInches) * 39.0
             context.fill(
                 Path(CGRect(
-                    x: fx(60) - 2, y: laneRect.minY - gw,
+                    x: fx(LaneModel.lengthFeet) - 2, y: laneRect.minY - gw,
                     width: 3 * rowDX + pinR + 6, height: thick + gw * 2
                 )),
                 with: .color(.black.opacity(0.35))
             )
-            let pinRows: [[Double]] = [[0], [-1, 1], [-2, 0, 2], [-3, -1, 1, 3]]
-            for (ri, offsets) in pinRows.enumerated() {
-                let px = fx(60) + CGFloat(ri) * rowDX
-                for off in offsets {
-                    let isPocket = ri == 0 || (ri == 1 && off < 0)
-                    let py = by(20.0 + off * boardsPer6In)
-                    let pt = CGPoint(x: px, y: py)
-                    if isPocket {
-                        context.fill(
-                            Path(ellipseIn: CGRect(
-                                x: pt.x - pinR * 2.8, y: pt.y - pinR * 2.8,
-                                width: pinR * 5.6, height: pinR * 5.6
-                            )),
-                            with: .radialGradient(
-                                Gradient(colors: [Color.brandMint.opacity(0.28), Color.brandMint.opacity(0)]),
-                                center: pt, startRadius: 0, endRadius: pinR * 2.8
-                            )
-                        )
-                    }
+            let pocketPins = LaneModel.pocketPins(hand: .right)
+            for pin in LaneModel.pins {
+                let px = fx(LaneModel.lengthFeet) + CGFloat(pin.row) * rowDX
+                let isPocket = pocketPins.contains(pin.number)
+                let py = by(pin.board)
+                let pt = CGPoint(x: px, y: py)
+                if isPocket {
                     context.fill(
-                        Path(ellipseIn: CGRect(x: pt.x - pinR, y: pt.y - pinR, width: pinR * 2, height: pinR * 2)),
-                        with: .color(isPocket ? Color.brandMint.opacity(0.92) : .white.opacity(0.55))
+                        Path(ellipseIn: CGRect(
+                            x: pt.x - pinR * 2.8, y: pt.y - pinR * 2.8,
+                            width: pinR * 5.6, height: pinR * 5.6
+                        )),
+                        with: .radialGradient(
+                            Gradient(colors: [Color.brandMint.opacity(0.28), Color.brandMint.opacity(0)]),
+                            center: pt, startRadius: 0, endRadius: pinR * 2.8
+                        )
                     )
                 }
+                context.fill(
+                    Path(ellipseIn: CGRect(x: pt.x - pinR, y: pt.y - pinR, width: pinR * 2, height: pinR * 2)),
+                    with: .color(isPocket ? Color.brandMint.opacity(0.92) : .white.opacity(0.55))
+                )
             }
 
             // With no session data: the textbook shot, glow + breakpoint.
@@ -567,13 +567,13 @@ private struct HeroSessionLineShape: Shape {
         guard points.count >= 2 else { return path }
         let inset: CGFloat = 12
         let usable = rect.width - inset * 2
-        let ppf = usable / (60.0 + 3.0 * depthEx)
-        let thick = ppf * (41.5 / 12) * ex
+        let ppf = usable / (LaneModel.lengthFeet + 3.0 * depthEx)
+        let thick = ppf * (LaneModel.widthInches / 12) * ex
         let laneY = (rect.height - thick) / 2
         for (i, p) in points.enumerated() {
             let pt = CGPoint(
-                x: inset + ppf * min(p.feet, 60),
-                y: laneY + thick * (1.0 - p.board / 39.0)
+                x: inset + ppf * min(p.feet, LaneModel.lengthFeet),
+                y: laneY + thick * (1.0 - LaneModel.tAcross(boardPosition: p.board))
             )
             if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
         }

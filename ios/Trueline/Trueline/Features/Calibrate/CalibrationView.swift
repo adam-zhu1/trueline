@@ -245,7 +245,7 @@ struct CalibrationView: View {
         guard let frame, captureZoom < 2 else { return false }
         let l = CGPoint(x: corners.farLeft.x * frame.size.width, y: corners.farLeft.y * frame.size.height)
         let r = CGPoint(x: corners.farRight.x * frame.size.width, y: corners.farRight.y * frame.size.height)
-        return hypot(l.x - r.x, l.y - r.y) / 39 < 3
+        return hypot(l.x - r.x, l.y - r.y) / LaneModel.boardCount < 3
     }
 
     // MARK: - Frame loading
