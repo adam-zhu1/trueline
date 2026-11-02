@@ -14,15 +14,12 @@ enum LandmarkFit {
         let hint: String
     }
 
-    /// Arrow depths are house-specific; the alley references fitted apex
-    /// 14.5-15.2 ft with a 0.5 ft step, well inside USBC's 12-16 ft band.
-    /// Nominal values sit on the measured cluster; the refine step absorbs
-    /// the per-house difference.
-    private static let arrowApexFeet = 15.0
-    private static let arrowOuterFeet = 13.5
-
+    /// Lane x of a numbered board's center (markings sit on board centers).
+    /// Arrow depths come from LaneModel's arrow V (apex 15 ft, outer arrows
+    /// 13.5 ft), the nominal values on the alley references' measured
+    /// cluster; the refine step absorbs the per-house difference.
     private static func boardX(_ board: Double) -> Double {
-        (board - 0.5) / 39.0
+        LaneModel.tAcross(boardCenter: board)
     }
 
     /// Tap order walks the frame bottom to top: near foul corners first
@@ -32,25 +29,14 @@ enum LandmarkFit {
                hint: "Tap where the foul line meets the right gutter."),
         Target(lane: CGPoint(x: 1, y: 0),
                hint: "Tap where the foul line meets the left gutter."),
-        Target(lane: CGPoint(x: boardX(35), y: arrowOuterFeet),
+        Target(lane: CGPoint(x: boardX(35), y: LaneModel.arrowFeet(atBoard: 35)),
                hint: "Tap the leftmost arrow."),
-        Target(lane: CGPoint(x: boardX(20), y: arrowApexFeet),
+        Target(lane: CGPoint(x: boardX(20), y: LaneModel.arrowFeet(atBoard: 20)),
                hint: "Tap the middle arrow."),
-        Target(lane: CGPoint(x: boardX(5), y: arrowOuterFeet),
+        Target(lane: CGPoint(x: boardX(5), y: LaneModel.arrowFeet(atBoard: 5)),
                hint: "Tap the rightmost arrow."),
-        Target(lane: CGPoint(x: boardX(20), y: 60),
+        Target(lane: CGPoint(x: boardX(LaneModel.centerBoard), y: LaneModel.lengthFeet),
                hint: "Tap the base of the head pin. That's the front pin, nearest to you."),
-    ]
-
-    /// Pin spot positions for the overlay: (feet, boards) per rack row.
-    /// Aligning the drawn spots with the real rack is the refine gesture the
-    /// Monte Carlo validated; the rack is the only far-lane target that is
-    /// not a specular trap.
-    static let pinRows: [(feet: Double, boards: [Double])] = [
-        (60.00, [20]),
-        (60.87, [14.36, 25.64]),
-        (61.73, [8.72, 20, 31.28]),
-        (62.60, [3.08, 14.36, 25.64, 36.92]),
     ]
 
     /// Fits taps (normalized image coords, same space as LaneCorners) to the
@@ -68,8 +54,8 @@ enum LandmarkFit {
             return CGPoint(x: p.x / imageSize.width, y: p.y / imageSize.height)
         }
         let corners = LaneCorners(
-            farLeft: normalized(CGPoint(x: 1, y: 60)),
-            farRight: normalized(CGPoint(x: 0, y: 60)),
+            farLeft: normalized(CGPoint(x: 1, y: LaneModel.lengthFeet)),
+            farRight: normalized(CGPoint(x: 0, y: LaneModel.lengthFeet)),
             nearRight: normalized(CGPoint(x: 0, y: 0)),
             nearLeft: normalized(CGPoint(x: 1, y: 0))
         )

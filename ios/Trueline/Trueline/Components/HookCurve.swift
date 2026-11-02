@@ -2,8 +2,8 @@ import CoreGraphics
 import Foundation
 
 /// The stylized right-hand hook shared by the brand animations (launch, analysis
-/// progress): board 1–39 as a function of travel down the lane, 0 = foul line,
-/// 1 = pins. Drifts out to a board-7 breakpoint at 74% of the lane, then turns
+/// progress): board position (LaneModel's continuous 0–39) as a function of
+/// travel down the lane, 0 = foul line, 1 = pins. Drifts out to a board-7 breakpoint at 74% of the lane, then turns
 /// hard into the 17.5 pocket. Decoration, not data — real paths come from the
 /// analyzer.
 enum HookCurve {
@@ -29,7 +29,7 @@ enum HookCurve {
     /// Point in `rect` for travel `u`, using the lane-view convention (board 0
     /// at the right gutter edge, foul line at the bottom).
     static func point(at u: Double, in rect: CGRect) -> CGPoint {
-        let t = board(at: u) / 39.0
+        let t = LaneModel.tAcross(boardPosition: board(at: u))
         return CGPoint(
             x: rect.minX + rect.width * (1.0 - t),
             y: rect.maxY - rect.height * min(max(u, 0), 1)
