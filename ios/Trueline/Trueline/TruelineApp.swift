@@ -53,7 +53,7 @@ struct TruelineApp: App {
     }
 
     /// Debug hook: launch with `-paywallPreview` to open straight onto the
-    /// purchase screen (with `-freeThrowsUsed 10` for the out-of-throws copy).
+    /// purchase screen (with `-freeThrowsUsed 25` for the out-of-throws copy).
     private static var paywallPreview: Bool {
         #if DEBUG
         UserDefaults.standard.bool(forKey: "paywallPreview")
