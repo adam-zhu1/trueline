@@ -565,9 +565,9 @@ struct ShotAnalyzer {
         // linearly interpolated (port of arrow_board_from_path).
         let sbAll = savgolSmooth(boards, window: win(11))
         let sfAll = savgolSmooth(feet, window: win(11))
-        var prevG = sfAll[0] - arrowFeet(atBoard: sbAll[0])
+        var prevG = sfAll[0] - LaneModel.arrowFeet(atBoardPosition: sbAll[0])
         for i in 1..<sbAll.count {
-            let g = sfAll[i] - arrowFeet(atBoard: sbAll[i])
+            let g = sfAll[i] - LaneModel.arrowFeet(atBoardPosition: sbAll[i])
             if g >= 0 {
                 let board: Double
                 if prevG < 0, g != prevG {

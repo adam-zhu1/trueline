@@ -162,13 +162,13 @@ struct OnboardingArtView: View {
     }
 
     private func drawTrackedPath(_ context: GraphicsContext) {
-        // The brand hook, projected onto the perspective lane. Board 39 is the
-        // left edge from behind a right-hander.
+        // The brand hook, projected onto the perspective lane. across 0 is
+        // the left edge (board position 39 behind a right-hander).
         var path = Path()
         for step in 0...30 {
             let u = CGFloat(step) / 30
             let board = HookCurve.board(at: Double(u))
-            let pt = point(depth: u * 0.9, across: (39 - board) / 38)
+            let pt = point(depth: u * 0.9, across: 1 - LaneModel.tAcross(boardPosition: board))
             if step == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
         }
         context.stroke(
@@ -178,7 +178,7 @@ struct OnboardingArtView: View {
         // Breakpoint marker
         let bp = point(
             depth: CGFloat(HookCurve.breakpoint) * 0.9,
-            across: (39 - HookCurve.board(at: HookCurve.breakpoint)) / 38
+            across: 1 - LaneModel.tAcross(boardPosition: HookCurve.board(at: HookCurve.breakpoint))
         )
         context.fill(
             Path(ellipseIn: CGRect(x: bp.x - 3.5, y: bp.y - 3.5, width: 7, height: 7)),

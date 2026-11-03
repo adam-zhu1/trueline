@@ -132,11 +132,6 @@ struct LaneGeometry {
     }
 }
 
-/// USBC arrow V: center arrow (board 20) at 16 ft, outer arrows (5 & 35) at 12 ft.
-func arrowFeet(atBoard board: Double) -> Double {
-    16.0 - abs(board - 20.0) * (4.0 / 15.0)
-}
-
 /// 3×3 projective transform (port of cv2.getPerspectiveTransform).
 struct Homography {
     // Row-major 3×3.

@@ -409,6 +409,10 @@ private struct LaneHeroView: View {
             func by(_ position: Double) -> CGFloat {
                 laneRect.maxY - thick * LaneModel.tAcross(boardPosition: position)
             }
+            /// y of a numbered board's center (arrows, pin spots).
+            func boardCenterY(_ board: Double) -> CGFloat {
+                laneRect.maxY - thick * LaneModel.tAcross(boardCenter: board)
+            }
 
             // Gutters above and below the strip
             context.fill(
@@ -443,11 +447,10 @@ private struct LaneHeroView: View {
             foul.addLine(to: CGPoint(x: fx(0), y: laneRect.maxY + gw))
             context.stroke(foul, with: .color(Color.brandMintDim), lineWidth: 1.5)
 
-            // Arrows: the V at ~15 ft, center arrow deepest, pointing down-lane
+            // Arrows: LaneModel's V (15 ft apex), center arrow deepest, pointing down-lane
             let arrowSize = min(5, max(2, thick * 0.06))
-            for board in stride(from: 5.0, through: 35.0, by: 5.0) {
-                let depth = 15 + 1.5 * (1 - abs(board - 20) / 15)
-                let pt = CGPoint(x: fx(depth), y: by(board))
+            for board in LaneModel.arrowBoards {
+                let pt = CGPoint(x: fx(LaneModel.arrowFeet(atBoard: board)), y: boardCenterY(board))
                 var tri = Path()
                 tri.move(to: CGPoint(x: pt.x + arrowSize, y: pt.y))
                 tri.addLine(to: CGPoint(x: pt.x - arrowSize * 0.6, y: pt.y - arrowSize * 0.72))
@@ -472,7 +475,7 @@ private struct LaneHeroView: View {
             for pin in LaneModel.pins {
                 let px = fx(LaneModel.lengthFeet) + CGFloat(pin.row) * rowDX
                 let isPocket = pocketPins.contains(pin.number)
-                let py = by(pin.board)
+                let py = boardCenterY(pin.board)
                 let pt = CGPoint(x: px, y: py)
                 if isPocket {
                     context.fill(

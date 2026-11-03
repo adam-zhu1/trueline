@@ -74,6 +74,10 @@ struct LaneViewCanvas: View, Animatable {
             func boardX(_ position: Double) -> CGFloat {
                 laneX + laneW * (1.0 - LaneModel.tAcross(boardPosition: position))
             }
+            /// x of a numbered board's center (arrows, pin spots).
+            func boardCenterX(_ board: Double) -> CGFloat {
+                laneX + laneW * (1.0 - LaneModel.tAcross(boardCenter: board))
+            }
             func feetY(_ feet: Double) -> CGFloat {
                 laneY + laneH * (1.0 - LaneModel.alongFraction(feet: feet))
             }
@@ -113,11 +117,10 @@ struct LaneViewCanvas: View, Animatable {
             foul.addLine(to: CGPoint(x: laneX + laneW + gw, y: feetY(0)))
             context.stroke(foul, with: .color(mintDim), lineWidth: compact ? 1.5 : 2)
 
-            // Arrows: the V at ~15 ft, quiet dim-mint triangles
+            // Arrows: LaneModel's V (15 ft apex), quiet dim-mint triangles
             let arrowSize = min(6.5, max(2.2, laneW * 0.06))
-            for b in stride(from: 5.0, through: 35.0, by: 5.0) {
-                let depth = 15 + 1.5 * (1 - abs(b - 20) / 15)
-                let pt = CGPoint(x: boardX(b), y: feetY(depth))
+            for b in LaneModel.arrowBoards {
+                let pt = CGPoint(x: boardCenterX(b), y: feetY(LaneModel.arrowFeet(atBoard: b)))
                 var tri = Path()
                 tri.move(to: CGPoint(x: pt.x, y: pt.y - arrowSize))
                 tri.addLine(to: CGPoint(x: pt.x - arrowSize * 0.72, y: pt.y + arrowSize * 0.6))
@@ -142,7 +145,7 @@ struct LaneViewCanvas: View, Animatable {
             for pin in LaneModel.pins {
                 let py = pinDeckY - CGFloat(pin.row) * rowDY
                 let isPocket = pocketPins.contains(pin.number)
-                let px = boardX(pin.board)
+                let px = boardCenterX(pin.board)
                 if isPocket {
                     context.fill(
                         Path(ellipseIn: CGRect(
