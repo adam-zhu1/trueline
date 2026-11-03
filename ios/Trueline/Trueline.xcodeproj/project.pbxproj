@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		111111111111111111111127 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 111111111111111111111101 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 111111111111111111111105;
+			remoteInfo = Trueline;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		111111111111111111111106 /* Trueline.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trueline.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		111111111111111111111120 /* TruelineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TruelineTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = Trueline;
 			sourceTree = "<group>";
 		};
+		111111111111111111111121 /* TruelineTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TruelineTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		111111111111111111111108 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		111111111111111111111124 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				111111111111111111111104 /* Trueline */,
+				111111111111111111111121 /* TruelineTests */,
 				111111111111111111111103 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				111111111111111111111106 /* Trueline.app */,
+				111111111111111111111120 /* TruelineTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,6 +93,27 @@
 			productReference = 111111111111111111111106 /* Trueline.app */;
 			productType = "com.apple.product-type.application";
 		};
+		111111111111111111111122 /* TruelineTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 111111111111111111111128 /* Build configuration list for PBXNativeTarget "TruelineTests" */;
+			buildPhases = (
+				111111111111111111111123 /* Sources */,
+				111111111111111111111124 /* Frameworks */,
+				111111111111111111111125 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				111111111111111111111126 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				111111111111111111111121 /* TruelineTests */,
+			);
+			name = TruelineTests;
+			productName = TruelineTests;
+			productReference = 111111111111111111111120 /* TruelineTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -80,6 +126,10 @@
 				TargetAttributes = {
 					111111111111111111111105 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					111111111111111111111122 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 111111111111111111111105;
 					};
 				};
 			};
@@ -98,12 +148,20 @@
 			projectRoot = "";
 			targets = (
 				111111111111111111111105 /* Trueline */,
+				111111111111111111111122 /* TruelineTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		111111111111111111111109 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		111111111111111111111125 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -120,7 +178,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		111111111111111111111123 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		111111111111111111111126 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 111111111111111111111105 /* Trueline */;
+			targetProxy = 111111111111111111111127 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		111111111111111111111112 /* Debug */ = {
@@ -295,6 +368,42 @@
 			};
 			name = Release;
 		};
+		111111111111111111111129 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adamzhu.TruelineTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trueline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Trueline";
+			};
+			name = Debug;
+		};
+		11111111111111111111112A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adamzhu.TruelineTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trueline.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Trueline";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -312,6 +421,15 @@
 			buildConfigurations = (
 				111111111111111111111114 /* Debug */,
 				111111111111111111111115 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		111111111111111111111128 /* Build configuration list for PBXNativeTarget "TruelineTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				111111111111111111111129 /* Debug */,
+				11111111111111111111112A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
