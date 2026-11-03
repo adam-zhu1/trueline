@@ -13,7 +13,7 @@ import StoreKit
 @Observable
 final class TruelineStore {
     static let productID = "com.adamzhu.Trueline.unlimited"
-    static let freeThrowLimit = 10
+    static let freeThrowLimit = 25
 
     private(set) var isUnlocked: Bool
     private(set) var product: Product?
