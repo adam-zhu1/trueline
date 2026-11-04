@@ -78,9 +78,12 @@ Everything else about the app can be tested from the couch.
 
 ### 5. Rev-rate experiment set
 
-- [ ] Put a strip of white tape on the ball near your PAP (ask the desk if
-      unsure; roughly: right of the fingers for a righty, where the track
-      ring doesn't touch).
+- [ ] Put a strip of white tape on the ball running from your PAP out past
+      the finger holes (the USBC layout). Not a small patch at the PAP: the
+      PAP is the spin pole, so tape there barely moves and won't flash.
+      See notes/rev-rate-research.md.
+- [ ] Shoot the taped throws at the highest frame rate the app allows, and
+      note it. The 14 Pro slow-mo of the same throws is the hand count.
 - [ ] 5 throws with the taped ball recorded normally in the app.
       (Hypothesis: the tape flash is a periodic brightness signal the
       harness can FFT into RPM at 30/60 fps.)
