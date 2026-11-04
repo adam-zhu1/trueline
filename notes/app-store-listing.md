@@ -3,6 +3,27 @@
 Internal draft — lives outside docs/ so GitHub Pages never serves it.
 Final text goes into App Store Connect after enrollment.
 
+## v1.1 changes to make at submission (Nov 1, 2026)
+
+Not live yet. Apply these in App Store Connect when 1.1 is submitted.
+
+- **Free throws:** 10 becomes 25 (`TruelineStore.freeThrowLimit`). Update the
+  description line, the review notes and docs/index.md at the same time, not
+  before, since 1.0 still gives 10.
+- **Overclaim:** "Works at any center on any lane" becomes "Works in most
+  centers with the phone steady behind the approach". The detector still
+  struggles with tilted placements.
+- **Keywords:** drop bowling and tracker (already in the name) and pba and usbc
+  (other parties' marks, a rejection risk). Candidates: ballspeed, entry,
+  angle, breakpoint, arsenal, boards, practice, analyzer.
+- **Release notes:** say plainly that 1.1 fixes how ball position is measured
+  and that throws analyzed with 1.0 read several boards to one side. People who
+  tried 1.0 should know the numbers changed for a reason.
+- **Practice only:** add a line that recording is not allowed at some events
+  (the USBC Open Championships bans it). League play has no rule against it.
+- **Screenshots:** swap the first two for real footage with the tracked path
+  once the alley session gives us clean clips.
+
 ## Name (30 chars max)
 
 **TrueLine: Bowling Ball Tracker** (30)
