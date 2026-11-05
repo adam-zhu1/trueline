@@ -2,10 +2,11 @@ import AVKit
 import SwiftUI
 
 /// The review step: play back the recorded throw, then keep it or retake.
-/// When the session already has confirmed corners, the calibration's lane
-/// overlay is drawn over the playback — a bumped phone shows up immediately
-/// as the drawn lane sliding off the real one, before the throw is analyzed
-/// with stale corners.
+/// When the session already has confirmed corners, the throw's first frame is
+/// checked against the calibration frame (DriftCheck): a small bump is
+/// corrected automatically, a big one asks for a new calibration. The lane
+/// overlay is drawn through the corners the throw will actually be analyzed
+/// with, so the user can see the result either way.
 struct ClipReviewView: View {
     let clipURL: URL
     /// Imported clips came from the Photos picker, so "retake" means picking a
@@ -14,8 +15,13 @@ struct ClipReviewView: View {
     /// The session's confirmed calibration, drawn over the clip as the drift
     /// check. nil until the first throw of a session is calibrated.
     var sessionCorners: LaneCorners?
+    /// The calibration frame's comparison band. nil skips the automatic check
+    /// (first throw, imported clip, or the reference couldn't be read).
+    var driftReference: DriftCheck.Reference?
     var onRetake: () -> Void
-    var onUse: () -> Void
+    /// Hands back the drift check's result when one ran, so the flow can
+    /// analyze with the corrected corners and re-anchor the reference.
+    var onUse: (DriftCheck.Result?) -> Void
     /// Present when session corners exist; lets the user redo calibration
     /// after moving the phone.
     var onRecalibrate: (() -> Void)?
@@ -26,6 +32,17 @@ struct ClipReviewView: View {
     @State private var player: AVPlayer?
     /// Display-oriented pixel size of the clip, for aligning the overlay.
     @State private var videoSize: CGSize?
+    @State private var drift: DriftCheck.Result?
+
+    /// Corners the throw will be analyzed with: corrected when the check
+    /// passed, the session's otherwise.
+    private var overlayCorners: LaneCorners? {
+        drift?.corners ?? sessionCorners
+    }
+
+    private var phoneMoved: Bool {
+        drift?.verdict == .recalibrate
+    }
 
     var body: some View {
         ZStack {
@@ -55,9 +72,9 @@ struct ClipReviewView: View {
                     GeometryReader { geo in
                         ZStack {
                             VideoPlayer(player: player)
-                            if let sessionCorners, let videoSize {
+                            if let overlayCorners, let videoSize {
                                 LaneOverlayView(
-                                    corners: sessionCorners,
+                                    corners: overlayCorners,
                                     imageSize: videoSize,
                                     fittedRect: LaneOverlayView.fittedRect(imageSize: videoSize, in: geo.size)
                                 )
@@ -67,7 +84,7 @@ struct ClipReviewView: View {
                 }
 
                 VStack(spacing: 12) {
-                    if onRecalibrate != nil {
+                    if onRecalibrate != nil && !phoneMoved {
                         Button("Phone moved? Recalibrate corners") {
                             onRecalibrate?()
                         }
@@ -76,8 +93,15 @@ struct ClipReviewView: View {
                     }
                     Text(reviewCaption)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(phoneMoved ? .primary : .secondary)
                         .multilineTextAlignment(.center)
+                    if phoneMoved {
+                        Button("Use the old calibration anyway") {
+                            onUse(drift)
+                        }
+                        .font(.footnote)
+                        .tint(Color.brandMint)
+                    }
                     HStack(spacing: 12) {
                         Button {
                             onRetake()
@@ -89,12 +113,21 @@ struct ClipReviewView: View {
                         }
                         .buttonStyle(.secondaryAction)
 
-                        Button {
-                            onUse()
-                        } label: {
-                            Label("Use Throw", systemImage: "checkmark")
+                        if phoneMoved {
+                            Button {
+                                onRecalibrate?()
+                            } label: {
+                                Label("Recalibrate", systemImage: "scope")
+                            }
+                            .buttonStyle(.primaryAction)
+                        } else {
+                            Button {
+                                onUse(drift)
+                            } label: {
+                                Label("Use Throw", systemImage: "checkmark")
+                            }
+                            .buttonStyle(.primaryAction)
                         }
-                        .buttonStyle(.primaryAction)
                     }
                 }
                 .padding()
@@ -111,6 +144,12 @@ struct ClipReviewView: View {
             player.play()
         }
         .task {
+            // About 10 ms of registration plus one frame decode, so it's done
+            // long before the user has watched the replay.
+            guard let sessionCorners, let driftReference else { return }
+            drift = await DriftCheck.check(throwClip: clipURL, against: driftReference, corners: sessionCorners)
+        }
+        .task {
             guard sessionCorners != nil else { return }
             let asset = AVURLAsset(url: clipURL)
             guard let track = try? await asset.loadTracks(withMediaType: .video).first,
@@ -125,6 +164,12 @@ struct ClipReviewView: View {
     }
 
     private var reviewCaption: String {
+        if phoneMoved {
+            return "The phone looks like it moved since you calibrated. Recalibrate so this throw is measured on the right lane."
+        }
+        if case .corrected(noticeable: true) = drift?.verdict {
+            return "The phone shifted a little since you calibrated, so the lane was re-aligned to match. Check that the drawn lane sits on the real one."
+        }
         if onRecalibrate != nil {
             return "The drawn lane is this session's calibration. If it slid off the real lane, recalibrate."
         }

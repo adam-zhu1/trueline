@@ -33,8 +33,11 @@ struct CaptureFlowView: View {
     @State private var camera = CameraModel()
     @State private var step: Step
     /// Corners from the first calibration of this session; later throws reuse
-    /// them (the phone doesn't move between throws).
+    /// them, carried through the drift check when the phone was bumped.
     @State private var sessionCorners: LaneCorners?
+    /// The frame `sessionCorners` describe, as DriftCheck's comparison band.
+    /// Replaced by each corrected throw so slow sag never builds up.
+    @State private var sessionReference: DriftCheck.Reference?
     @State private var session: BowlingSession?
     /// Target-line practice: set from the record screen, scored on results,
     /// persisted onto the session.
@@ -68,6 +71,7 @@ struct CaptureFlowView: View {
                     clipURL: clipURL,
                     isImported: isImported,
                     sessionCorners: sessionCorners,
+                    driftReference: sessionReference,
                     onRetake: {
                         if isImported {
                             // No camera to retake with — back to the Photos
@@ -79,7 +83,14 @@ struct CaptureFlowView: View {
                             step = .record
                         }
                     },
-                    onUse: {
+                    onUse: { drift in
+                        // A passed check re-anchors the session on this
+                        // throw. "Use the old calibration anyway" after a
+                        // failed one keeps everything as it was.
+                        if let drift, drift.verdict != .recalibrate {
+                            sessionCorners = drift.corners
+                            sessionReference = drift.reference
+                        }
                         if store.canAnalyze {
                             startAnalysis(of: clipURL)
                         } else {
@@ -124,6 +135,17 @@ struct CaptureFlowView: View {
                             corners.saveAsLastConfirmed(zoom: camera.zoomFactor)
                         }
                         sessionCorners = corners
+                        // The corners were set on this clip's first frame, so
+                        // that frame is the new drift reference. Cleared first
+                        // so nothing compares new corners to an old frame.
+                        sessionReference = nil
+                        if !isImported {
+                            Task {
+                                let reference = await DriftCheck.reference(fromClip: clipURL)
+                                // A later recalibration may have landed first.
+                                if sessionCorners == corners { sessionReference = reference }
+                            }
+                        }
                         step = .analyze(clipURL, corners)
                     }
                 )
@@ -187,6 +209,7 @@ struct CaptureFlowView: View {
             // A different zoom is a different frame — this session's corners
             // no longer describe it, so the next throw recalibrates.
             sessionCorners = nil
+            sessionReference = nil
         }
     }
 
