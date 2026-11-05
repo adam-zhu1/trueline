@@ -1,7 +1,8 @@
 # Rev-rate experiment — tape-flash FFT
 
 The plan from the Aug 30 LaneTrax research: put a strip of white tape on
-the ball near the PAP, and the tape sweeping through the camera-facing
+the ball running from the PAP out past the finger holes (not a patch at
+the PAP itself: that's the spin pole and barely moves), and the tape sweeping through the camera-facing
 hemisphere once per revolution makes the ball patch's mean brightness a
 periodic signal. Rev rate = the fundamental frequency. This harness is
 built and validated ahead of the ground-truth alley session so the taped
@@ -38,6 +39,24 @@ clips can be analyzed the day they're shot.
   act as a natural marker through motion blur — patch-mean flash survives
   blur that killed marker-tracking CV. If the 240 fps truth confirms it,
   marker-less rev rate may be viable for balls with a visible logo.
+
+## Nov 2026 changes (from notes/rev-rate-research.md)
+
+- **Early lane only.** The window is now 1.2 s from the first detection
+  (about the first 25 to 30 ft), stretched up to 1.8 s so a low-rev ball
+  still fits 5 revolutions. Rev rate climbs 10 to 50% down the lane once
+  the ball leaves the skid, so the old 2.2 s window read high.
+- **Refusals.** No answer when the window holds fewer than 3 revolutions,
+  the median ball radius is under 20 px, the reading is above 420 RPM at
+  30 fps (record at 60 fps), or outside 120 to 600 RPM.
+- **SNR floor 3.2** (was 2.8). The shorter window halves the samples, and
+  at 2.8 the null false positive rate crept above 1%.
+- **Synthetic gate is now a recovery rate per capture rate**: 120 fps
+  87% (need 85%), 60 fps 100% on clean signals (need 80%), 30 fps 75%
+  (reported only), zero confident-but-wrong answers, 0/200 null passes.
+- **Real clips:** 5105-5108 now all read confident at 328 / 353 / 380 /
+  350 RPM. The old late-lane false positive (5105 at 109) is gone. 5112-5115
+  are refused (sparse tracks, or a 20 px ball on the tilted 5115).
 
 ## Caveats for the alley session
 

@@ -32,10 +32,20 @@ import sys
 
 import numpy as np
 
-BAND_RPM = (90.0, 540.0)
-WINDOW_S = 2.2        # early lane; real tracks run ~2.4-2.9 s
+BAND_RPM = (120.0, 600.0)  # physical range; outside it the answer is refused
+WINDOW_S = 1.2        # early lane only, roughly the first 25-30 ft. Rev rate
+                      # climbs 10-50% down the lane once the ball leaves the
+                      # skid (notes/rev-rate-research.md), so a whole-lane
+                      # window reads high; the late lane was also where the
+                      # one real false positive came from (5105: 109 RPM).
+MIN_REVS = 3.0        # full revolutions inside the window, else refuse
+MIN_RADIUS_PX = 20.0  # median ball radius in the window; smaller is too few
+                      # pixels for the flash to survive blur
+MAX_RPM_30FPS = 420.0 # above this at 30 fps a rev is ~4 samples; refuse and
+                      # ask for 60 fps
 SNR_CONFIDENT = 3.5
-SNR_FLOOR = 2.8       # below this, no amount of agreement is confident
+SNR_FLOOR = 3.2       # below this, no amount of agreement is confident (2.8 on the
+                      # old 2.2 s window; the shorter early window needs more)
 SPLIT_TOL = 0.08      # halves agree within 8%, floored at the half-window
                       # frequency resolution (matters below ~200 RPM)
 PAD = 8               # zero-padding factor for the FFT
@@ -57,6 +67,13 @@ def uniform_series(samples, fps, window_s):
     t, v = t[keep], v[keep]
     grid = np.arange(t[0], t[-1] + 0.5 / fps, 1.0 / fps)
     return grid, np.interp(grid, t, v), len(t) / max(len(grid), 1)
+
+
+def median_radius(samples, window_s):
+    """Median tracked ball radius in the window, or None if not recorded."""
+    t0 = samples[0]["t"]
+    r = [s["r"] for s in samples if "r" in s and s["t"] - t0 <= window_s]
+    return float(np.median(r)) if r else None
 
 
 def detrend(v, fps, slowest_hz):
@@ -129,7 +146,28 @@ def autocorr_peak(v, fps, band_hz):
     return fps / lag
 
 
+TARGET_REVS = 5.0     # the window stretches to hold this many revs: fewer
+                      # cycles spread the peak and sink SNR at low rev rates
+MAX_WINDOW_S = 1.8    # stretch cap; past ~45 ft the ball is too small anyway
+
+
 def estimate(samples, fps, window_s=WINDOW_S, band_rpm=BAND_RPM):
+    """Early-lane estimate. A low-rev ball doesn't fit MIN_REVS into the
+    early window, so the window stretches to hold TARGET_REVS revolutions
+    (capped). Low-rev balls also change rev rate least down the
+    lane, so the stretch costs little bias where it's used."""
+    r = estimate_window(samples, fps, window_s, band_rpm)
+    if r["rpm"] and r["rpm"] / 60.0 * r["window_s"] < TARGET_REVS and window_s < MAX_WINDOW_S:
+        need = TARGET_REVS / (r["rpm"] / 60.0)
+        longer = estimate_window(samples, fps, min(need, MAX_WINDOW_S), band_rpm)
+        # the stretch is a second look, so it must find the same frequency
+        # the early window did; otherwise a noise peak gets two chances
+        if longer["rpm"] is not None and abs(longer["rpm"] - r["rpm"]) <= 0.1 * r["rpm"]:
+            return longer
+    return r
+
+
+def estimate_window(samples, fps, window_s, band_rpm):
     """Returns dict with rpm, snr, confident, and the cross-check detail."""
     band_hz = (band_rpm[0] / 60.0, band_rpm[1] / 60.0)
     grid, v, coverage = uniform_series(samples, fps, window_s)
@@ -160,12 +198,26 @@ def estimate(samples, fps, window_s=WINDOW_S, band_rpm=BAND_RPM):
     # independent evidence. On top of it, either a strong peak or the
     # autocorrelation cross-check.
     confident = snr >= SNR_FLOOR and split_ok and (ac_ok or snr >= SNR_CONFIDENT)
-    return {"rpm": f * 60.0, "snr": snr,
+
+    # physical refusals: these hold whatever the spectrum says
+    rpm = f * 60.0
+    window = float(grid[-1] - grid[0])
+    refusals = []
+    if rpm / 60.0 * window < MIN_REVS:
+        refusals.append(f"only {rpm / 60.0 * window:.1f} revs in window")
+    r_med = median_radius(samples, window_s)
+    if r_med is not None and r_med < MIN_RADIUS_PX:
+        refusals.append(f"ball radius {r_med:.0f}px < {MIN_RADIUS_PX:.0f}px")
+    if fps < 45 and rpm > MAX_RPM_30FPS:
+        refusals.append(f"{rpm:.0f} RPM at {fps:g} fps; record at 60 fps")
+    if refusals:
+        confident = False
+    return {"rpm": rpm, "snr": snr, "refused": refusals,
             "rpm_autocorr": None if f_ac is None else f_ac * 60.0,
             "split_halves": None if sp1 is None or sp2 is None
                             else [sp1[0] * 60.0, sp2[0] * 60.0],
             "confident": confident,
-            "n_samples": len(v), "window_s": float(grid[-1] - grid[0])}
+            "n_samples": len(v), "window_s": window}
 
 
 def main():
@@ -181,7 +233,9 @@ def main():
         print(f"{sig['clip']}: no estimate ({r['note']})")
         return
     ac = "n/a" if r["rpm_autocorr"] is None else f"{r['rpm_autocorr']:.0f}"
-    verdict = "CONFIDENT" if r["confident"] else "no tape signal (unconfident)"
+    verdict = "CONFIDENT" if r["confident"] else (
+        "refused: " + "; ".join(r["refused"]) if r["refused"]
+        else "no tape signal (unconfident)")
     print(f"{sig['clip']}: {r['rpm']:.0f} RPM  snr {r['snr']:.1f}  autocorr {ac} RPM  "
           f"[{r['n_samples']} samples / {r['window_s']:.2f} s]  -> {verdict}")
 
