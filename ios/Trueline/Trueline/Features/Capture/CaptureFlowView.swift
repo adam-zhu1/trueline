@@ -2,13 +2,30 @@ import SwiftUI
 
 /// Full-screen capture sequence launched from the Bowl tab:
 /// record → review → calibrate → analyze → results.
+///
+/// Every way forward from a reviewed clip (Use, Recalibrate, and the paywall
+/// closing after a purchase) goes through `ReviewRoute.next`, so the free
+/// throw gate can't be skipped by picking a different button.
+enum ReviewRoute: Equatable {
+    case paywall
+    case calibrate
+    case analyze
+
+    static func next(canAnalyze: Bool, recalibrating: Bool, hasSessionCorners: Bool) -> ReviewRoute {
+        guard canAnalyze else { return .paywall }
+        return recalibrating || !hasSessionCorners ? .calibrate : .analyze
+    }
+}
+
 struct CaptureFlowView: View {
     private enum Step: Equatable {
         case record
         case review(URL)
         /// Out of free throws with a clip in hand — the gate sits between
         /// review and analysis so the recording itself is never blocked.
-        case paywall(URL)
+        /// `recalibrating` remembers which button led here, so an unlock
+        /// carries on to the screen the user asked for.
+        case paywall(URL, recalibrating: Bool)
         case calibrate(URL)
         case analyze(URL, LaneCorners)
         case results(URL, ShotResult)
@@ -18,7 +35,7 @@ struct CaptureFlowView: View {
             switch (lhs, rhs) {
             case (.record, .record): true
             case (.review(let a), .review(let b)): a == b
-            case (.paywall(let a), .paywall(let b)): a == b
+            case (.paywall(let a, let c), .paywall(let b, let d)): a == b && c == d
             case (.calibrate(let a), .calibrate(let b)): a == b
             case (.analyze(let a, let c), .analyze(let b, let d)): a == b && c == d
             case (.results(let a, _), .results(let b, _)): a == b
@@ -91,14 +108,10 @@ struct CaptureFlowView: View {
                             sessionCorners = drift.corners
                             sessionReference = drift.reference
                         }
-                        if store.canAnalyze {
-                            startAnalysis(of: clipURL)
-                        } else {
-                            step = .paywall(clipURL)
-                        }
+                        proceed(with: clipURL, recalibrating: false)
                     },
                     onRecalibrate: sessionCorners == nil ? nil : {
-                        step = .calibrate(clipURL)
+                        proceed(with: clipURL, recalibrating: true)
                     },
                     onClose: {
                         if isImported {
@@ -110,12 +123,12 @@ struct CaptureFlowView: View {
                         onExit()
                     }
                 )
-            case .paywall(let clipURL):
+            case .paywall(let clipURL, let recalibrating):
             PaywallView {
                 // Unlocked: the throw they just bowled goes straight through.
                 // Dismissed: back to review — the clip isn't thrown away.
                 if store.canAnalyze {
-                    startAnalysis(of: clipURL)
+                    proceed(with: clipURL, recalibrating: recalibrating)
                 } else {
                     step = .review(clipURL)
                 }
@@ -215,11 +228,16 @@ struct CaptureFlowView: View {
 
     /// First calibration of a session drags corners; every later throw reuses
     /// them and skips straight to analysis.
-    private func startAnalysis(of clipURL: URL) {
-        if let corners = sessionCorners {
-            step = .analyze(clipURL, corners)
-        } else {
-            step = .calibrate(clipURL)
+    private func proceed(with clipURL: URL, recalibrating: Bool) {
+        switch ReviewRoute.next(
+            canAnalyze: store.canAnalyze,
+            recalibrating: recalibrating,
+            hasSessionCorners: sessionCorners != nil
+        ) {
+        case .paywall: step = .paywall(clipURL, recalibrating: recalibrating)
+        case .calibrate: step = .calibrate(clipURL)
+        case .analyze:
+            if let corners = sessionCorners { step = .analyze(clipURL, corners) }
         }
     }
 
