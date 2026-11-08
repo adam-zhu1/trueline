@@ -201,6 +201,11 @@ struct SessionDetailView: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+                if shot.isFromOlderAnalyzer {
+                    Text("older version")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
     }

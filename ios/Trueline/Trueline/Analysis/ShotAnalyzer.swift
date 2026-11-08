@@ -50,6 +50,12 @@ struct ShotResult {
 /// all crossing logic in homography feet instead of pixel rows so it works for
 /// any camera angle.
 struct ShotAnalyzer {
+    /// Stamped on every saved shot. 1 = TrueLine 1.0, whose contact point was
+    /// computed in raw buffer axes and skewed boards sideways on portrait
+    /// clips. 2 = 1.1: contact point fix, wall-clock tracking, one lane model.
+    /// Bump when a change moves the numbers a saved shot would show.
+    static let version = 2
+
     var detector: BallDetector
     var corners: LaneCorners
     var hand: LaneGeometry.Hand
