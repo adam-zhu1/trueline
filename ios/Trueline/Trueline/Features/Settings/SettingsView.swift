@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var showPaywall = false
     @State private var videoBytes: Int64 = 0
     @State private var confirmDeleteVideos = false
+    @State private var copiedDiagnostics = false
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
@@ -80,6 +82,16 @@ struct SettingsView: View {
                     Button("How TrueLine works") { showHowItWorks = true }
                 }
                 Section {
+                    Link("Rate TrueLine", destination: AppInfo.writeReviewURL)
+                    Button("Send Feedback") { sendFeedback() }
+                } footer: {
+                    if copiedDiagnostics {
+                        Text("Your app version and iPhone model were copied. Paste them into your message on the support page.")
+                    } else {
+                        Text("Feedback includes your app version and iPhone model, and nothing from your throws.")
+                    }
+                }
+                Section {
                     // Served from the portfolio repo (adam-zhu1.github.io) at
                     // adamzhu.dev/trueline/. Copies already installed link to the
                     // adam-zhu1.github.io/trueline/ form, so that path has to keep
@@ -118,6 +130,18 @@ struct SettingsView: View {
                 Text("Shot metrics and lane views are kept.")
             }
             .onAppear { videoBytes = ShotVideoStore.totalBytes() }
+        }
+    }
+
+    /// Mail with the diagnostics prefilled when a feedback address exists;
+    /// until then, the support form plus the same details on the clipboard.
+    private func sendFeedback() {
+        if let mail = AppInfo.feedbackMailURL {
+            openURL(mail)
+        } else {
+            UIPasteboard.general.string = AppInfo.diagnostics
+            copiedDiagnostics = true
+            openURL(AppInfo.supportURL)
         }
     }
 

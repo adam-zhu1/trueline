@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftData
 import SwiftUI
 
@@ -19,6 +20,7 @@ struct ContentView: View {
     /// surfaces (capture, analysis, launch) hardcode dark regardless.
     @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
     @State private var showOnboarding = false
     @State private var capture: CaptureRoute?
     /// Set when the capture flow exits via "Pick Another" — Home reopens the
@@ -66,6 +68,15 @@ struct ContentView: View {
             OnboardingView {
                 hasSeenOnboarding = true
                 showOnboarding = false
+            }
+        }
+        .onChange(of: capture) { _, route in
+            // Back on Home after a capture flow: the calm moment to ask for
+            // a rating. The delay lets the overlay finish sliding away.
+            guard route == nil, ReviewPrompt.consumeIfDue() else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                requestReview()
             }
         }
         .task {
