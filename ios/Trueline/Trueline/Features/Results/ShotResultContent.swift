@@ -16,6 +16,10 @@ struct ShotResultContent: View {
     /// itself in — the one flourish. False (History) shows everything in
     /// place, line included.
     var reveal = false
+    /// A saved shot measured by an older analyzer (see
+    /// SavedShot.isFromOlderAnalyzer). Its numbers stay as recorded; the
+    /// note says how far to trust them.
+    var fromOlderAnalyzer = false
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -102,6 +106,15 @@ struct ShotResultContent: View {
                     unit: "s"
                 )
                 MetricTile(title: "Hook Factor", value: format(result.hookFactor), unit: "boards/s²")
+            }
+
+            if fromOlderAnalyzer {
+                Label(
+                    "Measured with an older version of TrueLine. Board numbers on this throw may be off by several boards.",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
 
             if looksMiscalibrated {

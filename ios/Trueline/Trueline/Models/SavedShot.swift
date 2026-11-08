@@ -34,6 +34,9 @@ final class SavedShot {
     var videoPathY: [Double] = []
     var videoWidth: Double = 0
     var videoHeight: Double = 0
+    /// ShotAnalyzer.version that measured this shot. Shots saved before the
+    /// field existed migrate to 1, which is exactly what they are.
+    var analyzerVersion: Int = 1
 
     init(date: Date = .now, result: ShotResult) {
         self.date = date
@@ -54,7 +57,11 @@ final class SavedShot {
         videoPathY = result.videoPath.map { Double($0.y) }
         videoWidth = Double(result.videoDisplaySize.width)
         videoHeight = Double(result.videoDisplaySize.height)
+        analyzerVersion = ShotAnalyzer.version
     }
+
+    /// Measured before the current analyzer; its boards can be several off.
+    var isFromOlderAnalyzer: Bool { analyzerVersion < ShotAnalyzer.version }
 
     /// The replay video, when it was saved and still exists on disk.
     var videoURL: URL? {

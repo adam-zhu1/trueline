@@ -124,6 +124,11 @@ struct HistoryView: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+                if shot.isFromOlderAnalyzer {
+                    Text("older version")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
     }
@@ -138,7 +143,8 @@ struct ShotDetailView: View {
             ShotResultContent(
                 result: shot.laneViewResult,
                 clipURL: shot.videoWidth > 0 ? shot.videoURL : nil,
-                targetBoard: shot.session?.targetBoard
+                targetBoard: shot.session?.targetBoard,
+                fromOlderAnalyzer: shot.isFromOlderAnalyzer
             )
             .padding()
         }
