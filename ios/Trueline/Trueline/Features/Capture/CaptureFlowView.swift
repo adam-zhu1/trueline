@@ -171,6 +171,7 @@ struct CaptureFlowView: View {
                             // The only place quota is spent: a reliable
                             // result. Failed tracking falls through free.
                             store.recordAnalyzedThrow()
+                            ReviewPrompt.recordSuccessfulAnalysis()
                             ensureSession()
                             // Instant swap: ResultsView(reveal:) overlays a
                             // frozen copy of the loader's final frame and
