@@ -1,9 +1,19 @@
 import SwiftUI
 
-/// Shown when analysis couldn't track the ball well enough to trust.
+/// Shown when analysis couldn't track the ball well enough to trust. Names
+/// the reason for this throw (from the detector's gate counts) and points at
+/// the fix that matches it: new corners when the lane outline is off, a new
+/// recording otherwise.
 struct TrackingFailedView: View {
+    var failure: TrackingFailure
+    /// Reassure free users the attempt cost them nothing. Only reliable
+    /// results spend a free throw (TruelineStore.recordAnalyzedThrow).
+    var showsFreeThrowNote: Bool
     var onAdjustCorners: () -> Void
+    /// nil for imported clips: there's no camera to record with.
+    var onRecordAgain: (() -> Void)?
     var onDiscard: () -> Void
+    @State private var appeared = false
 
     var body: some View {
         ZStack {
@@ -13,31 +23,65 @@ struct TrackingFailedView: View {
                 Image(systemName: "eye.slash")
                     .font(.system(size: 48))
                     .foregroundStyle(Color.brandMint)
-                Text("Couldn't track the ball")
+                    .accessibilityHidden(true)
+                Text(failure.title)
                     .font(.title3.bold())
-                Text("Common causes: the corners don't match the lane, the throw isn't fully visible, or the lighting is very dim. Adjust the corners and try again, or record a new throw.")
+                    .multilineTextAlignment(.center)
+                Text(failure.message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
-                Spacer()
-                Button {
-                    onAdjustCorners()
-                } label: {
-                    Label("Adjust Corners", systemImage: "arrow.uturn.backward")
+                if showsFreeThrowNote {
+                    Text("This throw didn't use one of your free throws.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.brandMint)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
-                .buttonStyle(.primaryAction)
+                Spacer()
+                if failure.suggestsAdjustingCorners || onRecordAgain == nil {
+                    adjustButton.buttonStyle(.primaryAction)
+                    if let onRecordAgain { recordButton(onRecordAgain).buttonStyle(.secondaryAction) }
+                } else if let onRecordAgain {
+                    recordButton(onRecordAgain).buttonStyle(.primaryAction)
+                    adjustButton.buttonStyle(.secondaryAction)
+                }
                 Button("Discard", role: .cancel) {
                     onDiscard()
                 }
-                .buttonStyle(.secondaryAction)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
             }
             .foregroundStyle(.white)
             .padding()
         }
+        .onAppear { appeared = true }
+        .sensoryFeedback(.warning, trigger: appeared)
+    }
+
+    private var adjustButton: some View {
+        Button {
+            onAdjustCorners()
+        } label: {
+            Label("Adjust Corners", systemImage: "arrow.uturn.backward")
+        }
+    }
+
+    private func recordButton(_ action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+        } label: {
+            Label("Record Again", systemImage: "record.circle")
+        }
     }
 }
 
-#Preview {
-    TrackingFailedView(onAdjustCorners: {}, onDiscard: {})
+#Preview("Off lane") {
+    TrackingFailedView(failure: .offLane, showsFreeThrowNote: true, onAdjustCorners: {}, onRecordAgain: {}, onDiscard: {})
+}
+
+#Preview("Lost early") {
+    TrackingFailedView(failure: .lostEarly, showsFreeThrowNote: false, onAdjustCorners: {}, onRecordAgain: {}, onDiscard: {})
 }

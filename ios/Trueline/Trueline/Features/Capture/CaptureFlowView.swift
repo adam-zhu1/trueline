@@ -29,7 +29,7 @@ struct CaptureFlowView: View {
         case calibrate(URL)
         case analyze(URL, LaneCorners)
         case results(URL, ShotResult)
-        case trackingFailed(URL)
+        case trackingFailed(URL, TrackingFailure)
 
         static func == (lhs: Step, rhs: Step) -> Bool {
             switch (lhs, rhs) {
@@ -39,7 +39,7 @@ struct CaptureFlowView: View {
             case (.calibrate(let a), .calibrate(let b)): a == b
             case (.analyze(let a, let c), .analyze(let b, let d)): a == b && c == d
             case (.results(let a, _), .results(let b, _)): a == b
-            case (.trackingFailed(let a), .trackingFailed(let b)): a == b
+            case (.trackingFailed(let a, let c), .trackingFailed(let b, let d)): a == b && c == d
             default: false
             }
         }
@@ -179,11 +179,11 @@ struct CaptureFlowView: View {
                             // so nothing re-lays-out mid-slide.
                             step = .results(clipURL, result)
                         } else {
-                            step = .trackingFailed(clipURL)
+                            step = .trackingFailed(clipURL, result.failure ?? .lostEarly)
                         }
                     },
                     onFailed: {
-                        step = .trackingFailed(clipURL)
+                        step = .trackingFailed(clipURL, .unreadableVideo)
                     },
                     onCancel: {
                         step = .review(clipURL)
@@ -201,9 +201,16 @@ struct CaptureFlowView: View {
                         step = .record
                     }
                 }
-            case .trackingFailed(let clipURL):
+            case .trackingFailed(let clipURL, let failure):
                 TrackingFailedView(
+                    failure: failure,
+                    // Unlocked users have no quota to reassure about.
+                    showsFreeThrowNote: !store.isUnlocked,
                     onAdjustCorners: { step = .calibrate(clipURL) },
+                    onRecordAgain: isImported ? nil : {
+                        camera.discardClip()
+                        step = .record
+                    },
                     onDiscard: {
                         if isImported {
                             try? FileManager.default.removeItem(at: clipURL)

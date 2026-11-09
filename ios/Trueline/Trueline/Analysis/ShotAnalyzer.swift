@@ -38,6 +38,9 @@ struct ShotResult {
     /// replay trim on save. Nil when nothing was tracked.
     var throwStartSeconds: Double? = nil
     var throwEndSeconds: Double? = nil
+    /// Set when the track isn't reliable: what went wrong, for the failure
+    /// screen.
+    var failure: TrackingFailure? = nil
 
     /// A usable track: enough samples to draw a path and trust the metrics.
     var isReliable: Bool {
@@ -128,11 +131,9 @@ struct ShotAnalyzer {
         var frameNumber = 0
         let laneCentroid = geometry.laneCentroid
 
-        #if DEBUG
+        // Always on: the gate counts are cheap, and a failed throw's screen
+        // explains itself from them. Only the console dump is debug-only.
         let diag: DetectorDiagnostics? = DetectorDiagnostics()
-        #else
-        let diag: DetectorDiagnostics? = nil
-        #endif
         var measuredFrames = 0
         var coastedFrames = 0
         var assocRejects = 0
@@ -339,10 +340,16 @@ struct ShotAnalyzer {
         }
         #endif
 
-        return Self.postProcess(
+        var result = Self.postProcess(
             positions: positions, geometry: geometry, fps: fpsSafe,
             rawSize: naturalSize, orientation: orientation
         )
+        if !result.isReliable, let diag {
+            result.failure = TrackingFailure.classify(
+                rawBoxes: diag.rawBoxes, outsideLane: diag.outsideLane, accepted: diag.accepted
+            )
+        }
+        return result
     }
 
     #if DEBUG
