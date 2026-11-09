@@ -22,6 +22,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
     @State private var showOnboarding = false
+    @State private var showWhatsNew = false
     @State private var capture: CaptureRoute?
     /// Set when the capture flow exits via "Pick Another" — Home reopens the
     /// video picker so the re-pick is one tap shorter.
@@ -70,6 +71,9 @@ struct ContentView: View {
                 showOnboarding = false
             }
         }
+        .fullScreenCover(isPresented: $showWhatsNew) {
+            WhatsNewView { showWhatsNew = false }
+        }
         .onChange(of: capture) { _, route in
             // Back on Home after a capture flow: the calm moment to ask for
             // a rating. The delay lets the overlay finish sliding away.
@@ -101,7 +105,21 @@ struct ContentView: View {
     private func finishLaunch() {
         homeRevealed = true
         withAnimation(.easeOut(duration: 0.25)) { showLaunch = false }
-        if !hasSeenOnboarding { showOnboarding = true }
+        // Read before onboarding flips hasSeenOnboarding: a fresh install
+        // gets onboarding only, an upgrade from 1.0 gets the update notes.
+        let defaults = UserDefaults.standard
+        let hasThrows = ((try? modelContext.fetchCount(FetchDescriptor<SavedShot>())) ?? 0) > 0
+        let showNotes = WhatsNew.shouldShow(
+            lastSeenVersion: defaults.string(forKey: WhatsNew.lastSeenVersionKey),
+            hasUsedApp: hasSeenOnboarding || hasThrows,
+            currentVersion: AppInfo.version
+        )
+        defaults.set(AppInfo.version, forKey: WhatsNew.lastSeenVersionKey)
+        if !hasSeenOnboarding {
+            showOnboarding = true
+        } else if showNotes {
+            showWhatsNew = true
+        }
     }
 
     @ViewBuilder
