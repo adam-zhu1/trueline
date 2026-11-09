@@ -101,6 +101,13 @@ struct ResultsView: View {
             try? await Task.sleep(for: .milliseconds(950))
             curtainGone = true
         }
+        // One tap as the result lands; a pocket hit gets the success
+        // pattern. Only on a fresh reveal, not when opening a saved shot.
+        .sensoryFeedback(trigger: curtainUp) { _, up in
+            guard up else { return nil }
+            let pocket = result.entryBoard.map { ShotResult.pocketBoards.contains($0) } ?? false
+            return pocket ? .success : .impact(weight: .light)
+        }
     }
 
     /// Quick ball tag: recent balls one tap away, new ones by name. Stored on

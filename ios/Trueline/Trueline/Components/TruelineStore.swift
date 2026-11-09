@@ -21,7 +21,7 @@ final class TruelineStore {
 
     /// Successful analyses consumed. Calibration throws and failed detections
     /// never call `recordAnalyzedThrow`, so they don't burn quota — someone
-    /// should hit the gate having seen 10 real results, not 6.
+    /// should hit the gate having seen 25 real results, not fewer.
     private(set) var freeThrowsUsed: Int {
         didSet { UserDefaults.standard.set(freeThrowsUsed, forKey: "freeThrowsUsed") }
     }

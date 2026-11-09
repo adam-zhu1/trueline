@@ -108,6 +108,9 @@ struct RecordView: View {
             }
         }
         .task { await camera.start() }
+        // Start and stop. iOS can mute haptics while the mic is recording,
+        // so the stop tap is the one people reliably feel.
+        .sensoryFeedback(.impact(weight: .medium), trigger: camera.isRecording)
         .sheet(isPresented: $showTargetPicker) {
             TargetPickerSheet(targetBoard: $targetBoard)
                 .presentationDetents([.height(320)])
