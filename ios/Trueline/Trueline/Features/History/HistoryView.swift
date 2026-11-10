@@ -27,7 +27,7 @@ struct HistoryView: View {
                     ContentUnavailableView(
                         "No shots yet",
                         systemImage: "figure.bowling",
-                        description: Text("Record or import a throw from the Bowl tab — saved shots show up here.")
+                        description: Text("Record or import a throw from the Bowl tab. Saved shots show up here.")
                     )
                 } else {
                     List {
@@ -106,13 +106,14 @@ struct HistoryView: View {
                 Text(tags.isEmpty ? session.date.formatted(date: .omitted, time: .shortened) : tags)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
             Spacer()
             Text("\(session.shots.count) throw\(session.shots.count == 1 ? "" : "s")")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func row(for shot: SavedShot) -> some View {
@@ -141,10 +142,13 @@ struct HistoryView: View {
                 if shot.isFromOlderAnalyzer {
                     Text("older version")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
+        // One VoiceOver stop per row, read in order: time, date, speed,
+        // arrows, and the older-version tag.
+        .accessibilityElement(children: .combine)
     }
 }
 

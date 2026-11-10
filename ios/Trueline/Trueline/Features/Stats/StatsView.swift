@@ -12,6 +12,7 @@ struct StatsView: View {
     @Query(sort: \BowlingSession.date) private var sessions: [BowlingSession]
 
     @AppStorage("speedUnit") private var speedUnit = "mph"
+    @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 54
 
     private struct Point: Identifiable {
         var id: Int { index }
@@ -31,7 +32,7 @@ struct StatsView: View {
                     ContentUnavailableView(
                         "No stats yet",
                         systemImage: "chart.xyaxis.line",
-                        description: Text("Record or import a throw from the Bowl tab — every saved shot builds your stats.")
+                        description: Text("Record or import a throw from the Bowl tab. Every saved shot builds your stats.")
                     )
                 } else {
                     ScrollView {
@@ -68,7 +69,7 @@ struct StatsView: View {
         let activeDays = Set(shots.map { Calendar.current.startOfDay(for: $0.date) }).count
         return VStack(alignment: .leading, spacing: 2) {
             Text("\(shots.count)")
-                .font(.system(size: 54, weight: .bold))
+                .font(.system(size: min(heroSize, 80), weight: .bold))
                 .monospacedDigit()
             Text("throws measured")
                 .font(.headline)
@@ -78,6 +79,7 @@ struct StatsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var averageTiles: some View {
@@ -114,6 +116,8 @@ struct StatsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AccessibilityText.metric(title: title, value: value, unit: unit == "%" ? "percent" : unit))
     }
 
     // MARK: Entry-board distribution
@@ -137,6 +141,7 @@ struct StatsView: View {
                         xEnd: .value("Pocket", ShotResult.pocketBoards.upperBound + 0.5)
                     )
                     .foregroundStyle(Color.brandMint.opacity(0.12))
+                    .accessibilityHidden(true)
                     ForEach(counts.keys.sorted(), id: \.self) { board in
                         BarMark(
                             x: .value("Board", board),
@@ -148,6 +153,8 @@ struct StatsView: View {
                         )
                         .foregroundStyle(Color.brandMint)
                         .cornerRadius(2)
+                        .accessibilityLabel("Board \(Int(board))")
+                        .accessibilityValue("\(counts[board] ?? 0) \(counts[board] == 1 ? "throw" : "throws")\(ShotResult.pocketBoards.contains(board) ? ", pocket" : "")")
                     }
                 }
                 .chartXScale(domain: lo - 0.5...hi + 0.5)
@@ -174,7 +181,7 @@ struct StatsView: View {
             "By Ball",
             footer: balls.isEmpty
                 ? "Tag shots with a ball on the results screen to compare equipment."
-                : balls.map { "\($0) — \(groups[$0]?.count ?? 0) throws" }.joined(separator: " · ")
+                : balls.map { "\($0): \(groups[$0]?.count ?? 0) throws" }.joined(separator: " · ")
         ) {
             if !balls.isEmpty {
                 ballBars("Pocket %", balls: balls, labelFormat: "%.0f%%") {
@@ -207,6 +214,8 @@ struct StatsView: View {
                         )
                         .foregroundStyle(Color.brandMint)
                         .cornerRadius(3)
+                        .accessibilityLabel(ball)
+                        .accessibilityValue(String(format: labelFormat, v))
                         .annotation(position: .trailing, spacing: 6) {
                             Text(String(format: labelFormat, v))
                                 .font(.caption2.monospacedDigit().bold())
@@ -236,9 +245,9 @@ struct StatsView: View {
         let points = ordered.enumerated().compactMap { index, session in
             value(session.shots).map { Point(index: index, value: $0) }
         }
-        return card("\(title) — session average (\(unit))") {
+        return card("\(title), session average (\(unit))") {
             if points.count >= 2 {
-                trendChart(points: points, idealBand: idealBand, domain: domain)
+                trendChart(points: points, unit: unit, idealBand: idealBand, domain: domain)
             } else {
                 Text("Bowl two sessions with this metric to see a trend.")
                     .font(.footnote)
@@ -248,7 +257,7 @@ struct StatsView: View {
     }
 
     private func trendChart(
-        points: [Point], idealBand: ClosedRange<Double>?, domain: ClosedRange<Double>?
+        points: [Point], unit: String, idealBand: ClosedRange<Double>?, domain: ClosedRange<Double>?
     ) -> some View {
         let base = Chart {
             // Coaching band (entry angle 4–6°): context, drawn under the data.
@@ -258,6 +267,7 @@ struct StatsView: View {
                     yEnd: .value("Ideal", idealBand.upperBound)
                 )
                 .foregroundStyle(Color.brandMint.opacity(0.08))
+                .accessibilityHidden(true)
             }
             ForEach(points) { point in
                 LineMark(
@@ -266,12 +276,24 @@ struct StatsView: View {
                 )
                 .foregroundStyle(Color.brandMint)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .accessibilityHidden(true)
                 PointMark(
                     x: .value("Session", point.index),
                     y: .value("Value", point.value)
                 )
                 .foregroundStyle(Color.brandMint)
                 .symbolSize(50)
+                // One element per session: its date and the average.
+                .accessibilityLabel(
+                    ordered.indices.contains(point.index)
+                        ? ordered[point.index].date.formatted(.dateTime.month(.wide).day())
+                        : "Session \(point.index + 1)"
+                )
+                .accessibilityValue(
+                    AccessibilityText.metric(title: "average", value: String(format: "%.1f", point.value),
+                                             unit: unit == "%" ? "percent" : unit)
+                        .replacingOccurrences(of: "average, ", with: "")
+                )
             }
             // Label only the latest point — the number that answers "where am
             // I now"; the line carries the rest.
@@ -281,6 +303,7 @@ struct StatsView: View {
                     y: .value("Value", last.value)
                 )
                 .symbolSize(0)
+                .accessibilityHidden(true)
                 .annotation(position: .top, spacing: 6) {
                     Text(String(format: "%.1f", last.value))
                         .font(.caption.monospacedDigit().bold())

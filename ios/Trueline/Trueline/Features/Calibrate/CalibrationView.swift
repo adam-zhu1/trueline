@@ -65,6 +65,8 @@ struct CalibrationView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // Step, instruction and sub-hint read as one announcement.
+                .accessibilityElement(children: .combine)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -101,6 +103,16 @@ struct CalibrationView: View {
                         .contentShape(Rectangle())
                         .gesture(phase == .tapping ? tapPhaseGesture(in: rect) : nil)
                         .gesture(phase == .refining ? refineDragGesture(in: rect) : nil)
+                        // Calibration is touching exact spots on the frame, which
+                        // VoiceOver's focus model can't do. Direct interaction
+                        // passes touches straight through so a VoiceOver user
+                        // (or a sighted helper) can still place the points, and
+                        // the label says plainly what the area needs.
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityAddTraits(.allowsDirectInteraction)
+                        .accessibilityLabel("Lane frame for calibration")
+                        .accessibilityValue(calibrationAccessibilityValue)
+                        .accessibilityHint("Placing the points needs a precise touch on the lane picture. The instruction above names each spot.")
                     }
                     // Breathing room so edge handles stay under the finger, not
                     // clipped against the hint or button rows.
@@ -109,6 +121,7 @@ struct CalibrationView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 44))
+                            .accessibilityHidden(true)
                         Text("Couldn't load a frame from the clip.")
                             .font(.subheadline)
                     }
@@ -178,6 +191,15 @@ struct CalibrationView: View {
             newPhase == .refining
         }
         .task { await loadFrame() }
+    }
+
+    private var calibrationAccessibilityValue: String {
+        switch phase {
+        case .tapping:
+            "\(min(taps.count, LandmarkFit.targets.count)) of \(LandmarkFit.targets.count) points placed"
+        case .refining:
+            "Lane overlay placed. Drag a corner to adjust, or choose Looks Good."
+        }
     }
 
     // MARK: - Guide header

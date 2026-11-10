@@ -32,12 +32,19 @@ struct MetricTile: View {
             if let ideal {
                 Text("target \(rangeText(ideal))")
                     .font(.caption2)
-                    .foregroundStyle(inIdeal ? Color.brandMint.opacity(0.8) : Color.secondary.opacity(0.7))
+                    .foregroundStyle(inIdeal ? Color.brandMint.opacity(0.8) : Color.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        // One element per tile, read as a sentence ("Entry Angle, 5.2
+        // degrees, in the target range of 4 to 6") instead of four
+        // fragments with a bare "°".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            AccessibilityText.metric(title: title, value: value, unit: unit, numeric: numeric, ideal: ideal)
+        )
     }
 
     private func rangeText(_ range: ClosedRange<Double>) -> String {

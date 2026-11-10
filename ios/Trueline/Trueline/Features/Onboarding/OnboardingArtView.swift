@@ -37,6 +37,8 @@ struct OnboardingArtView: View {
         }
         .frame(width: 230, height: art == .pocket ? 120 : 200)
         .scaleEffect(x: mirrored ? -1 : 1)
+        // Illustration only: every page's title and text carry its point.
+        .accessibilityHidden(true)
     }
 
     // MARK: Perspective lane (setup / calibrate / metrics)

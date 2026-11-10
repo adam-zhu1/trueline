@@ -55,7 +55,7 @@ struct AnalysisProgressView: View {
                     Text("SHOT ANALYSIS")
                         .font(.system(size: 10, weight: .medium))
                         .kerning(0.8)
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.55))
                 }
                 Spacer()
                 if let onCancel {
@@ -63,7 +63,7 @@ struct AnalysisProgressView: View {
                         Image(systemName: "xmark")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.7))
-                            .padding(11)
+                            .frame(width: 44, height: 44)
                             .background(.white.opacity(0.08), in: Circle())
                     }
                     .accessibilityLabel("Cancel analysis")
@@ -75,7 +75,7 @@ struct AnalysisProgressView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(stageLabel)
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(.white.opacity(0.6))
                     .contentTransition(.opacity)
                     .animation(.easeInOut(duration: 0.25), value: stageLabel)
                     .padding(.leading, 6)
@@ -92,14 +92,18 @@ struct AnalysisProgressView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The stage and percent read as one element. Only this block, not
+            // the whole screen: wrapping the screen hid the Cancel button
+            // from VoiceOver.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(stageLabel), \(Int((displayed * 100).rounded())) percent")
+            .accessibilityAddTraits(.updatesFrequently)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Opaque, edge to edge: this screen is the curtain — it must fully
         // cover the result beneath it while it lifts.
         .background(Color.black.ignoresSafeArea())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(stageLabel), \(Int((displayed * 100).rounded())) percent")
         // task(id:) so the loop restarts with the fresh value each time real
         // progress lands — a plain .task captures the struct once and would
         // chase the initial 0 forever.
