@@ -16,7 +16,7 @@ struct SessionDetailView: View {
 
     var body: some View {
         List {
-            Section("Consistency — \(shots.count) throws") {
+            Section("Consistency over \(shots.count) throws") {
                 // Pros hold speed within 0.5 mph shot to shot — the one
                 // spread with a published benchmark, so the one that earns
                 // a mint tint when met. Both the values and the benchmark
@@ -49,7 +49,7 @@ struct SessionDetailView: View {
                     Text("Lines")
                 } footer: {
                     if shots.count > 1 {
-                        Text("All throws on one lane — brighter is more recent, the latest in full mint.")
+                        Text("All throws on one lane. Brighter is more recent, and the latest is full mint.")
                     }
                 }
             }
@@ -218,9 +218,12 @@ struct SessionDetailView: View {
                 if shot.isFromOlderAnalyzer {
                     Text("older version")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
+        // One VoiceOver stop per row, read in order: time, date, speed,
+        // arrows, and the older-version tag.
+        .accessibilityElement(children: .combine)
     }
 }

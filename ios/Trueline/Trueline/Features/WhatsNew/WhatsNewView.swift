@@ -60,6 +60,7 @@ struct WhatsNewView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("What's new in \(WhatsNew.notesVersion)")
                                 .font(.largeTitle.bold())
+                                .accessibilityAddTraits(.isHeader)
                             Text("Thanks for using TrueLine.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)

@@ -241,6 +241,26 @@ struct LaneViewCanvas: View, Animatable {
         }
         .background(cardBase)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        // The drawing is the result's most important element and a Canvas
+        // is invisible to VoiceOver, so it speaks a summary of the path.
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isImage)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        var text = AccessibilityText.laneSummary(
+            arrowBoard: result.arrowBoard,
+            breakpointBoard: result.breakpointBoard,
+            breakpointFeet: result.breakpointFeet,
+            entryBoard: result.entryBoard,
+            entryAngle: result.entryAngleDegrees,
+            isPocket: result.entryBoard.map(ShotResult.pocketBoards.contains) ?? false
+        )
+        if !overlayPaths.isEmpty {
+            text += " Earlier throws from this session are drawn underneath."
+        }
+        return text
     }
 
     /// A margin number with a thin leader line back to its point on the lane.
@@ -264,7 +284,7 @@ struct LaneViewCanvas: View, Animatable {
         context.draw(
             context.resolve(
                 Text(caption).font(.system(size: 8, weight: .medium)).kerning(0.6)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.white.opacity(0.55))
             ),
             at: CGPoint(x: labelX, y: from.y + 12), anchor: anchor
         )

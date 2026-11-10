@@ -58,7 +58,7 @@ struct ClipReviewView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.headline)
-                            .padding(12)
+                            .frame(width: 44, height: 44)
                             .background(.black.opacity(0.5), in: Circle())
                             .foregroundStyle(.white)
                     }
@@ -78,6 +78,7 @@ struct ClipReviewView: View {
                                     imageSize: videoSize,
                                     fittedRect: LaneOverlayView.fittedRect(imageSize: videoSize, in: geo.size)
                                 )
+                                .accessibilityHidden(true)
                             }
                         }
                     }
@@ -90,6 +91,7 @@ struct ClipReviewView: View {
                         }
                         .font(.footnote)
                         .tint(Color.brandMint)
+                        .frame(minHeight: 44)
                     }
                     Text(reviewCaption)
                         .font(.footnote)
@@ -101,6 +103,7 @@ struct ClipReviewView: View {
                         }
                         .font(.footnote)
                         .tint(Color.brandMint)
+                        .frame(minHeight: 44)
                     }
                     HStack(spacing: 12) {
                         Button {
@@ -160,6 +163,12 @@ struct ClipReviewView: View {
         }
         .onDisappear {
             player?.pause()
+        }
+        // The drift verdict lands a moment after the screen appears and
+        // changes what the main button does; say so instead of leaving a
+        // VoiceOver user to find the new caption.
+        .onChange(of: phoneMoved) { _, moved in
+            if moved { AccessibilityNotification.Announcement(reviewCaption).post() }
         }
     }
 

@@ -119,7 +119,7 @@ struct ShotResultContent: View {
 
             if looksMiscalibrated {
                 Label(
-                    "These numbers are outside typical ranges — if the phone moved during the session, recalibrate the corners on your next throw.",
+                    "These numbers are outside typical ranges. If the phone moved during the session, recalibrate the corners on your next throw.",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.footnote)
@@ -127,7 +127,7 @@ struct ShotResultContent: View {
             }
 
             if result.speedMph == nil {
-                Text("Speed needs the ball tracked through the front of the lane — start recording before the throw.")
+                Text("Speed needs the ball tracked through the front of the lane. Start recording before the throw.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -170,6 +170,13 @@ struct ShotResultContent: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
             .onTapGesture { showFullScreenVideo = true }
+            // A tap target with no button semantics is invisible to
+            // VoiceOver; expose it as one.
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("Replay")
+            .accessibilityHint("Opens the throw full screen with the tracked line")
+            .accessibilityAction { showFullScreenVideo = true }
             .fullScreenCover(isPresented: $showFullScreenVideo) {
                 FullScreenVideoView(clipURL: clipURL, result: result)
             }
@@ -210,10 +217,11 @@ struct FullScreenVideoView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.headline)
-                            .padding(12)
+                            .frame(width: 44, height: 44)
                             .background(.white.opacity(0.12), in: Circle())
                             .foregroundStyle(.white)
                     }
+                    .accessibilityLabel("Close")
                     Spacer()
                 }
                 Spacer()
