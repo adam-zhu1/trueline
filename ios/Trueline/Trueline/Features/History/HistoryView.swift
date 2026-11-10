@@ -70,6 +70,20 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle("History")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(
+                        item: ShotCSVFile(
+                            shots: shots,
+                            name: "TrueLine shots \(Date.now.formatted(.iso8601.year().month().day())).csv"
+                        ),
+                        preview: SharePreview("All TrueLine shots")
+                    ) {
+                        Label("Export All as CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(shots.isEmpty)
+                }
+            }
             .navigationDestination(for: PersistentIdentifier.self) { id in
                 if let shot = modelContext.model(for: id) as? SavedShot {
                     ShotDetailView(shot: shot)

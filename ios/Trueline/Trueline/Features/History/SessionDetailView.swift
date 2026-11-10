@@ -94,6 +94,20 @@ struct SessionDetailView: View {
         }
         .navigationTitle(session.date.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(
+                    item: ShotCSVFile(
+                        shots: shots,
+                        name: "TrueLine session \(session.date.formatted(.iso8601.year().month().day())).csv"
+                    ),
+                    preview: SharePreview("TrueLine session")
+                ) {
+                    Label("Export CSV", systemImage: "square.and.arrow.up")
+                }
+                .disabled(shots.isEmpty)
+            }
+        }
     }
 
     /// Pocket hits out of throws with an entry board — mint once half or more
