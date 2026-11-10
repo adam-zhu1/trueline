@@ -48,9 +48,9 @@ enum AppInfo {
 
     static let supportURL = URL(string: "https://adamzhu.dev/trueline/support")!
 
-    /// TODO(Adam): a support address for the mail row. Until one exists the
-    /// feedback row opens the support page and copies these details instead.
-    static let feedbackEmail: String? = nil
+    /// The support inbox for the Send Feedback mail row. Optional so the row
+    /// can still fall back to the support page if it's ever cleared.
+    static let feedbackEmail: String? = "trueline.app.help@gmail.com"
 
     static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"

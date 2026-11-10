@@ -54,6 +54,8 @@ Need help with TrueLine? Send a message below. Include what happened, which iPho
   <p class="contact-note" id="contact-fail" hidden>That didn't send. Please try again in a minute.</p>
 </form>
 
+Or email [trueline.app.help@gmail.com](mailto:trueline.app.help@gmail.com).
+
 <script>
 (function () {
   var form = document.getElementById("contact-form");
