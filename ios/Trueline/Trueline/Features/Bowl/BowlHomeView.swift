@@ -31,6 +31,10 @@ struct BowlHomeView: View {
     @State private var isImporting = false
     @State private var importFailed = false
     @State private var showPaywall = false
+    /// Headline sizes follow Dynamic Type from the poster's design size,
+    /// capped so the two-line headline still fits beside the hero.
+    @ScaledMetric(relativeTo: .largeTitle) private var posterHeadline: CGFloat = 40
+    @ScaledMetric(relativeTo: .largeTitle) private var mirrorHeadline: CGFloat = 34
 
     var body: some View {
         NavigationStack {
@@ -53,6 +57,13 @@ struct BowlHomeView: View {
                     drawLines: entrance ?? true
                 )
                 .frame(height: 132)
+                .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isImage)
+                .accessibilityLabel(
+                    heroPaths.isEmpty
+                        ? "Lane drawing of a hook from the right side into the pocket."
+                        : "Lane drawing of your last \(heroPaths.count == 1 ? "throw" : "\(heroPaths.count) throws")."
+                )
                 .modifier(landing(3))
 
                 if !shots.isEmpty {
@@ -137,7 +148,7 @@ struct BowlHomeView: View {
             .alert("Couldn't load that video", isPresented: $importFailed) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Try a different video — it may still be downloading from iCloud.")
+                Text("Try a different video. This one may still be downloading from iCloud.")
             }
             .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView { showPaywall = false }
@@ -172,7 +183,8 @@ struct BowlHomeView: View {
     @ViewBuilder
     private var posterHeader: some View {
         Text("Every throw,\nmeasured.")
-            .font(.system(size: 40, weight: .bold))
+            .font(.system(size: min(posterHeadline, 64), weight: .bold))
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 28)
             .modifier(landing(1))
 
@@ -188,7 +200,8 @@ struct BowlHomeView: View {
     @ViewBuilder
     private var mirrorHeader: some View {
         Text(greeting?.headline ?? "Back at it.")
-            .font(.system(size: 34, weight: .bold))
+            .font(.system(size: min(mirrorHeadline, 56), weight: .bold))
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 28)
             .modifier(landing(1))
 
@@ -251,23 +264,40 @@ struct BowlHomeView: View {
         let bestEntry = recent.compactMap(\.entryAngleDegrees).min { abs($0 - 5) < abs($1 - 5) }
 
         return HStack(spacing: 0) {
-            stat(avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph", label: "Last avg")
-            stat("\(pocket)", unit: "/\(recent.count)", label: "Pocket")
-            stat(bestEntry.map { String(format: "%.1f", $0) } ?? "--", unit: "°", label: "Best entry")
+            stat(
+                avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph", label: "Last avg",
+                spoken: AccessibilityText.metric(
+                    title: "Last session average speed",
+                    value: avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph"
+                )
+            )
+            stat(
+                "\(pocket)", unit: "/\(recent.count)", label: "Pocket",
+                spoken: "Pocket hits, \(pocket) of \(recent.count) throws"
+            )
+            stat(
+                bestEntry.map { String(format: "%.1f", $0) } ?? "--", unit: "°", label: "Best entry",
+                spoken: AccessibilityText.metric(
+                    title: "Best entry angle",
+                    value: bestEntry.map { String(format: "%.1f", $0) } ?? "--", unit: "°"
+                )
+            )
         }
     }
 
-    private func stat(_ value: String, unit: String, label: String) -> some View {
+    private func stat(_ value: String, unit: String, label: String, spoken: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            (Text(value).font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
-                + Text(" \(unit)").font(.system(size: 12)).foregroundStyle(.white.opacity(0.45)))
+            (Text(value).font(.body.weight(.semibold)).foregroundStyle(.white)
+                + Text(" \(unit)").font(.caption).foregroundStyle(.white.opacity(0.6)))
                 .monospacedDigit()
             Text(label.uppercased())
-                .font(.system(size: 10, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .kerning(0.6)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
     }
 
     /// Ball speed across the last throws, oldest → newest. The one dimension
@@ -283,14 +313,14 @@ struct BowlHomeView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("SPEED · LAST \(values.count) THROWS")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .kerning(0.7)
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(.white.opacity(0.6))
                 Spacer()
                 if let latest = values.last {
                     (Text(String(format: "%.1f", latest))
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
-                        + Text(" mph").font(.system(size: 11)).foregroundStyle(.white.opacity(0.45)))
+                        .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.9))
+                        + Text(" mph").font(.caption2).foregroundStyle(.white.opacity(0.6)))
                         .monospacedDigit()
                 }
             }
@@ -314,7 +344,17 @@ struct BowlHomeView: View {
                 }
             }
             .frame(height: 36)
+            .accessibilityHidden(true)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(speedTrendSpoken(values))
+    }
+
+    private func speedTrendSpoken(_ values: [Double]) -> String {
+        guard let latest = values.last, let first = values.first else { return "Speed trend" }
+        let trend = latest > first + 0.3 ? "up" : (latest < first - 0.3 ? "down" : "steady")
+        return "Speed over the last \(values.count) throws, \(trend), latest "
+            + String(format: "%.1f", latest) + " miles per hour"
     }
 
     private var importLabel: some View {

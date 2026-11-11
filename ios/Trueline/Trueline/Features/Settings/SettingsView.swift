@@ -55,7 +55,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Storage")
                 } footer: {
-                    Text("Metrics and lane views are always kept — deleting videos only removes the replays.")
+                    Text("Metrics and lane views are always kept. Deleting videos only removes the replays.")
                 }
                 Section {
                     if store.isUnlocked {
@@ -75,7 +75,7 @@ struct SettingsView: View {
                     Text("Unlimited")
                 } footer: {
                     if !store.isUnlocked {
-                        Text("One-time purchase — every throw analyzed, forever. Only successful analyses count against free throws.")
+                        Text("One-time purchase, and every throw is analyzed forever. Only successful analyses count against free throws.")
                     }
                 }
                 Section {

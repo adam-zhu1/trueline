@@ -52,7 +52,7 @@ struct TrackingFailedView: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                .frame(minHeight: 44)
             }
             .foregroundStyle(.white)
             .padding()
