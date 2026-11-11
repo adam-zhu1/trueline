@@ -69,7 +69,21 @@ final class TruelineStore {
             }
         }
         await refreshEntitlements()
+        await loadProduct()
+    }
+
+    /// True once a product request has come back empty or failed, so the
+    /// paywall can say the App Store is unreachable instead of guessing a
+    /// price.
+    private(set) var productUnavailable = false
+
+    /// Loads the product if it isn't loaded yet. The paywall calls this on
+    /// appear, so an offline launch recovers once the connection is back.
+    func loadProduct() async {
+        guard product == nil else { return }
+        productUnavailable = false   // the paywall shows a spinner meanwhile
         product = try? await Product.products(for: [Self.productID]).first
+        productUnavailable = product == nil
     }
 
     /// True on a finished purchase; false when the user cancelled or the

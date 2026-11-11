@@ -27,6 +27,7 @@ struct PaywallView: View {
         .onChange(of: store.isUnlocked) { _, unlocked in
             if unlocked { onDone() }
         }
+        .task { await store.loadProduct() }
         .alert("Purchase didn't go through", isPresented: $purchaseFailed) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -81,14 +82,23 @@ struct PaywallView: View {
                 Button {
                     buy()
                 } label: {
-                    if store.purchasing {
+                    if store.purchasing || (store.product == nil && !store.productUnavailable) {
                         ProgressView().tint(.black)
-                    } else {
+                    } else if let price = store.product?.displayPrice {
                         Text("Unlock TrueLine for \(price)")
+                    } else {
+                        Text("Try Again")
                     }
                 }
                 .buttonStyle(.primaryAction)
-                .disabled(store.purchasing)
+                .disabled(store.purchasing || (store.product == nil && !store.productUnavailable))
+
+                if store.product == nil && store.productUnavailable {
+                    Text("Couldn't reach the App Store. Check your connection and try again.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
 
                 Text("One-time purchase. Yours forever.")
                     .font(.footnote)
@@ -114,13 +124,6 @@ struct PaywallView: View {
         }
     }
 
-    /// Fallback covers the moment before the product loads (or the App Store
-    /// being unreachable) — the button still reads right, and StoreKit
-    /// enforces the real price at purchase time.
-    private var price: String {
-        store.product?.displayPrice ?? "$14.99"
-    }
-
     private func row(_ text: String) -> some View {
         HStack(spacing: 10) {
             Circle()
@@ -134,6 +137,12 @@ struct PaywallView: View {
 
     private func buy() {
         Task {
+            // No product means the App Store didn't answer; the button reads
+            // Try Again and reloads instead of guessing a price.
+            if store.product == nil {
+                await store.loadProduct()
+                return
+            }
             do {
                 // Success closes via the isUnlocked onChange; cancel/pending
                 // just leaves the paywall up.
