@@ -52,10 +52,11 @@ struct RecordView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.headline)
-                            .padding(12)
+                            .frame(width: 44, height: 44)
                             .background(.black.opacity(0.5), in: Circle())
                             .foregroundStyle(.white)
                     }
+                    .accessibilityLabel("Close")
                     Spacer()
                     if camera.isRecording, let start = camera.recordingStartedAt {
                         Text(start, style: .timer)
@@ -77,7 +78,12 @@ struct RecordView: View {
                             .padding(.vertical, 6)
                             .background(.black.opacity(0.5), in: Capsule())
                             .foregroundStyle(targetBoard == nil ? .white : Color.brandMint)
+                            // Invisible margin: the capsule stays slim, the
+                            // touch target reaches 44pt.
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
                         }
+                        .accessibilityHint("Sets the board you're aiming at over the arrows")
                     }
                 }
                 .padding()
@@ -126,6 +132,7 @@ struct RecordView: View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 44))
+                .accessibilityHidden(true)
             Text(title)
                 .font(.headline)
             Text(detail)
@@ -152,7 +159,7 @@ private struct TargetPickerSheet: View {
             Text("Target board at the arrows")
                 .font(.headline)
                 .padding(.top, 20)
-            Text("Every throw gets scored against it — aim over one board all session.")
+            Text("Every throw gets scored against it, so aim over one board all session.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -193,7 +200,7 @@ private struct ZoomPicker: View {
     var camera: CameraModel
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             ForEach(CameraModel.zoomOptions, id: \.self) { factor in
                 let selected = camera.zoomFactor == factor
                 Button {
@@ -201,15 +208,17 @@ private struct ZoomPicker: View {
                 } label: {
                     Text(selected ? "\(factor.formatted())x" : factor.formatted())
                         .font(.footnote.weight(.semibold).monospacedDigit())
-                        .frame(minWidth: 30, minHeight: 30)
+                        .frame(minWidth: 34, minHeight: 34)
                         .background(.black.opacity(selected ? 0.7 : 0.4), in: Circle())
                         .foregroundStyle(selected ? Color.brandMint : .white)
+                        .padding(5)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("\(factor.formatted())x zoom")
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .padding(4)
+        .padding(.horizontal, 2)
         .background(.black.opacity(0.3), in: Capsule())
     }
 }

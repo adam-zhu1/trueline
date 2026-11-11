@@ -7,6 +7,7 @@ struct OnboardingView: View {
     var onDone: () -> Void
 
     @AppStorage("bowlingHand") private var bowlingHand = "right"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Debug hook: `-onboardingPage <n>` opens on that page (screenshots — the
     // simulator can't swipe from the CLI). Key absent in production: starts at 0.
     @State private var page: Int = {
@@ -27,17 +28,17 @@ struct OnboardingView: View {
         Page(
             art: .setup,
             title: "Set up behind the approach",
-            text: "Prop your phone on the ball return or a table behind the approach, looking straight down your lane. Get the whole lane in frame — foul line to pins — and don't move the phone between throws."
+            text: "Prop your phone on the ball return or a table behind the approach, looking straight down your lane. Get the whole lane in frame from the foul line to the pins, and don't move the phone between throws."
         ),
         Page(
             art: .calibrate,
             title: "Your first throw calibrates",
-            text: "Record a throw, then drag the four corners onto the lane — TrueLine finds them for you, you just fine-tune. Every following throw reuses that calibration: just bowl."
+            text: "Record a throw, then tap a few lane markings and line up the overlay. Every following throw reuses that calibration, so you just bowl."
         ),
         Page(
             art: .metrics,
             title: "Every throw, measured",
-            text: "Speed, board at the arrows, breakpoint, and where the ball enters the pocket — plus how consistent they are across the session. The numbers a coach would give you."
+            text: "Speed, board at the arrows, breakpoint, and where the ball enters the pocket, plus how consistent you are across the session. The numbers a coach would give you."
         ),
     ]
 
@@ -51,10 +52,14 @@ struct OnboardingView: View {
                         .foregroundStyle(.secondary)
                         .padding()
                         .opacity(page == pages.count ? 0 : 1)
+                        .accessibilityHidden(page == pages.count)
                 }
 
                 TabView(selection: $page) {
                     ForEach(pages.indices, id: \.self) { i in
+                        // Scrolls only when it has to: at the largest text
+                        // sizes the copy outgrows the page instead of clipping.
+                        ScrollView {
                         VStack(spacing: 24) {
                             OnboardingArtView(art: pages[i].art)
                             Text(pages[i].title)
@@ -68,9 +73,13 @@ struct OnboardingView: View {
                         }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 48)
+                        .frame(maxWidth: .infinity)
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
                         .tag(i)
                     }
-                    handPage
+                    ScrollView { handPage }
+                        .scrollBounceBehavior(.basedOnSize)
                         .tag(pages.count)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
@@ -98,7 +107,9 @@ struct OnboardingView: View {
     private var handPage: some View {
         VStack(spacing: 24) {
             OnboardingArtView(art: .pocket, mirrored: bowlingHand == "left")
-                .animation(.easeInOut(duration: 0.4), value: bowlingHand)
+                // The mirror flip is a sideways scale; with Reduce Motion
+                // the art just switches.
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: bowlingHand)
             Text("Which hand do you bowl with?")
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)
@@ -128,7 +139,7 @@ struct OnboardingView: View {
                     .font(.headline)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 96)
+            .frame(minHeight: 96)
             .foregroundStyle(bowlingHand == tag ? Color.brandMint : .secondary)
             .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
@@ -137,6 +148,8 @@ struct OnboardingView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(label) hand")
+        .accessibilityAddTraits(bowlingHand == tag ? .isSelected : [])
     }
 }
 

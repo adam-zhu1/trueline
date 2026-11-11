@@ -11,8 +11,13 @@ struct PrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .foregroundStyle(.black)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .frame(height: 54)
+            // A floor, not a fixed height: at the accessibility text sizes
+            // the label wraps and the bar grows instead of clipping.
+            .frame(minHeight: 54)
             .background(Color.brandMint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(configuration.isPressed ? 0.7 : (isEnabled ? 1 : 0.4))
     }
@@ -25,8 +30,13 @@ struct SecondaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .frame(height: 54)
+            // A floor, not a fixed height: at the accessibility text sizes
+            // the label wraps and the bar grows instead of clipping.
+            .frame(minHeight: 54)
             .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(configuration.isPressed ? 0.7 : (isEnabled ? 1 : 0.4))
     }

@@ -10,75 +10,17 @@ struct PaywallView: View {
     var onDone: () -> Void
 
     @State private var purchaseFailed = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(spacing: 0) {
-                HStack {
-                    Button {
-                        onDone()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.headline)
-                            .padding(12)
-                            .background(.white.opacity(0.12), in: Circle())
-                            .foregroundStyle(.white)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal)
-
-                Spacer()
-
-                OnboardingArtView(art: .metrics)
-
-                Text("Every throw, measured.\nNo limits.")
-                    .font(.title2.bold())
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 24)
-
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 12)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    row("Unlimited analyzed throws")
-                    row("Speed, breakpoint, and entry angle on every shot")
-                    row("Session history and consistency, forever")
-                }
-                .padding(.top, 24)
-
-                Spacer()
-
-                VStack(spacing: 12) {
-                    Button {
-                        buy()
-                    } label: {
-                        if store.purchasing {
-                            ProgressView().tint(.black)
-                        } else {
-                            Text("Unlock TrueLine — \(price)")
-                        }
-                    }
-                    .buttonStyle(.primaryAction)
-                    .disabled(store.purchasing)
-
-                    Text("One-time purchase. Yours forever.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-
-                    Button("Restore Purchases") {
-                        Task { await store.restore() }
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(Color.brandMint)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 16)
+            // At the accessibility text sizes the pitch outgrows the screen;
+            // scroll then rather than clip the buy button.
+            if typeSize.isAccessibilitySize {
+                ScrollView { layout }
+            } else {
+                layout
             }
         }
         .preferredColorScheme(.dark)
@@ -89,6 +31,78 @@ struct PaywallView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Nothing was charged. Check your connection and try again.")
+        }
+    }
+
+    private var layout: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    onDone()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .frame(width: 44, height: 44)
+                        .background(.white.opacity(0.12), in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .accessibilityLabel("Close")
+                Spacer()
+            }
+            .padding(.horizontal)
+
+            Spacer()
+
+            OnboardingArtView(art: .metrics)
+
+            Text("Every throw, measured.\nNo limits.")
+                .font(.title2.bold())
+                .multilineTextAlignment(.center)
+                .padding(.top, 24)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+                .padding(.top, 12)
+
+            VStack(alignment: .leading, spacing: 10) {
+                row("Unlimited analyzed throws")
+                row("Speed, breakpoint, and entry angle on every shot")
+                row("Session history and consistency, forever")
+            }
+            .accessibilityElement(children: .combine)
+            .padding(.top, 24)
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                Button {
+                    buy()
+                } label: {
+                    if store.purchasing {
+                        ProgressView().tint(.black)
+                    } else {
+                        Text("Unlock TrueLine for \(price)")
+                    }
+                }
+                .buttonStyle(.primaryAction)
+                .disabled(store.purchasing)
+
+                Text("One-time purchase. Yours forever.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button("Restore Purchases") {
+                    Task { await store.restore() }
+                }
+                .font(.footnote)
+                .foregroundStyle(Color.brandMint)
+                .frame(minHeight: 44)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
         }
     }
 
