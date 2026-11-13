@@ -47,6 +47,7 @@ final class BallDetector {
         // ball's predicted position, run on a native-resolution square instead.
         // Vision reports boxes relative to the region, mapped back below.
         let roi = focus.map { Self.focusRegion(around: $0, rawW: rawW, rawH: rawH, orientation: orientation) }
+            ?? (Self.useLaneRegion ? Self.laneRegion(geometry: geometry, rawW: rawW, rawH: rawH, orientation: orientation) : nil)
         if let roi { request.regionOfInterest = roi }
         // Letterbox like Ultralytics training/inference; stretching the frame
         // square (scaleFill) squashes the ball on portrait clips and costs
@@ -54,7 +55,7 @@ final class BallDetector {
         // coordinates either way.
         request.imageCropAndScaleOption = .scaleFit
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
-        if roi == nil { diag?.frames += 1 }
+        if focus == nil { diag?.frames += 1 }
         do {
             try handler.perform([request])
         } catch {
@@ -67,7 +68,7 @@ final class BallDetector {
         }
 
         diag?.rawBoxes += observations.count
-        if !observations.isEmpty, roi == nil { diag?.framesWithRaw += 1 }
+        if !observations.isEmpty, focus == nil { diag?.framesWithRaw += 1 }
         let region = roi ?? CGRect(x: 0, y: 0, width: 1, height: 1)
 
         var out: [Candidate] = []
@@ -137,6 +138,29 @@ final class BallDetector {
     /// Side of the focus crop in pixels: the model's input size, so the crop
     /// runs at native resolution instead of being downscaled.
     static let focusSidePx = 640.0
+
+    /// On by default. TRUELINE_LANE_ROI=0 turns it off, for A/B runs in the
+    /// shot_parity harness.
+    static var useLaneRegion = ProcessInfo.processInfo.environment["TRUELINE_LANE_ROI"] != "0"
+
+    /// The calibrated lane's bounding box plus a margin, in Vision's oriented
+    /// normalized coordinates (origin bottom-left). The model letterboxes to
+    /// 640, so running on the lane box instead of the whole frame enlarges
+    /// the ball by the ratio of frame to box. nil when the box is most of the
+    /// frame anyway.
+    static func laneRegion(geometry: LaneGeometry, rawW: Double, rawH: Double,
+                           orientation: CGImagePropertyOrientation) -> CGRect? {
+        let pts = geometry.quad.map { p -> (Double, Double) in
+            rawToOriented(rx: Double(p.x) / rawW, ry: Double(p.y) / rawH, orientation: orientation)
+        }
+        guard let minU = pts.map(\.0).min(), let maxU = pts.map(\.0).max(),
+              let minV = pts.map(\.1).min(), let maxV = pts.map(\.1).max() else { return nil }
+        let marginU = 0.12 * (maxU - minU) + 0.06
+        let x0 = max(minU - marginU, 0), x1 = min(maxU + marginU, 1)
+        let y0 = max(minV - 0.04, 0), y1 = min(maxV + 0.12, 1)   // v: top-left origin
+        guard (x1 - x0) * (y1 - y0) < 0.8 else { return nil }
+        return CGRect(x: x0, y: 1 - y1, width: x1 - x0, height: y1 - y0)
+    }
 
     /// Vision region (display-oriented, normalized, origin bottom-left) for a
     /// focusSidePx square centered on a raw-buffer point, slid inside the frame.
