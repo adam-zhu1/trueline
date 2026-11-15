@@ -53,7 +53,7 @@ NEW IN 1.1
 - 25 free throws, up from 10. Only a successful analysis uses one.
 - Failure reasons: a throw that can't be tracked shows the cause (ball not found, lane outline doesn't match, ball lost too early, or video unreadable), the matching fix as the main button, and a note that no free throw was used.
 - CSV export: Export All as CSV in History, Export CSV in each session, through the share sheet. One row per throw.
-- Settings > Send Feedback opens a Mail draft to trueline.app.help@gmail.com with the app version and iPhone model filled in. Nothing from the user's throws is included.
+- Settings > Send Feedback opens a Mail draft to support@truelinebowling.com with the app version and iPhone model filled in. Nothing from the user's throws is included.
 - Settings > Rate TrueLine opens the App Store review page. The system rating prompt can appear once per version, after the third successful analysis, on return to Home, never during a throw.
 - Accessibility: VoiceOver labels for metrics, the lane drawing, stats and history. Text scales with Larger Text. Text on the default dark interface has at least 4.5:1 contrast. Touch targets are at least 44 pt.
 - Paywall: the price comes from StoreKit. The button shows a spinner while the product loads. If the App Store doesn't respond, it reads Try Again with a short note and shows no price.
@@ -108,7 +108,7 @@ or crash.
 | 10 | Import the sample video and calibrate | Result with path and tiles; free throws drop from 25 to 24 |
 | 11 | History with nothing saved | "No shots yet" empty state |
 | 12 | History > Export All as CSV, session > Export CSV | Share sheet with a .csv; opens in Numbers with one row per throw |
-| 13 | Settings > Send Feedback | Mail draft to trueline.app.help@gmail.com with version and model |
+| 13 | Settings > Send Feedback | Mail draft to support@truelinebowling.com with version and model |
 | 14 | Settings > Rate TrueLine | App Store write-a-review page |
 | 15 | Airplane mode, Settings > Unlock TrueLine Unlimited | Spinner, then Try Again with "Couldn't reach the App Store" note. No price shown |
 | 16 | Online, Unlock, cancel the payment sheet | Back to the paywall, nothing changed |

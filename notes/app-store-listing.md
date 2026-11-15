@@ -134,8 +134,9 @@ leads the screenshots. Check App Analytics search terms 30 days after release.
 | Privacy Policy URL | App Privacy | https://truelinebowling.com/privacy/ |
 
 Support email for the support page and the review contact:
-trueline.app.help@gmail.com. The app's own Settings links still point at
-adamzhu.dev/trueline, and 1.0 installs at the github.io form, so both must keep
+support@truelinebowling.com (forwards to the trueline.app.help Gmail inbox).
+From 1.1 the app's Settings links and Send Feedback use truelinebowling.com.
+1.0 installs still link to adamzhu.dev/trueline and the github.io form, so both must keep
 resolving (see "URLs" further down).
 
 ### App Privacy

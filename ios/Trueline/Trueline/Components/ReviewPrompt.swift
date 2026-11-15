@@ -46,11 +46,11 @@ enum AppInfo {
     /// unlike the system prompt.
     static let writeReviewURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review")!
 
-    static let supportURL = URL(string: "https://adamzhu.dev/trueline/support")!
+    static let supportURL = URL(string: "https://truelinebowling.com/support/")!
 
     /// The support inbox for the Send Feedback mail row. Optional so the row
     /// can still fall back to the support page if it's ever cleared.
-    static let feedbackEmail: String? = "trueline.app.help@gmail.com"
+    static let feedbackEmail: String? = "support@truelinebowling.com"
 
     static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"

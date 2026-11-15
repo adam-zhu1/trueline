@@ -2,7 +2,7 @@
 
 TrueLine is an iPhone app that tracks a bowling ball from a single phone set up behind the approach. After each throw it shows the ball's path down the lane and the numbers bowlers care about, such as speed, the board at the arrows, the breakpoint and the entry board at the pins. Everything runs on the phone.
 
-[App Store](https://apps.apple.com/app/trueline-bowling-ball-tracker/id6801953797) · [Website](https://adamzhu.dev/trueline/)
+[App Store](https://apps.apple.com/app/trueline-bowling-ball-tracker/id6801953797) · [Website](https://truelinebowling.com)
 
 ## Why I built it
 

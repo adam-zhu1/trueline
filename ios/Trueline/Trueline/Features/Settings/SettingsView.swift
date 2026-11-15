@@ -92,12 +92,11 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    // Served from the portfolio repo (adam-zhu1.github.io) at
-                    // adamzhu.dev/trueline/. Copies already installed link to the
-                    // adam-zhu1.github.io/trueline/ form, so that path has to keep
-                    // resolving for as long as any of them are in use.
-                    Link("Privacy Policy", destination: URL(string: "https://adamzhu.dev/trueline/privacy")!)
-                    Link("Support", destination: URL(string: "https://adamzhu.dev/trueline/support")!)
+                    // truelinebowling.com is the app's home. The old
+                    // adamzhu.dev/trueline/ and adam-zhu1.github.io/trueline/
+                    // pages stay up for copies of 1.0 that still link there.
+                    Link("Privacy Policy", destination: URL(string: "https://truelinebowling.com/privacy/")!)
+                    Link("Support", destination: URL(string: "https://truelinebowling.com/support/")!)
                     LabeledContent(
                         "Version",
                         value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "--"
