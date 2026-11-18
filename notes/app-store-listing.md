@@ -26,10 +26,10 @@ TrueLine: Bowling Ball Tracker
 ### Subtitle (30 max)
 
 ```
-Speed, entry angle, breakpoint
+Entry angle on every throw
 ```
 
-30 characters. From the launch plan: the subtitle carries more search weight
+26 characters. Not a list; keeps "entry angle" in the indexed subtitle. Speed and breakpoint moved into the keywords. From the launch plan: the subtitle carries more search weight
 than the keyword field, and "breakpoint" moves here from the keywords. When rev
 rate ships, change it to "Speed, rev rate & entry angle" (29).
 
@@ -114,10 +114,10 @@ are listed; the recording-rules line is there without naming any organization.
 ### Keywords (100 max)
 
 ```
-trainer,coach,stats,analysis,meter,hook,arrows,league,practice,tenpin,lane,video,pocket,boards,pin
+trainer,coach,stats,speed,hook,arrows,league,practice,tenpin,lane,video,pocket,boards,pin,breakpoint
 ```
 
-98 characters, 15 terms, commas and no spaces. None of them repeat a word from
+100 characters, 15 terms, commas and no spaces. None of them repeat a word from
 the name (TrueLine, Bowling, Ball, Tracker) or the new subtitle (Speed, Entry,
 Angle, Breakpoint). No trademarks. Dropped from 1.0: bowling and tracker (in
 the name), pba and usbc (other parties' marks), rev (not shipped), strike and
