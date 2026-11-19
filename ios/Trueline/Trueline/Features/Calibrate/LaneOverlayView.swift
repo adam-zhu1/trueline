@@ -6,11 +6,18 @@ import SwiftUI
 /// the calibrate refine step, and the same view doubles as the per-throw
 /// drift check. The pin spots are the refine target: the far lane's markings
 /// are trustworthy where its specular edges are not.
-struct LaneOverlayView: View {
+struct LaneOverlayView: View, Animatable {
     let corners: LaneCorners
     let imageSize: CGSize
-    /// Where the frame is drawn in the container (aspect-fit rect).
-    let fittedRect: CGRect
+    /// Where the frame is drawn in the container (aspect-fit rect, or the
+    /// zoomed rect on the calibration screen).
+    var fittedRect: CGRect
+
+    /// Animatable so the drawing tracks the frame through an animated zoom.
+    var animatableData: CGRect.AnimatableData {
+        get { fittedRect.animatableData }
+        set { fittedRect.animatableData = newValue }
+    }
 
     /// The aspect-fit rect a frame of `imageSize` occupies inside `container`,
     /// matching both the calibration screen's layout and AVKit's video gravity.

@@ -37,10 +37,33 @@ struct CalibrationView: View {
     @State private var proposal: LaneCorners?
     @State private var proposalSource: ProposalSource = .fitted
     @State private var fitFailed = false
-    /// Active drag target: a tap index while tapping, a corner while refining.
-    @State private var activeTap: Int?
-    @State private var activeCorner: LaneCorners.Corner?
-    @State private var dragStartPoint: CGPoint?
+    /// The point the current touch is placing or nudging, if any.
+    @State private var edit: PointEdit?
+    /// Bumped each time a finger lifts off a point it placed or moved; drives
+    /// the selection haptic.
+    @State private var placements = 0
+    @State private var zoom = FrameZoom()
+    @State private var pinchStart: (zoom: FrameZoom, anchor: CGPoint, span: CGFloat)?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// One touch's edit of a calibration point. Kept until the edit commits so
+    /// a pinch or double tap that starts with one finger can take it back.
+    private struct PointEdit {
+        enum Target: Equatable {
+            case tap(Int)
+            case corner(LaneCorners.Corner)
+        }
+
+        let target: Target
+        /// Where the point was before this touch; nil if this touch placed it.
+        let original: CGPoint?
+        /// The point's normalized position and the finger's view position at
+        /// touch down. The point moves by the finger's travel from there.
+        let startPoint: CGPoint
+        let touchStart: CGPoint
+        var fingerDown = true
+    }
 
     var body: some View {
         // Guide header, image, and buttons stack vertically so the controls
@@ -75,34 +98,42 @@ struct CalibrationView: View {
             Group {
                 if let frame {
                     GeometryReader { geo in
-                        let rect = fittedRect(imageSize: frame.size, in: geo.size)
+                        let bounds = CGRect(origin: .zero, size: geo.size)
+                        let fitted = fittedRect(imageSize: frame.size, in: geo.size)
+                        let rect = zoom.displayRect(fitted: fitted, bounds: bounds)
                         ZStack {
+                            // Zoomed in, the frame is larger than the viewport;
+                            // the picture and overlay clip to it, while handles
+                            // keep a little slack so edge points stay grabbable.
                             Image(uiImage: frame)
                                 .resizable()
                                 .frame(width: rect.width, height: rect.height)
                                 .position(x: rect.midX, y: rect.midY)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
 
                             if phase == .refining {
                                 LaneOverlayView(corners: corners, imageSize: frame.size, fittedRect: rect)
+                                    .clipped()
                                 ForEach(LaneCorners.Corner.allCases, id: \.self) { corner in
-                                    handle(at: corners[corner], active: activeCorner == corner, in: rect)
+                                    handle(at: corners[corner], active: activeTarget == .corner(corner), in: rect, bounds: bounds)
                                 }
                             } else {
                                 ForEach(taps.indices, id: \.self) { index in
-                                    handle(at: taps[index], active: activeTap == index, in: rect)
+                                    handle(at: taps[index], active: activeTarget == .tap(index), in: rect, bounds: bounds)
                                 }
                             }
 
+                            CalibrationTouchSurface { event in
+                                handleTouch(event, display: rect, fitted: fitted, bounds: bounds)
+                            }
+
                             if let point = activePoint {
-                                LoupeView(image: frame, normalizedPoint: point, fittedRect: rect)
-                                    .position(loupeCenter(for: point, in: rect))
+                                LoupeView(image: frame, normalizedPoint: point, displayRect: rect, zoom: loupeZoom)
+                                    .position(loupeCenter(for: FrameZoom.viewPoint(point, in: rect), in: bounds))
                                     .allowsHitTesting(false)
                             }
                         }
-                        .coordinateSpace(name: "calibration")
-                        .contentShape(Rectangle())
-                        .gesture(phase == .tapping ? tapPhaseGesture(in: rect) : nil)
-                        .gesture(phase == .refining ? refineDragGesture(in: rect) : nil)
                         // Calibration is touching exact spots on the frame, which
                         // VoiceOver's focus model can't do. Direct interaction
                         // passes touches straight through so a VoiceOver user
@@ -112,7 +143,7 @@ struct CalibrationView: View {
                         .accessibilityAddTraits(.allowsDirectInteraction)
                         .accessibilityLabel("Lane frame for calibration")
                         .accessibilityValue(calibrationAccessibilityValue)
-                        .accessibilityHint("Placing the points needs a precise touch on the lane picture. The instruction above names each spot.")
+                        .accessibilityHint("Placing the points needs a precise touch on the lane picture. The instruction above names each spot. Pinch or double-tap to zoom.")
                     }
                     // Breathing room so edge handles stay under the finger, not
                     // clipped against the hint or button rows.
@@ -155,6 +186,7 @@ struct CalibrationView: View {
                         if !taps.isEmpty {
                             taps.removeLast()
                         }
+                        edit = nil
                         fitFailed = false
                     } label: {
                         Image(systemName: "arrow.uturn.backward")
@@ -186,7 +218,7 @@ struct CalibrationView: View {
             .padding()
         }
         .background(Color.black.ignoresSafeArea())
-        .sensoryFeedback(.impact(weight: .light), trigger: taps.count)
+        .sensoryFeedback(.selection, trigger: placements)
         .sensoryFeedback(.success, trigger: phase) { _, newPhase in
             newPhase == .refining
         }
@@ -194,12 +226,13 @@ struct CalibrationView: View {
     }
 
     private var calibrationAccessibilityValue: String {
-        switch phase {
+        let status = switch phase {
         case .tapping:
-            "\(min(taps.count, LandmarkFit.targets.count)) of \(LandmarkFit.targets.count) points placed"
+            "\(min(taps.count, LandmarkFit.targets.count)) of \(LandmarkFit.targets.count) points placed."
         case .refining:
             "Lane overlay placed. Drag a corner to adjust, or choose Looks Good."
         }
+        return zoom.isZoomed ? status + " Zoomed in." : status
     }
 
     // MARK: - Guide header
@@ -255,9 +288,9 @@ struct CalibrationView: View {
     private var subHintText: String {
         switch phase {
         case .tapping:
-            return "Hold and drag to fine-tune. A magnifier follows your finger."
+            return "Touch and slide, then lift. Pinch or double-tap to zoom."
         case .refining:
-            return "Hold near a corner to grab it, then drag. The magnifier shows the exact spot."
+            return "Hold near a corner and drag. Pinch or double-tap to zoom."
         }
     }
 
@@ -294,58 +327,150 @@ struct CalibrationView: View {
 
     // MARK: - Gestures
 
-    private var activePoint: CGPoint? {
-        if phase == .refining, let activeCorner {
-            return corners[activeCorner]
-        }
-        if phase == .tapping, let activeTap, taps.indices.contains(activeTap) {
-            return taps[activeTap]
-        }
-        return nil
+    /// The point under the finger right now (the loupe follows it).
+    private var activeTarget: PointEdit.Target? {
+        guard let edit, edit.fingerDown else { return nil }
+        return edit.target
     }
 
-    /// Tap phase: a touch near an existing point grabs and adjusts it (moving
-    /// by the drag delta, document-scanner style); a touch elsewhere places the
-    /// next target under the finger, adjustable until lift. When the sixth
-    /// point lands, the fit runs and the refine overlay appears.
-    private func tapPhaseGesture(in rect: CGRect) -> some Gesture {
-        let grabRadius: CGFloat = 40
-        return DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
-            .onChanged { value in
-                if activeTap == nil {
-                    let nearest = taps.indices.min { a, b in
-                        distance(viewPoint(taps[a], in: rect), value.startLocation)
-                            < distance(viewPoint(taps[b], in: rect), value.startLocation)
-                    }
-                    if let nearest,
-                       distance(viewPoint(taps[nearest], in: rect), value.startLocation) <= grabRadius {
-                        activeTap = nearest
-                        dragStartPoint = taps[nearest]
-                    } else if taps.count < LandmarkFit.targets.count {
-                        let placed = normalizedPoint(value.startLocation, in: rect)
-                        taps.append(placed)
-                        activeTap = taps.count - 1
-                        dragStartPoint = placed
-                    } else {
-                        return
-                    }
-                    fitFailed = false
-                }
-                guard let index = activeTap, let start = dragStartPoint else { return }
-                let dx = (value.location.x - value.startLocation.x) / rect.width
-                let dy = (value.location.y - value.startLocation.y) / rect.height
-                taps[index] = CGPoint(
-                    x: min(max(start.x + dx, 0), 1),
-                    y: min(max(start.y + dy, 0), 1)
-                )
+    private var activePoint: CGPoint? {
+        switch activeTarget {
+        case .tap(let index)?:
+            taps.indices.contains(index) ? taps[index] : nil
+        case .corner(let corner)?:
+            corners[corner]
+        case nil:
+            nil
+        }
+    }
+
+    /// 4x at the fitted frame (far arrows and the head pin are a few pixels
+    /// there), easing off as the pinch zoom grows: past about 6x combined the
+    /// video has no more detail to show, only blur.
+    private var loupeZoom: CGFloat {
+        min(max(6 / zoom.scale, 1.5), 4)
+    }
+
+    private var zoomAnimation: Animation? {
+        reduceMotion ? nil : .spring(duration: 0.35, bounce: 0)
+    }
+
+    /// One finger places or grabs a point and slides it (touch, slide, lift,
+    /// like the text magnifier); two fingers pinch and pan; a double tap
+    /// toggles zoom. `display` is where the frame is drawn for this render.
+    private func handleTouch(_ event: CalibrationTouchSurface.Event, display: CGRect, fitted: CGRect, bounds: CGRect) {
+        switch event {
+        case .began(let location):
+            beginEdit(at: location, in: display)
+        case .moved(let location):
+            guard let edit, edit.fingerDown else { return }
+            let delta = FrameZoom.normalizedDelta(
+                CGSize(width: location.x - edit.touchStart.x, height: location.y - edit.touchStart.y),
+                in: display
+            )
+            setPoint(
+                CGPoint(
+                    x: min(max(edit.startPoint.x + delta.width, 0), 1),
+                    y: min(max(edit.startPoint.y + delta.height, 0), 1)
+                ),
+                for: edit.target
+            )
+        case .lifted:
+            guard let current = edit else { return }
+            let moved = activePoint.map { $0 != current.original } ?? false
+            edit?.fingerDown = false
+            // Tick when a point lands or moves, not for a grab-and-release.
+            if current.original == nil || moved {
+                placements += 1
             }
-            .onEnded { _ in
-                activeTap = nil
-                dragStartPoint = nil
-                if taps.count == LandmarkFit.targets.count {
-                    fitFromTaps()
-                }
+        case .committed:
+            guard edit != nil else { return }
+            edit = nil
+            if phase == .tapping, taps.count == LandmarkFit.targets.count {
+                fitFromTaps()
             }
+        case .cancelled:
+            revertEdit()
+        case .pinchBegan(let midpoint, let span):
+            pinchStart = (zoom, FrameZoom.normalizedPoint(midpoint, in: display), span)
+        case .pinchChanged(let midpoint, let span):
+            guard let start = pinchStart else { return }
+            zoom = start.zoom.pinched(
+                anchor: start.anchor,
+                to: midpoint,
+                scale: start.zoom.scale * span / start.span,
+                fitted: fitted,
+                bounds: bounds
+            )
+        case .pinchEnded:
+            pinchStart = nil
+            if zoom.scale < 1.05 {
+                withAnimation(zoomAnimation) { zoom = FrameZoom() }
+            }
+        case .doubleTap(let location):
+            withAnimation(zoomAnimation) {
+                zoom = zoom.toggled(at: location, fitted: fitted, bounds: bounds)
+            }
+        }
+    }
+
+    /// A touch near an existing point grabs it (it then moves by the finger's
+    /// travel, document-scanner style, so the grab needn't be exact); a touch
+    /// elsewhere places the next target under the finger.
+    private func beginEdit(at location: CGPoint, in display: CGRect) {
+        func nearest<T>(_ items: [T], point: (T) -> CGPoint, within radius: CGFloat) -> T? {
+            let closest = items.min {
+                distance(FrameZoom.viewPoint(point($0), in: display), location)
+                    < distance(FrameZoom.viewPoint(point($1), in: display), location)
+            }
+            guard let closest,
+                  distance(FrameZoom.viewPoint(point(closest), in: display), location) <= radius
+            else { return nil }
+            return closest
+        }
+
+        switch phase {
+        case .tapping:
+            // Tighter while targets remain, so placing an arrow right next to
+            // the one before it doesn't grab the neighbor instead.
+            let grabRadius: CGFloat = taps.count < LandmarkFit.targets.count ? 28 : 44
+            if let index = nearest(Array(taps.indices), point: { taps[$0] }, within: grabRadius) {
+                edit = PointEdit(target: .tap(index), original: taps[index], startPoint: taps[index], touchStart: location)
+            } else if taps.count < LandmarkFit.targets.count {
+                let placed = FrameZoom.normalizedPoint(location, in: display)
+                taps.append(placed)
+                edit = PointEdit(target: .tap(taps.count - 1), original: nil, startPoint: placed, touchStart: location)
+            } else {
+                return
+            }
+            fitFailed = false
+        case .refining:
+            guard let corner = nearest(LaneCorners.Corner.allCases, point: { corners[$0] }, within: 70) else { return }
+            edit = PointEdit(target: .corner(corner), original: corners[corner], startPoint: corners[corner], touchStart: location)
+        }
+    }
+
+    private func setPoint(_ point: CGPoint, for target: PointEdit.Target) {
+        switch target {
+        case .tap(let index):
+            if taps.indices.contains(index) {
+                taps[index] = point
+            }
+        case .corner(let corner):
+            corners[corner] = point
+        }
+    }
+
+    /// A pinch or double tap that began with one finger takes back whatever
+    /// that finger did.
+    private func revertEdit() {
+        guard let edit else { return }
+        self.edit = nil
+        if let original = edit.original {
+            setPoint(original, for: edit.target)
+        } else if case .tap(let index) = edit.target, index == taps.count - 1 {
+            taps.removeLast()
+        }
     }
 
     private func fitFromTaps() {
@@ -359,38 +484,8 @@ struct CalibrationView: View {
         proposal = fitted
         proposalSource = .fitted
         phase = .refining
-    }
-
-    /// Refine phase: same document-scanner drag as the old flow, but against
-    /// the live overlay — touch anywhere near a corner to grab it, then it
-    /// moves by the drag delta so precise placement doesn't need a precise grab.
-    private func refineDragGesture(in rect: CGRect) -> some Gesture {
-        let grabRadius: CGFloat = 70
-        return DragGesture(minimumDistance: 0, coordinateSpace: .named("calibration"))
-            .onChanged { value in
-                if activeCorner == nil {
-                    let nearest = LaneCorners.Corner.allCases.min { a, b in
-                        distance(viewPoint(corners[a], in: rect), value.startLocation)
-                            < distance(viewPoint(corners[b], in: rect), value.startLocation)
-                    }
-                    guard let nearest,
-                          distance(viewPoint(corners[nearest], in: rect), value.startLocation) <= grabRadius
-                    else { return }
-                    activeCorner = nearest
-                    dragStartPoint = corners[nearest]
-                }
-                guard let corner = activeCorner, let start = dragStartPoint else { return }
-                let dx = (value.location.x - value.startLocation.x) / rect.width
-                let dy = (value.location.y - value.startLocation.y) / rect.height
-                corners[corner] = CGPoint(
-                    x: min(max(start.x + dx, 0), 1),
-                    y: min(max(start.y + dy, 0), 1)
-                )
-            }
-            .onEnded { _ in
-                activeCorner = nil
-                dragStartPoint = nil
-            }
+        // The overlay is judged against the whole rack, so show the whole lane.
+        withAnimation(zoomAnimation) { zoom = FrameZoom() }
     }
 
     private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
@@ -399,69 +494,58 @@ struct CalibrationView: View {
 
     // MARK: - Layout helpers
 
-    private func handle(at normalized: CGPoint, active: Bool, in rect: CGRect) -> some View {
-        Circle()
-            .fill(.white)
-            .frame(width: 20, height: 20)
-            .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
-            .scaleEffect(active ? 1.35 : 1.0)
-            .animation(.easeOut(duration: 0.12), value: active)
-            .position(viewPoint(normalized, in: rect))
-            .allowsHitTesting(false)
+    @ViewBuilder
+    private func handle(at normalized: CGPoint, active: Bool, in rect: CGRect, bounds: CGRect) -> some View {
+        let point = FrameZoom.viewPoint(normalized, in: rect)
+        // Zoomed in, points off the visible part of the frame aren't drawn.
+        if bounds.insetBy(dx: -14, dy: -14).contains(point) {
+            Circle()
+                .fill(.white)
+                .frame(width: 20, height: 20)
+                .overlay(Circle().stroke(Color.accentColor, lineWidth: 3))
+                .scaleEffect(active ? 1.35 : 1.0)
+                .animation(.easeOut(duration: 0.12), value: active)
+                .position(point)
+                .allowsHitTesting(false)
+        }
     }
 
-    /// Keeps the loupe near the active handle but off the finger — above it when
-    /// there's room, below when the handle is near the top edge.
-    private func loupeCenter(for normalized: CGPoint, in rect: CGRect) -> CGPoint {
-        let handle = viewPoint(normalized, in: rect)
-        let offset: CGFloat = handle.y - rect.minY > 160 ? -110 : 110
-        return CGPoint(
-            x: min(max(handle.x, rect.minX + 70), rect.maxX - 70),
-            y: handle.y + offset
-        )
+    /// Keeps the loupe off the finger: above the point when there's room, and
+    /// beside it (on the roomier side) near the top of the frame, where the
+    /// head pin and arrows sit. Never below, where the hand is.
+    private func loupeCenter(for point: CGPoint, in bounds: CGRect) -> CGPoint {
+        let radius = LoupeView.diameter / 2
+        let gap: CGFloat = 50
+        func clampX(_ x: CGFloat) -> CGFloat { min(max(x, bounds.minX + radius), bounds.maxX - radius) }
+        if point.y - bounds.minY >= gap + 2 * radius {
+            return CGPoint(x: clampX(point.x), y: point.y - gap - radius)
+        }
+        let x = point.x > bounds.midX ? point.x - gap - radius : point.x + gap + radius
+        return CGPoint(x: clampX(x), y: min(max(point.y, bounds.minY + radius), bounds.maxY - radius))
     }
 
     private func fittedRect(imageSize: CGSize, in container: CGSize) -> CGRect {
-        let scale = min(container.width / imageSize.width, container.height / imageSize.height)
-        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
-        return CGRect(
-            x: (container.width - size.width) / 2,
-            y: (container.height - size.height) / 2,
-            width: size.width,
-            height: size.height
-        )
-    }
-
-    private func viewPoint(_ normalized: CGPoint, in rect: CGRect) -> CGPoint {
-        CGPoint(
-            x: rect.minX + normalized.x * rect.width,
-            y: rect.minY + normalized.y * rect.height
-        )
-    }
-
-    private func normalizedPoint(_ location: CGPoint, in rect: CGRect) -> CGPoint {
-        CGPoint(
-            x: min(max((location.x - rect.minX) / rect.width, 0), 1),
-            y: min(max((location.y - rect.minY) / rect.height, 0), 1)
-        )
+        LaneOverlayView.fittedRect(imageSize: imageSize, in: container)
     }
 }
 
-/// Magnified view of the frame around the point being dragged, with a crosshair
-/// marking the exact position.
+/// Magnified view of the frame around the point being placed, with a
+/// crosshair marking the exact position. Same idea as the iOS text magnifier.
 private struct LoupeView: View {
     let image: UIImage
     let normalizedPoint: CGPoint
-    let fittedRect: CGRect
+    /// Where the whole frame is drawn on screen right now; the loupe
+    /// magnifies relative to that, so it adds to any pinch zoom.
+    let displayRect: CGRect
+    let zoom: CGFloat
 
-    private let diameter: CGFloat = 130
-    private let zoom: CGFloat = 3
+    static let diameter: CGFloat = 130
 
     var body: some View {
         Canvas { context, size in
             context.clip(to: Path(ellipseIn: CGRect(origin: .zero, size: size)))
             context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black))
-            let drawSize = CGSize(width: fittedRect.width * zoom, height: fittedRect.height * zoom)
+            let drawSize = CGSize(width: displayRect.width * zoom, height: displayRect.height * zoom)
             let origin = CGPoint(
                 x: size.width / 2 - normalizedPoint.x * drawSize.width,
                 y: size.height / 2 - normalizedPoint.y * drawSize.height
@@ -475,7 +559,7 @@ private struct LoupeView: View {
             crosshair.addLine(to: CGPoint(x: size.width / 2, y: size.height / 2 + 12))
             context.stroke(crosshair, with: .color(.yellow), lineWidth: 1.5)
         }
-        .frame(width: diameter, height: diameter)
+        .frame(width: Self.diameter, height: Self.diameter)
         .overlay(Circle().stroke(.white, lineWidth: 2))
         .shadow(radius: 4)
     }
