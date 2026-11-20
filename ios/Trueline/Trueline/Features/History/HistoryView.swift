@@ -166,6 +166,7 @@ struct ShotDetailView: View {
             )
             .padding()
         }
+        .background(Color.pageBackground)
         .navigationTitle(shot.date.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

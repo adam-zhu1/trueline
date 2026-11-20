@@ -39,7 +39,7 @@ struct BowlHomeView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
-                (Text("True").foregroundStyle(.white) + Text("Line").foregroundStyle(Color.brandMint))
+                (Text("True").foregroundStyle(Color.inkPrimary) + Text("Line").foregroundStyle(Color.accentMint))
                     .font(.headline)
                     .padding(.top, 8)
                     .modifier(landing(0))
@@ -287,13 +287,13 @@ struct BowlHomeView: View {
 
     private func stat(_ value: String, unit: String, label: String, spoken: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            (Text(value).font(.body.weight(.semibold)).foregroundStyle(.white)
-                + Text(" \(unit)").font(.caption).foregroundStyle(.white.opacity(0.6)))
+            (Text(value).font(.body.weight(.semibold)).foregroundStyle(Color.inkPrimary)
+                + Text(" \(unit)").font(.caption).foregroundStyle(Color.ink(0.6)))
                 .monospacedDigit()
             Text(label.uppercased())
                 .font(.caption2.weight(.medium))
                 .kerning(0.6)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Color.ink(0.6))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
@@ -315,26 +315,26 @@ struct BowlHomeView: View {
                 Text("SPEED · LAST \(values.count) THROWS")
                     .font(.caption2.weight(.medium))
                     .kerning(0.7)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.ink(0.6))
                 Spacer()
                 if let latest = values.last {
                     (Text(String(format: "%.1f", latest))
-                        .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.9))
-                        + Text(" mph").font(.caption2).foregroundStyle(.white.opacity(0.6)))
+                        .font(.footnote.weight(.semibold)).foregroundStyle(Color.ink(0.9))
+                        + Text(" mph").font(.caption2).foregroundStyle(Color.ink(0.6)))
                         .monospacedDigit()
                 }
             }
             ZStack(alignment: .trailing) {
                 SparklineShape(values: values)
                     .stroke(
-                        Color.brandMint.opacity(0.85),
+                        Color.accentMint.opacity(0.85),
                         style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
                     )
                 // The newest throw, marked.
                 GeometryReader { geo in
                     if let latest = values.last {
                         Circle()
-                            .fill(Color.brandMint)
+                            .fill(Color.accentMint)
                             .frame(width: 5, height: 5)
                             .position(
                                 x: geo.size.width - 1,

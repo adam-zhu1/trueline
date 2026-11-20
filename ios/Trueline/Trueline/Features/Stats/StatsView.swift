@@ -57,6 +57,7 @@ struct StatsView: View {
                         }
                         .padding()
                     }
+                    .background(Color.pageBackground)
                 }
             }
             .navigationTitle("Stats")
@@ -73,7 +74,7 @@ struct StatsView: View {
                 .monospacedDigit()
             Text("throws measured")
                 .font(.headline)
-                .foregroundStyle(Color.brandMint)
+                .foregroundStyle(Color.accentMint)
             Text("\(ordered.count) session\(ordered.count == 1 ? "" : "s") · \(activeDays) day\(activeDays == 1 ? "" : "s") bowled")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -115,7 +116,7 @@ struct StatsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        .cardSurface()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(AccessibilityText.metric(title: title, value: value, unit: unit == "%" ? "percent" : unit))
     }
@@ -140,7 +141,7 @@ struct StatsView: View {
                         xStart: .value("Pocket", ShotResult.pocketBoards.lowerBound - 0.5),
                         xEnd: .value("Pocket", ShotResult.pocketBoards.upperBound + 0.5)
                     )
-                    .foregroundStyle(Color.brandMint.opacity(0.12))
+                    .foregroundStyle(Color.accentMint.opacity(0.12))
                     .accessibilityHidden(true)
                     ForEach(counts.keys.sorted(), id: \.self) { board in
                         BarMark(
@@ -151,7 +152,7 @@ struct StatsView: View {
                             // continuous board scale.
                             width: .fixed(14)
                         )
-                        .foregroundStyle(Color.brandMint)
+                        .foregroundStyle(Color.accentMint)
                         .cornerRadius(2)
                         .accessibilityLabel("Board \(Int(board))")
                         .accessibilityValue("\(counts[board] ?? 0) \(counts[board] == 1 ? "throw" : "throws")\(ShotResult.pocketBoards.contains(board) ? ", pocket" : "")")
@@ -212,7 +213,7 @@ struct StatsView: View {
                             y: .value("Ball", ball),
                             height: .fixed(14)
                         )
-                        .foregroundStyle(Color.brandMint)
+                        .foregroundStyle(Color.accentMint)
                         .cornerRadius(3)
                         .accessibilityLabel(ball)
                         .accessibilityValue(String(format: labelFormat, v))
@@ -266,7 +267,7 @@ struct StatsView: View {
                     yStart: .value("Ideal", idealBand.lowerBound),
                     yEnd: .value("Ideal", idealBand.upperBound)
                 )
-                .foregroundStyle(Color.brandMint.opacity(0.08))
+                .foregroundStyle(Color.accentMint.opacity(0.08))
                 .accessibilityHidden(true)
             }
             ForEach(points) { point in
@@ -274,14 +275,14 @@ struct StatsView: View {
                     x: .value("Session", point.index),
                     y: .value("Value", point.value)
                 )
-                .foregroundStyle(Color.brandMint)
+                .foregroundStyle(Color.accentMint)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .accessibilityHidden(true)
                 PointMark(
                     x: .value("Session", point.index),
                     y: .value("Value", point.value)
                 )
-                .foregroundStyle(Color.brandMint)
+                .foregroundStyle(Color.accentMint)
                 .symbolSize(50)
                 // One element per session: its date and the average.
                 .accessibilityLabel(
@@ -307,7 +308,7 @@ struct StatsView: View {
                 .annotation(position: .top, spacing: 6) {
                     Text(String(format: "%.1f", last.value))
                         .font(.caption.monospacedDigit().bold())
-                        .foregroundStyle(Color.brandMint)
+                        .foregroundStyle(Color.accentMint)
                 }
             }
         }
@@ -366,7 +367,7 @@ struct StatsView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        .cardSurface()
     }
 
     private func pocketPercent(of shots: [SavedShot]) -> Double? {

@@ -228,5 +228,8 @@ struct FullScreenVideoView: View {
             }
             .padding()
         }
+        // Footage is dark in every appearance, so the status bar and the
+        // player's controls stay light-on-dark here too.
+        .preferredColorScheme(.dark)
     }
 }

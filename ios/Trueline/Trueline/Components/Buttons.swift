@@ -3,7 +3,9 @@ import SwiftUI
 /// Shared button system: one primary and one secondary treatment across every
 /// screen, so the flow reads as one product instead of per-screen styling.
 /// Full-width, fixed-height, high-contrast fill — the primary action on a
-/// screen is always the mint bar.
+/// screen is always the mint bar. Black on bright mint reads 13:1 in either
+/// appearance, so the primary bar is the same in light and dark; the
+/// secondary treatments use the adaptive ink and fill tokens.
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
@@ -29,7 +31,7 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.inkPrimary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -37,7 +39,7 @@ struct SecondaryButtonStyle: ButtonStyle {
             // A floor, not a fixed height: at the accessibility text sizes
             // the label wraps and the bar grows instead of clipping.
             .frame(minHeight: 54)
-            .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Color.controlFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(configuration.isPressed ? 0.7 : (isEnabled ? 1 : 0.4))
     }
 }
@@ -59,9 +61,9 @@ struct IconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.inkPrimary)
             .frame(width: 54, height: 54)
-            .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Color.controlFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(configuration.isPressed ? 0.7 : (isEnabled ? 1 : 0.4))
     }
 }

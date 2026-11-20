@@ -66,7 +66,7 @@ struct SettingsView: View {
                             value: "\(store.freeThrowsLeft) of \(TruelineStore.freeThrowLimit)"
                         )
                         Button("Unlock TrueLine Unlimited") { showPaywall = true }
-                            .foregroundStyle(Color.brandMint)
+                            .foregroundStyle(Color.accentMint)
                         Button("Restore Purchases") {
                             Task { await store.restore() }
                         }

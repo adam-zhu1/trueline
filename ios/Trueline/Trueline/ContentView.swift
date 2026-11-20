@@ -17,7 +17,9 @@ enum CaptureRoute: Equatable {
 struct ContentView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     /// "dark" (default, the brand look), "light", or "system". Cinema
-    /// surfaces (capture, analysis, launch) hardcode dark regardless.
+    /// surfaces (capture, analysis, launch) stay dark regardless: their
+    /// content pins the dark scheme, and the window follows once they cover
+    /// the screen (see `windowScheme`).
     @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
@@ -32,18 +34,38 @@ struct ContentView: View {
     /// Flips when the launch curtain starts to lift — Home lands its
     /// elements against it.
     @State private var homeRevealed = false
+    /// The capture flow's current step is a cinema surface (everything but
+    /// the shot result).
+    @State private var captureIsCinema = false
+    /// True once the capture overlay has finished sliding in. The window
+    /// flips to dark only then, so the Home screen underneath never visibly
+    /// changes appearance while the overlay is still uncovering it.
+    @State private var captureSettled = false
+    /// Debug builds honor `-startTab <0-3>` so the simulator can open on any
+    /// tab without taps (screenshots of both appearances).
+    @State private var tab: Int = {
+        #if DEBUG
+        UserDefaults.standard.integer(forKey: "startTab")
+        #else
+        0
+        #endif
+    }()
 
     var body: some View {
         ZStack {
-            TabView {
+            TabView(selection: $tab) {
                 BowlHomeView(capture: $capture, repick: $repickAfterExit, entrance: homeRevealed)
                     .tabItem { Label("Bowl", systemImage: "figure.bowling") }
+                    .tag(0)
                 HistoryView()
                     .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+                    .tag(1)
                 StatsView()
                     .tabItem { Label("Stats", systemImage: "chart.line.uptrend.xyaxis") }
+                    .tag(2)
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(3)
             }
 
             if let capture {
@@ -57,14 +79,20 @@ struct ContentView: View {
                     onReveal: { homeRevealed = true },
                     onFinished: { finishLaunch() }
                 )
+                .environment(\.colorScheme, .dark)
                 .zIndex(2)
             }
         }
-        // Brand default is mint-on-dark, but appearance is a Settings choice
-        // now. nil hands the decision to the system.
-        .preferredColorScheme(
-            appearance == "dark" ? .dark : appearance == "light" ? .light : nil
-        )
+        .preferredColorScheme(windowScheme)
+        .task(id: capture != nil) {
+            guard capture != nil else {
+                captureSettled = false
+                return
+            }
+            // Matches the overlay's slide-in in present(_:).
+            try? await Task.sleep(for: .milliseconds(260))
+            captureSettled = true
+        }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
                 hasSeenOnboarding = true
@@ -98,6 +126,18 @@ struct ContentView: View {
         }
     }
 
+    /// The window's scheme drives the status bar and UIKit chrome. Brand
+    /// default is mint-on-dark, but appearance is a Settings choice; nil
+    /// hands the decision to the system. Dark wins while the launch
+    /// animation still covers Home and while a cinema step of the capture
+    /// flow is on screen.
+    private var windowScheme: ColorScheme? {
+        if !homeRevealed || (capture != nil && captureSettled && captureIsCinema) {
+            return .dark
+        }
+        return appearance == "dark" ? .dark : appearance == "light" ? .light : nil
+    }
+
     /// First-run onboarding waits for the launch animation — presenting a
     /// cover over the fading overlay looks broken and buries the brand moment.
     /// The launch view has already wiped itself off-screen by now; the short
@@ -120,6 +160,16 @@ struct ContentView: View {
         } else if showNotes {
             showWhatsNew = true
         }
+        #if DEBUG
+        // `-captureImport <path>` opens the capture flow on a local clip, as
+        // if picked from Photos, so the cinema screens can be checked in the
+        // simulator without taps.
+        if let path = UserDefaults.standard.string(forKey: "captureImport") {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                capture = .imported(URL(fileURLWithPath: path))
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -129,12 +179,17 @@ struct ContentView: View {
         }
         switch route {
         case .record:
-            CaptureFlowView(onExit: exit)
+            CaptureFlowView(onExit: exit, onCinemaChange: { captureIsCinema = $0 })
         case .imported(let url):
-            CaptureFlowView(importedClipURL: url, onExit: exit, onRepick: {
-                exit()
-                repickAfterExit = true
-            })
+            CaptureFlowView(
+                importedClipURL: url,
+                onExit: exit,
+                onRepick: {
+                    exit()
+                    repickAfterExit = true
+                },
+                onCinemaChange: { captureIsCinema = $0 }
+            )
         }
     }
 }

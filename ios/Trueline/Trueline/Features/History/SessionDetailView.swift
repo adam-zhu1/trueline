@@ -123,7 +123,7 @@ struct SessionDetailView: View {
             } else {
                 (Text("\(hits)")
                     .font(.body.monospacedDigit().bold())
-                    .foregroundStyle(hits > 0 && hits * 2 >= entries.count ? Color.brandMint : Color.primary)
+                    .foregroundStyle(hits > 0 && hits * 2 >= entries.count ? Color.accentMint : Color.primary)
                     + Text(" of \(entries.count)").font(.caption).foregroundStyle(Color.secondary))
             }
         }
@@ -148,7 +148,7 @@ struct SessionDetailView: View {
             if let meanAbs {
                 (Text(String(format: "%.1f", meanAbs))
                     .font(.body.monospacedDigit().bold())
-                    .foregroundStyle(meanAbs <= 1.0 ? Color.brandMint : Color.primary)
+                    .foregroundStyle(meanAbs <= 1.0 ? Color.accentMint : Color.primary)
                     + Text(" avg miss").font(.caption).foregroundStyle(Color.secondary))
             } else {
                 Text("--").foregroundStyle(.secondary)
@@ -191,7 +191,7 @@ struct SessionDetailView: View {
         let tight = tightWithin.map { sd <= $0 } ?? false
         let sdText = Text(String(format: " ± %.1f", sd))
             .font(.body.monospacedDigit())
-            .foregroundStyle(tight ? Color.brandMint : Color.secondary)
+            .foregroundStyle(tight ? Color.accentMint : Color.secondary)
         return meanText + sdText + Text(" \(unit)").font(.caption).foregroundStyle(.secondary)
     }
 

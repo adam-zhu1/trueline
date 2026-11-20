@@ -37,6 +37,7 @@ struct ResultsView: View {
                 ShotResultContent(result: result, clipURL: clipURL, targetBoard: targetBoard, reveal: reveal)
                     .padding()
             }
+            .background(Color.pageBackground)
             .navigationTitle("Shot Result")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -54,7 +55,7 @@ struct ResultsView: View {
                             // should never feel like an ambush.
                             Text("\(store.freeThrowsLeft) of \(TruelineStore.freeThrowLimit) free throws left")
                                 .font(.footnote)
-                                .foregroundStyle(store.freeThrowsLeft <= 2 ? Color.brandMint : .secondary)
+                                .foregroundStyle(store.freeThrowsLeft <= 2 ? Color.accentMint : .secondary)
                         }
                     }
                     resultButtons
@@ -126,7 +127,7 @@ struct ResultsView: View {
         } label: {
             Label(selectedBall.isEmpty ? "Tag Ball" : selectedBall, systemImage: "circle.circle")
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(selectedBall.isEmpty ? Color.secondary : Color.brandMint)
+                .foregroundStyle(selectedBall.isEmpty ? Color.secondary : Color.accentMint)
         }
     }
 

@@ -39,6 +39,8 @@ struct TruelineApp: App {
                     TrendsPreview()
                 } else if Self.sessionDetailPreview {
                     SessionDetailPreview()
+                } else if Self.shotDetailPreview {
+                    ShotDetailPreview()
                 } else {
                     ContentView()
                 }
@@ -68,6 +70,15 @@ struct TruelineApp: App {
     private static var trendsPreview: Bool {
         #if DEBUG
         UserDefaults.standard.bool(forKey: "trendsPreview")
+        #else
+        false
+        #endif
+    }
+
+    /// `-shotDetailPreview` opens the newest seeded shot's detail screen.
+    private static var shotDetailPreview: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "shotDetailPreview")
         #else
         false
         #endif
@@ -151,6 +162,16 @@ private struct AnimatedProgressPreview: View {
     }
 }
 
+/// The debug screen routes follow the stored Appearance setting (pass
+/// `-appearance light` to check the light look), dark by default like the app.
+private var debugAppearance: ColorScheme? {
+    switch UserDefaults.standard.string(forKey: "appearance") ?? "dark" {
+    case "light": .light
+    case "system": nil
+    default: .dark
+    }
+}
+
 /// Stats over the seeded demo history — the same data every run. Add
 /// `-trendsPreviewBottom` to open scrolled to the end (the CLI can't swipe).
 private struct TrendsPreview: View {
@@ -161,7 +182,7 @@ private struct TrendsPreview: View {
             .defaultScrollAnchor(
                 UserDefaults.standard.bool(forKey: "trendsPreviewBottom") ? .bottom : .top
             )
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(debugAppearance)
             .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
     }
 }
@@ -179,7 +200,25 @@ private struct SessionDetailPreview: View {
                 ProgressView()
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(debugAppearance)
+        .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
+    }
+}
+
+/// The newest seeded shot in the History detail layout (tiles, lane view).
+private struct ShotDetailPreview: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
+
+    var body: some View {
+        NavigationStack {
+            if let shot = shots.first {
+                ShotDetailView(shot: shot)
+            } else {
+                ProgressView()
+            }
+        }
+        .preferredColorScheme(debugAppearance)
         .onAppear { DemoSeed.seedIfRequested(context: modelContext) }
     }
 }

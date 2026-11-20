@@ -66,13 +66,31 @@ struct CaptureFlowView: View {
     /// "Pick Another" on an imported clip: exit AND reopen the picker.
     /// nil falls back to a plain exit.
     private let onRepick: (() -> Void)?
+    /// Reports whether the current step is a cinema surface, so the root can
+    /// switch the window (status bar, system chrome) to dark under it.
+    private let onCinemaChange: (Bool) -> Void
 
     /// Pass an imported clip to skip recording and start at review.
-    init(importedClipURL: URL? = nil, onExit: @escaping () -> Void, onRepick: (() -> Void)? = nil) {
+    init(
+        importedClipURL: URL? = nil,
+        onExit: @escaping () -> Void,
+        onRepick: (() -> Void)? = nil,
+        onCinemaChange: @escaping (Bool) -> Void = { _ in }
+    ) {
         _step = State(initialValue: importedClipURL.map(Step.review) ?? .record)
         isImported = importedClipURL != nil
         self.onExit = onExit
         self.onRepick = onRepick
+        self.onCinemaChange = onCinemaChange
+    }
+
+    /// Camera, review, calibration, analysis, and the failure screen are
+    /// cinema surfaces: dark in every appearance, like the Camera app. The
+    /// paywall is forced dark everywhere. Only the shot result follows the
+    /// Appearance setting, matching the same screen opened from History.
+    private var isCinema: Bool {
+        if case .results = step { return false }
+        return true
     }
 
     var body: some View {
@@ -223,6 +241,10 @@ struct CaptureFlowView: View {
                 )
             }
         }
+        .modifier(CinemaScheme(active: isCinema))
+        .onChange(of: isCinema, initial: true) { _, cinema in
+            onCinemaChange(cinema)
+        }
         .onChange(of: camera.finishedClipURL) { _, clipURL in
             if let clipURL { step = .review(clipURL) }
         }
@@ -264,6 +286,18 @@ struct CaptureFlowView: View {
         // Keep the session's target in step with the record-screen chip, so
         // History scores throws against what was actually aimed at.
         session?.targetBoard = targetBoard
+    }
+}
+
+/// Pins the color scheme to dark while active and passes the inherited one
+/// through otherwise. One modifier instead of a branch, so a step change
+/// never swaps view identity.
+private struct CinemaScheme: ViewModifier {
+    var active: Bool
+    @Environment(\.colorScheme) private var inherited
+
+    func body(content: Content) -> some View {
+        content.environment(\.colorScheme, active ? .dark : inherited)
     }
 }
 
