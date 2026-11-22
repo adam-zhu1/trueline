@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A single labelled metric (e.g. "Speed — 17.2 mph"). Reused on the results and
+/// A single labelled metric (e.g. "Launch Speed, 17.2 mph"). Reused on the results and
 /// shot-detail screens. Tiles with an ideal range show it as a caption and tint
 /// the value mint when the shot lands inside — a nudge, not a judgment, so
 /// out-of-range values stay neutral.
@@ -57,7 +57,7 @@ struct MetricTile: View {
 
 #Preview {
     VStack {
-        MetricTile(title: "Speed", value: "17.2", unit: "mph")
+        MetricTile(title: "Launch Speed", value: "17.2", unit: "mph")
         MetricTile(title: "Entry Board", value: "17.3", unit: "board", numeric: 17.3, ideal: 17...18)
         MetricTile(title: "Entry Angle", value: "8.3", unit: "°", numeric: 8.3, ideal: 4...6)
     }

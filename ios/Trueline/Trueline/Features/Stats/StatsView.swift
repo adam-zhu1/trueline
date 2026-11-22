@@ -44,7 +44,7 @@ struct StatsView: View {
                             Text("Trends")
                                 .font(.title3.bold())
                                 .padding(.top, 6)
-                            trendCard("Speed", unit: SpeedUnit.label(speedUnit)) { shots in
+                            trendCard("Launch Speed", unit: SpeedUnit.label(speedUnit)) { shots in
                                 average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })
                             }
                             trendCard("Pocket Hits", unit: "%", domain: 0...100) { shots in
@@ -86,9 +86,10 @@ struct StatsView: View {
     private var averageTiles: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
             averageTile(
-                "Avg Speed",
+                "Launch Speed",
                 value: format(average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })),
-                unit: SpeedUnit.label(speedUnit)
+                unit: SpeedUnit.label(speedUnit),
+                spokenTitle: "Average launch speed"
             )
             averageTile("Avg Hook", value: format(average(shots.compactMap(\.hookBoards))), unit: "boards")
             averageTile(
@@ -101,7 +102,7 @@ struct StatsView: View {
 
     /// MetricTile's layout at a third of the width — smaller value type so
     /// three digits and a unit never wrap.
-    private func averageTile(_ title: String, value: String, unit: String) -> some View {
+    private func averageTile(_ title: String, value: String, unit: String, spokenTitle: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
@@ -118,7 +119,7 @@ struct StatsView: View {
         .padding(12)
         .cardSurface()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(AccessibilityText.metric(title: title, value: value, unit: unit == "%" ? "percent" : unit))
+        .accessibilityLabel(AccessibilityText.metric(title: spokenTitle ?? title, value: value, unit: unit == "%" ? "percent" : unit))
     }
 
     // MARK: Entry-board distribution

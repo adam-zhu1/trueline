@@ -265,9 +265,9 @@ struct BowlHomeView: View {
 
         return HStack(spacing: 0) {
             stat(
-                avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph", label: "Last avg",
+                avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph", label: "Launch avg",
                 spoken: AccessibilityText.metric(
-                    title: "Last session average speed",
+                    title: "Last session average launch speed",
                     value: avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph"
                 )
             )
@@ -312,7 +312,7 @@ struct BowlHomeView: View {
         let values = speedTrendValues
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("SPEED · LAST \(values.count) THROWS")
+                Text("LAUNCH SPEED · LAST \(values.count) THROWS")
                     .font(.caption2.weight(.medium))
                     .kerning(0.7)
                     .foregroundStyle(Color.ink(0.6))
@@ -351,9 +351,9 @@ struct BowlHomeView: View {
     }
 
     private func speedTrendSpoken(_ values: [Double]) -> String {
-        guard let latest = values.last, let first = values.first else { return "Speed trend" }
+        guard let latest = values.last, let first = values.first else { return "Launch speed trend" }
         let trend = latest > first + 0.3 ? "up" : (latest < first - 0.3 ? "down" : "steady")
-        return "Speed over the last \(values.count) throws, \(trend), latest "
+        return "Launch speed over the last \(values.count) throws, \(trend), latest "
             + String(format: "%.1f", latest) + " miles per hour"
     }
 

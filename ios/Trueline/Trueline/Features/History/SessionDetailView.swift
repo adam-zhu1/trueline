@@ -22,7 +22,7 @@ struct SessionDetailView: View {
                 // a mint tint when met. Both the values and the benchmark
                 // convert together when the unit preference is km/h.
                 consistencyRow(
-                    title: "Speed", unit: SpeedUnit.label(speedUnit),
+                    title: "Launch Speed", unit: SpeedUnit.label(speedUnit),
                     values: shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } },
                     tightWithin: SpeedUnit.value(0.5, unit: speedUnit)
                 )
@@ -99,6 +99,7 @@ struct SessionDetailView: View {
                 ShareLink(
                     item: ShotCSVFile(
                         shots: shots,
+                        speedUnit: speedUnit,
                         name: "TrueLine session \(session.date.formatted(.iso8601.year().month().day())).csv"
                     ),
                     preview: SharePreview("TrueLine session")

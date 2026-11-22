@@ -75,6 +75,7 @@ struct HistoryView: View {
                     ShareLink(
                         item: ShotCSVFile(
                             shots: shots,
+                            speedUnit: speedUnit,
                             name: "TrueLine shots \(Date.now.formatted(.iso8601.year().month().day())).csv"
                         ),
                         preview: SharePreview("All TrueLine shots")

@@ -108,7 +108,7 @@ struct HomeGreeting: Equatable {
             if diff >= 0.3 {
                 result.append(HomeGreeting(
                     category: .delta,
-                    headline: "Speed is up.",
+                    headline: "Launch speed is up.",
                     subline: String(format: "Averaging %.1f mph faster lately.", diff)
                 ))
             }

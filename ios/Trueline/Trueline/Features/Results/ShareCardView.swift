@@ -27,9 +27,9 @@ struct ShareCardView: View {
                     .frame(width: 200)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    metric("Speed", format(result.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }), SpeedUnit.label(speedUnit))
+                    metric("Launch Speed", format(result.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }), SpeedUnit.label(speedUnit))
                     metric("Arrows", format(result.arrowBoard), "board")
-                    metric("Launch", format(result.launchAngleDegrees), "°")
+                    metric("Launch Angle", format(result.launchAngleDegrees), "°")
                     metric("Breakpoint", format(result.breakpointBoard), "board")
                     metric(
                         "Entry Board", format(result.entryBoard), "board",

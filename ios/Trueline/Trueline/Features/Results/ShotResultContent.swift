@@ -64,7 +64,7 @@ struct ShotResultContent: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 MetricTile(
-                    title: "Speed",
+                    title: "Launch Speed",
                     value: format(result.speedMph.map { SpeedUnit.value($0, unit: speedUnit) }),
                     unit: SpeedUnit.label(speedUnit)
                 )
@@ -105,7 +105,6 @@ struct ShotResultContent: View {
                     value: result.shotTimeSeconds.map { String(format: "%.2f", $0) } ?? "--",
                     unit: "s"
                 )
-                MetricTile(title: "Hook Factor", value: format(result.hookFactor), unit: "boards/s²")
             }
 
             if fromOlderAnalyzer {
@@ -127,7 +126,7 @@ struct ShotResultContent: View {
             }
 
             if result.speedMph == nil {
-                Text("Speed needs the ball tracked through the front of the lane. Start recording before the throw.")
+                Text("Launch speed needs the ball tracked through the front of the lane. Start recording before the throw.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
