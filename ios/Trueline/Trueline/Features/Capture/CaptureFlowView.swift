@@ -59,6 +59,9 @@ struct CaptureFlowView: View {
     /// Target-line practice: set from the record screen, scored on results,
     /// persisted onto the session.
     @State private var targetBoard: Double?
+    /// The fresh result's curtain has lifted off the status bar. Until then
+    /// the window stays dark, because the dark curtain is still under it.
+    @State private var resultCurtainCleared = false
     private let isImported: Bool
     /// Closes the root overlay this flow renders in (there is no presentation
     /// to dismiss).
@@ -66,22 +69,34 @@ struct CaptureFlowView: View {
     /// "Pick Another" on an imported clip: exit AND reopen the picker.
     /// nil falls back to a plain exit.
     private let onRepick: (() -> Void)?
-    /// Reports whether the current step is a cinema surface, so the root can
-    /// switch the window (status bar, system chrome) to dark under it.
+    /// Reports whether a dark surface currently covers the screen, so the
+    /// root can switch the window (status bar, system chrome) to dark under
+    /// it.
     private let onCinemaChange: (Bool) -> Void
+    /// Reports how the latest analysis went: true for a shown result, false
+    /// for a failed track. The root only asks for a rating after a success.
+    private let onAnalysisOutcome: (Bool) -> Void
+    /// The scheme non-cinema steps (the shot result) render in. The window
+    /// stays dark while the curtain lifts, so the result can't simply
+    /// inherit the window's scheme. nil inherits.
+    private let contentScheme: ColorScheme?
 
     /// Pass an imported clip to skip recording and start at review.
     init(
         importedClipURL: URL? = nil,
         onExit: @escaping () -> Void,
         onRepick: (() -> Void)? = nil,
-        onCinemaChange: @escaping (Bool) -> Void = { _ in }
+        onCinemaChange: @escaping (Bool) -> Void = { _ in },
+        onAnalysisOutcome: @escaping (Bool) -> Void = { _ in },
+        contentScheme: ColorScheme? = nil
     ) {
         _step = State(initialValue: importedClipURL.map(Step.review) ?? .record)
         isImported = importedClipURL != nil
         self.onExit = onExit
         self.onRepick = onRepick
         self.onCinemaChange = onCinemaChange
+        self.onAnalysisOutcome = onAnalysisOutcome
+        self.contentScheme = contentScheme
     }
 
     /// Camera, review, calibration, analysis, and the failure screen are
@@ -91,6 +106,12 @@ struct CaptureFlowView: View {
     private var isCinema: Bool {
         if case .results = step { return false }
         return true
+    }
+
+    /// What the status bar sits over: a cinema step, or the fresh result
+    /// while the dark curtain is still lifting off the top of the screen.
+    private var coversWithDark: Bool {
+        isCinema || !resultCurtainCleared
     }
 
     var body: some View {
@@ -191,16 +212,20 @@ struct CaptureFlowView: View {
                             store.recordAnalyzedThrow()
                             ReviewPrompt.recordSuccessfulAnalysis()
                             ensureSession()
+                            resultCurtainCleared = false
+                            onAnalysisOutcome(true)
                             // Instant swap: ResultsView(reveal:) overlays a
                             // frozen copy of the loader's final frame and
                             // lifts it as the curtain — no view transition,
                             // so nothing re-lays-out mid-slide.
                             step = .results(clipURL, result)
                         } else {
+                            onAnalysisOutcome(false)
                             step = .trackingFailed(clipURL, result.failure ?? .lostEarly)
                         }
                     },
                     onFailed: {
+                        onAnalysisOutcome(false)
                         step = .trackingFailed(clipURL, .unreadableVideo)
                     },
                     onCancel: {
@@ -218,6 +243,8 @@ struct CaptureFlowView: View {
                         camera.discardClip()
                         step = .record
                     }
+                } onCurtainCleared: {
+                    resultCurtainCleared = true
                 }
             case .trackingFailed(let clipURL, let failure):
                 TrackingFailedView(
@@ -241,9 +268,9 @@ struct CaptureFlowView: View {
                 )
             }
         }
-        .modifier(CinemaScheme(active: isCinema))
-        .onChange(of: isCinema, initial: true) { _, cinema in
-            onCinemaChange(cinema)
+        .modifier(CinemaScheme(active: isCinema, otherwise: contentScheme))
+        .onChange(of: coversWithDark, initial: true) { _, dark in
+            onCinemaChange(dark)
         }
         .onChange(of: camera.finishedClipURL) { _, clipURL in
             if let clipURL { step = .review(clipURL) }
@@ -289,15 +316,16 @@ struct CaptureFlowView: View {
     }
 }
 
-/// Pins the color scheme to dark while active and passes the inherited one
-/// through otherwise. One modifier instead of a branch, so a step change
-/// never swaps view identity.
+/// Pins the color scheme to dark while active, and to `otherwise` (or the
+/// inherited scheme) when not. One modifier instead of a branch, so a step
+/// change never swaps view identity.
 private struct CinemaScheme: ViewModifier {
     var active: Bool
+    var otherwise: ColorScheme?
     @Environment(\.colorScheme) private var inherited
 
     func body(content: Content) -> some View {
-        content.environment(\.colorScheme, active ? .dark : inherited)
+        content.environment(\.colorScheme, active ? .dark : (otherwise ?? inherited))
     }
 }
 

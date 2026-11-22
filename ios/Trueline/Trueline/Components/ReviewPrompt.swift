@@ -17,6 +17,13 @@ enum ReviewPrompt {
         successfulAnalyses >= minimumSuccessfulAnalyses && lastPromptedVersion != currentVersion
     }
 
+    /// The moment check, separate from the count and version rule: only when
+    /// the flow that just closed ended on a real result, and only with Home
+    /// actually showing (no new capture, cover, or picker over it).
+    static func mayRequest(afterSuccessfulResult: Bool, captureOpen: Bool, somethingPresented: Bool) -> Bool {
+        afterSuccessfulResult && !captureOpen && !somethingPresented
+    }
+
     /// Counts every reliable result, unlocked or not. The free throw counter
     /// stops at the purchase, so it can't double as this.
     static func recordSuccessfulAnalysis(defaults: UserDefaults = .standard) {

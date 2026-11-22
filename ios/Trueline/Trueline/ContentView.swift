@@ -23,6 +23,17 @@ struct ContentView: View {
     @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.modelContext) private var modelContext
     @Environment(\.requestReview) private var requestReview
+    /// The scheme the window currently resolves to. Only trusted as the
+    /// system appearance while the window isn't overridden (see
+    /// `systemScheme`).
+    @Environment(\.colorScheme) private var resolvedScheme
+    /// The system appearance, remembered from moments when the window
+    /// follows it. While a cinema surface forces the window dark, the
+    /// environment reads dark too, so this is what "System" means then.
+    @State private var systemScheme: ColorScheme = .dark
+    /// The capture flow's latest analysis produced a result (not a failed
+    /// track). Gates the rating prompt on the way back to Home.
+    @State private var lastAnalysisSucceeded = false
     @State private var showOnboarding = false
     @State private var showWhatsNew = false
     @State private var capture: CaptureRoute?
@@ -37,9 +48,10 @@ struct ContentView: View {
     /// The capture flow's current step is a cinema surface (everything but
     /// the shot result).
     @State private var captureIsCinema = false
-    /// True once the capture overlay has finished sliding in. The window
-    /// flips to dark only then, so the Home screen underneath never visibly
-    /// changes appearance while the overlay is still uncovering it.
+    /// True once the capture overlay has finished sliding in, and until it
+    /// has slid off the status bar on the way out. The window is dark only
+    /// in between, so the status bar always matches the surface under it and
+    /// Home never visibly changes appearance while the overlay moves.
     @State private var captureSettled = false
     /// Debug builds honor `-startTab <0-3>` so the simulator can open on any
     /// tab without taps (screenshots of both appearances).
@@ -84,11 +96,19 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(windowScheme)
+        .onChange(of: resolvedScheme, initial: true) { _, scheme in
+            if windowScheme == nil { systemScheme = scheme }
+        }
         .task(id: capture != nil) {
             guard capture != nil else {
+                // The overlay slides down over 0.25 s, so its top edge leaves
+                // the status bar early; the window follows Home from then.
+                try? await Task.sleep(for: .milliseconds(Self.overlayClearsStatusBarMs))
+                guard !Task.isCancelled else { return }
                 captureSettled = false
                 return
             }
+            lastAnalysisSucceeded = false
             // Matches the overlay's slide-in in present(_:).
             try? await Task.sleep(for: .milliseconds(260))
             captureSettled = true
@@ -103,11 +123,18 @@ struct ContentView: View {
             WhatsNewView { showWhatsNew = false }
         }
         .onChange(of: capture) { _, route in
-            // Back on Home after a capture flow: the calm moment to ask for
-            // a rating. The delay lets the overlay finish sliding away.
-            guard route == nil, ReviewPrompt.consumeIfDue() else { return }
+            // Back on Home after a flow whose last throw produced a result:
+            // the calm moment to ask for a rating. The delay lets the overlay
+            // finish sliding away; whatever is up by then (a new capture, the
+            // Photos picker, a cover) wins, and the ask waits for next time.
+            guard route == nil, lastAnalysisSucceeded, !repickAfterExit else { return }
             Task {
                 try? await Task.sleep(for: .seconds(1))
+                guard ReviewPrompt.mayRequest(
+                    afterSuccessfulResult: lastAnalysisSucceeded,
+                    captureOpen: capture != nil,
+                    somethingPresented: showOnboarding || showWhatsNew || Self.windowIsPresenting
+                ), ReviewPrompt.consumeIfDue() else { return }
                 requestReview()
             }
         }
@@ -132,10 +159,29 @@ struct ContentView: View {
     /// animation still covers Home and while a cinema step of the capture
     /// flow is on screen.
     private var windowScheme: ColorScheme? {
-        if !homeRevealed || (capture != nil && captureSettled && captureIsCinema) {
+        if !homeRevealed || (captureSettled && captureIsCinema) {
             return .dark
         }
         return appearance == "dark" ? .dark : appearance == "light" ? .light : nil
+    }
+
+    /// The Appearance setting resolved to a concrete scheme, for capture
+    /// steps that follow it while the window is still dark.
+    private var appearanceScheme: ColorScheme {
+        appearance == "dark" ? .dark : appearance == "light" ? .light : systemScheme
+    }
+
+    /// The exit slide is easeInOut over 0.25 s; the overlay's top edge is
+    /// past the status bar (about 7% of the screen height) after ~50 ms.
+    private static let overlayClearsStatusBarMs = 50
+
+    /// True when anything (a sheet, a cover, the Photos picker) is presented
+    /// over the root, including presentations Home owns.
+    private static var windowIsPresenting: Bool {
+        let root = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?.rootViewController
+        return root?.presentedViewController != nil
     }
 
     /// First-run onboarding waits for the launch animation — presenting a
@@ -179,7 +225,12 @@ struct ContentView: View {
         }
         switch route {
         case .record:
-            CaptureFlowView(onExit: exit, onCinemaChange: { captureIsCinema = $0 })
+            CaptureFlowView(
+                onExit: exit,
+                onCinemaChange: { captureIsCinema = $0 },
+                onAnalysisOutcome: { lastAnalysisSucceeded = $0 },
+                contentScheme: appearanceScheme
+            )
         case .imported(let url):
             CaptureFlowView(
                 importedClipURL: url,
@@ -188,7 +239,9 @@ struct ContentView: View {
                     exit()
                     repickAfterExit = true
                 },
-                onCinemaChange: { captureIsCinema = $0 }
+                onCinemaChange: { captureIsCinema = $0 },
+                onAnalysisOutcome: { lastAnalysisSucceeded = $0 },
+                contentScheme: appearanceScheme
             )
         }
     }

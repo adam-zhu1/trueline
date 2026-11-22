@@ -18,6 +18,10 @@ struct ResultsView: View {
     /// tracked line draws itself in. History opens with everything in place.
     var reveal = false
     var onDone: () -> Void
+    /// Fires once the lifting curtain has cleared the status bar, so the
+    /// capture flow can hand the window back to the Appearance setting at the
+    /// moment the dark surface is actually gone from under it.
+    var onCurtainCleared: () -> Void = {}
 
     @Environment(TruelineStore.self) private var store
     @Environment(\.modelContext) private var modelContext
@@ -99,7 +103,15 @@ struct ResultsView: View {
             ) {
                 curtainUp = true
             }
-            try? await Task.sleep(for: .milliseconds(950))
+            // The curtain travels 1.35 heights on an ease-in curve: its
+            // bottom edge passes the status bar about 78% of the way up,
+            // which this curve reaches at 0.46 s. The reduced-motion fade is
+            // done at 0.3 s.
+            let cleared = reduceMotion ? 300 : 460
+            try? await Task.sleep(for: .milliseconds(cleared))
+            guard !Task.isCancelled else { return }
+            onCurtainCleared()
+            try? await Task.sleep(for: .milliseconds(950 - cleared))
             curtainGone = true
         }
         // One tap as the result lands; a pocket hit gets the success

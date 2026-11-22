@@ -22,6 +22,14 @@ struct ReviewPromptTests {
         #expect(!ReviewPrompt.consumeIfDue(defaults: defaults))
     }
 
+    @Test func onlyAfterAResultWithHomeShowing() {
+        #expect(ReviewPrompt.mayRequest(afterSuccessfulResult: true, captureOpen: false, somethingPresented: false))
+        // A failed throw, a new capture, or a cover on top: not now.
+        #expect(!ReviewPrompt.mayRequest(afterSuccessfulResult: false, captureOpen: false, somethingPresented: false))
+        #expect(!ReviewPrompt.mayRequest(afterSuccessfulResult: true, captureOpen: true, somethingPresented: false))
+        #expect(!ReviewPrompt.mayRequest(afterSuccessfulResult: true, captureOpen: false, somethingPresented: true))
+    }
+
     @Test func writeReviewLinkTargetsTheApp() {
         let url = AppInfo.writeReviewURL.absoluteString
         #expect(url.contains("id6801953797"))
