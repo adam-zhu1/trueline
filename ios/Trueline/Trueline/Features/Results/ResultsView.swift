@@ -233,16 +233,35 @@ struct AnalysisView: View {
                 // progress and enforces a minimum run), hold a beat, then
                 // hand off — the parent wipes this screen up like a curtain.
                 progress = 1
-                while !counterDone {
-                    try? await Task.sleep(for: .milliseconds(40))
-                }
-                try? await Task.sleep(for: .milliseconds(300))
+                // `try`, not `try?`: a Cancel tapped while the counter is
+                // still climbing must end this wait. Swallowing the error
+                // spun this loop forever on the main actor (the counter
+                // that would set counterDone is gone), and a cancel during
+                // the final hold still delivered the result, spending a
+                // free throw on a throw the user backed out of.
+                try await Self.waitUntil { counterDone }
+                try await Task.sleep(for: .milliseconds(300))
                 onComplete(result)
             } catch is CancellationError {
                 // The user backed out; the flow already navigated away.
             } catch {
+                // A reader torn down by the cancel can surface as an
+                // ordinary error; the flow has already moved on.
+                guard !Task.isCancelled else { return }
                 onFailed()
             }
+        }
+    }
+
+    /// Polls `isDone` until it's true. Throws CancellationError as soon as
+    /// the calling task is cancelled, whether or not `isDone` ever flips.
+    @MainActor
+    static func waitUntil(
+        every interval: Duration = .milliseconds(40),
+        _ isDone: () -> Bool
+    ) async throws {
+        while !isDone() {
+            try await Task.sleep(for: interval)
         }
     }
 }

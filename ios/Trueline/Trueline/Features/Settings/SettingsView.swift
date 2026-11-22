@@ -135,13 +135,21 @@ struct SettingsView: View {
     /// Mail with the diagnostics prefilled when a feedback address exists;
     /// until then, the support form plus the same details on the clipboard.
     private func sendFeedback() {
-        if let mail = AppInfo.feedbackMailURL {
-            openURL(mail)
-        } else {
-            UIPasteboard.general.string = AppInfo.diagnostics
-            copiedDiagnostics = true
-            openURL(AppInfo.supportURL)
+        guard let mail = AppInfo.feedbackMailURL else {
+            openSupportWithDiagnostics()
+            return
         }
+        // No mail app to take the mailto (Mail deleted, nothing set as the
+        // default) would otherwise make the row do nothing at all.
+        openURL(mail) { accepted in
+            if !accepted { openSupportWithDiagnostics() }
+        }
+    }
+
+    private func openSupportWithDiagnostics() {
+        UIPasteboard.general.string = AppInfo.diagnostics
+        copiedDiagnostics = true
+        openURL(AppInfo.supportURL)
     }
 
     private func deleteAllVideos() {
