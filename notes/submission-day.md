@@ -104,9 +104,9 @@ Aug 19.
    Larger Text only if the device check passed > Next > Publish. It may take
    up to 24 hours to show.
 4. **Website.** In `~/Projects/truelinebowling-site`: as of Nov 15 there is
-   no `release-1.1` branch. `main` at 3737ff8 is already the 1.1 site (25 free
-   throws, launch speed label, new FAQ), committed but not deployed. If a
-   `release-1.1` branch exists by then, merge it into `main` first. Then run
+   `main` is the live 1.0 site and the 1.1 version sits on the `release-1.1`
+   branch (25 free throws, launch speed label, new FAQ), committed but not
+   deployed. Merge it: `git checkout main && git merge --ff-only release-1.1`. Then run
    `tools/deploy.sh`, which builds from the checked-out HEAD. Check
    https://truelinebowling.com shows 25 free throws and that
    https://truelinebowling.com/support/ and /privacy/ load. Until 1.1 is
