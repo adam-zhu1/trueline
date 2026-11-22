@@ -71,3 +71,22 @@ struct IconButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == IconButtonStyle {
     static var iconAction: IconButtonStyle { IconButtonStyle() }
 }
+
+/// Quiet text action under the primary bar (Restore Purchases on the
+/// paywall): footnote size in the accent mint, at least 44 pt tall.
+struct TextActionButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.footnote)
+            .foregroundStyle(Color.accentMint)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : (isEnabled ? 1 : 0.5))
+    }
+}
+
+extension ButtonStyle where Self == TextActionButtonStyle {
+    static var textAction: TextActionButtonStyle { TextActionButtonStyle() }
+}

@@ -10,6 +10,7 @@ struct PaywallView: View {
     var onDone: () -> Void
 
     @State private var purchaseFailed = false
+    @State private var restoreOutcome: RestoreOutcome?
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -32,6 +33,15 @@ struct PaywallView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Nothing was charged. Check your connection and try again.")
+        }
+        .alert(
+            restoreOutcome?.title ?? "",
+            isPresented: Binding(get: { restoreOutcome != nil }, set: { if !$0 { restoreOutcome = nil } }),
+            presenting: restoreOutcome
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { outcome in
+            Text(outcome.message)
         }
     }
 
@@ -104,12 +114,20 @@ struct PaywallView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                Button("Restore Purchases") {
-                    Task { await store.restore() }
+                Button {
+                    restore()
+                } label: {
+                    if store.restoring {
+                        HStack(spacing: 8) {
+                            ProgressView().tint(Color.brandMint)
+                            Text("Restoring…")
+                        }
+                    } else {
+                        Text("Restore Purchases")
+                    }
                 }
-                .font(.footnote)
-                .foregroundStyle(Color.brandMint)
-                .frame(minHeight: 44)
+                .buttonStyle(.textAction)
+                .disabled(store.restoring || store.purchasing)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
@@ -132,6 +150,15 @@ struct PaywallView: View {
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.9))
+        }
+    }
+
+    /// A found purchase closes the paywall through the isUnlocked onChange;
+    /// anything else gets a plain alert so the tap never looks ignored.
+    private func restore() {
+        Task {
+            guard let outcome = await store.restore(), outcome != .unlocked else { return }
+            restoreOutcome = outcome
         }
     }
 

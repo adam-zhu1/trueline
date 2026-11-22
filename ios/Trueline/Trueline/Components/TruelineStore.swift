@@ -13,11 +13,13 @@ import StoreKit
 @Observable
 final class TruelineStore {
     static let productID = "com.adamzhu.Trueline.unlimited"
-    static let freeThrowLimit = 25
+    nonisolated static let freeThrowLimit = 25
 
     private(set) var isUnlocked: Bool
     private(set) var product: Product?
     private(set) var purchasing = false
+    /// True while Restore Purchases is talking to the App Store.
+    private(set) var restoring = false
 
     /// Successful analyses consumed. Calibration throws and failed detections
     /// never call `recordAnalyzedThrow`, so they don't burn quota — someone
@@ -26,7 +28,7 @@ final class TruelineStore {
         didSet { UserDefaults.standard.set(freeThrowsUsed, forKey: "freeThrowsUsed") }
     }
 
-    var freeThrowsLeft: Int { max(0, Self.freeThrowLimit - freeThrowsUsed) }
+    var freeThrowsLeft: Int { Self.freeThrowLimit - Self.clampedUsed(freeThrowsUsed) }
     var canAnalyze: Bool { isUnlocked || freeThrowsLeft > 0 }
 
     private var updatesTask: Task<Void, Never>?
@@ -34,14 +36,14 @@ final class TruelineStore {
     init() {
         // `-freeThrowsUsed <n>` (DEBUG launch arg) lands here too: the
         // argument domain shadows the persistent one in UserDefaults.
-        freeThrowsUsed = UserDefaults.standard.integer(forKey: "freeThrowsUsed")
+        freeThrowsUsed = Self.clampedUsed(UserDefaults.standard.integer(forKey: "freeThrowsUsed"))
         // `-bankFreeThrows <n>` (launch arg, positive value — argument-domain
         // parsing drops dash-prefixed values): field-test insurance. Persists
         // immediately so every later normal launch keeps the bank. Requires a
         // paired Mac to trigger; App Store launches can't pass arguments.
         let bank = UserDefaults.standard.integer(forKey: "bankFreeThrows")
         if bank > 0 {
-            let banked = Self.freeThrowLimit - bank
+            let banked = Self.usedAfterBanking(bank)
             freeThrowsUsed = banked
             // didSet doesn't fire in init — persist by hand.
             UserDefaults.standard.set(banked, forKey: "freeThrowsUsed")
@@ -51,6 +53,18 @@ final class TruelineStore {
         // `-unlockAll` — field-test a build without the gate in the way.
         if UserDefaults.standard.bool(forKey: "unlockAll") { isUnlocked = true }
         #endif
+    }
+
+    /// Keeps the used count inside 0...limit whatever was stored or passed
+    /// as a launch argument, so the app never reads "99 of 25 left".
+    nonisolated static func clampedUsed(_ used: Int) -> Int {
+        min(max(used, 0), freeThrowLimit)
+    }
+
+    /// Used count after `-bankFreeThrows <bank>`: the bank is how many free
+    /// throws are left, capped at the limit.
+    nonisolated static func usedAfterBanking(_ bank: Int) -> Int {
+        clampedUsed(freeThrowLimit - bank)
     }
 
     /// Call once at launch: syncs the entitlement, loads the product for its
@@ -110,10 +124,21 @@ final class TruelineStore {
 
     /// "Restore Purchases": re-sync with the App Store, then re-derive the
     /// entitlement. Required by App Review even though StoreKit 2 usually
-    /// restores silently.
-    func restore() async {
-        try? await AppStore.sync()
+    /// restores silently. Returns what to tell the user; nil when they
+    /// cancelled the App Store sign-in.
+    func restore() async -> RestoreOutcome? {
+        restoring = true
+        defer { restoring = false }
+        var syncFailed = false
+        do {
+            try await AppStore.sync()
+        } catch StoreKitError.userCancelled {
+            return nil
+        } catch {
+            syncFailed = true
+        }
         await refreshEntitlements()
+        return RestoreOutcome(unlocked: isUnlocked, syncFailed: syncFailed)
     }
 
     private func refreshEntitlements() async {
@@ -146,7 +171,7 @@ final class TruelineStore {
     /// reliable metrics.
     func recordAnalyzedThrow() {
         guard !isUnlocked else { return }
-        freeThrowsUsed += 1
+        freeThrowsUsed = Self.clampedUsed(freeThrowsUsed + 1)
     }
 
     #if DEBUG
@@ -155,4 +180,33 @@ final class TruelineStore {
         freeThrowsUsed = 0
     }
     #endif
+}
+
+/// What Restore Purchases found, with the plain alert copy for it.
+enum RestoreOutcome: Equatable {
+    case unlocked
+    case nothingToRestore
+    case couldNotConnect
+
+    /// The entitlement wins: a cached purchase still counts as restored
+    /// even when the sync itself failed.
+    init(unlocked: Bool, syncFailed: Bool) {
+        self = unlocked ? .unlocked : (syncFailed ? .couldNotConnect : .nothingToRestore)
+    }
+
+    var title: String {
+        switch self {
+        case .unlocked: "Purchase restored"
+        case .nothingToRestore: "No purchase to restore"
+        case .couldNotConnect: "Couldn't reach the App Store"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .unlocked: "TrueLine Unlimited is unlocked on this iPhone."
+        case .nothingToRestore: "This Apple Account hasn't bought TrueLine Unlimited."
+        case .couldNotConnect: "Nothing was restored. Check your connection and try again."
+        }
+    }
 }

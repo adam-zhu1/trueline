@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var videoBytes: Int64 = 0
     @State private var confirmDeleteVideos = false
     @State private var copiedDiagnostics = false
+    @State private var restoreOutcome: RestoreOutcome?
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -67,9 +68,18 @@ struct SettingsView: View {
                         )
                         Button("Unlock TrueLine Unlimited") { showPaywall = true }
                             .foregroundStyle(Color.accentMint)
-                        Button("Restore Purchases") {
-                            Task { await store.restore() }
+                        Button {
+                            Task { restoreOutcome = await store.restore() }
+                        } label: {
+                            HStack {
+                                Text(store.restoring ? "Restoring…" : "Restore Purchases")
+                                if store.restoring {
+                                    Spacer()
+                                    ProgressView()
+                                }
+                            }
                         }
+                        .disabled(store.restoring)
                     }
                 } header: {
                     Text("Unlimited")
@@ -127,6 +137,15 @@ struct SettingsView: View {
                 Button("Delete All Videos", role: .destructive) { deleteAllVideos() }
             } message: {
                 Text("Shot metrics and lane views are kept.")
+            }
+            .alert(
+                restoreOutcome?.title ?? "",
+                isPresented: Binding(get: { restoreOutcome != nil }, set: { if !$0 { restoreOutcome = nil } }),
+                presenting: restoreOutcome
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { outcome in
+                Text(outcome.message)
             }
             .onAppear { videoBytes = ShotVideoStore.totalBytes() }
         }
