@@ -74,4 +74,13 @@ struct LandmarkFitTests {
         #expect(LandmarkFit.corners(fromTaps: colinear, imageSize: Self.imageSize) == nil)
         #expect(LandmarkFit.corners(fromTaps: Array(colinear.prefix(5)), imageSize: Self.imageSize) == nil)
     }
+
+    @Test("step hints describe placing a point, not tapping")
+    func hintsMatchTouchSlideLift() {
+        for target in LandmarkFit.targets {
+            #expect(target.hint.hasPrefix("Place a point"))
+            #expect(!target.hint.localizedCaseInsensitiveContains("tap"))
+            #expect(!target.hint.contains("\u{2014}"))
+        }
+    }
 }

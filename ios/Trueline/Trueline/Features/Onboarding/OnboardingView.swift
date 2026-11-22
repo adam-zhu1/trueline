@@ -33,7 +33,7 @@ struct OnboardingView: View {
         Page(
             art: .calibrate,
             title: "Your first throw calibrates",
-            text: "Record a throw, then tap a few lane markings and line up the overlay. Every following throw reuses that calibration, so you just bowl."
+            text: "Record a throw, then place points on a few lane markings and line up the overlay. Every following throw reuses that calibration, so you just bowl."
         ),
         Page(
             art: .metrics,

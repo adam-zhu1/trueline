@@ -179,7 +179,7 @@ struct CalibrationView: View {
                     Image(systemName: "chevron.left")
                 }
                 .buttonStyle(.iconAction)
-                .accessibilityLabel(phase == .refining ? "Back to taps" : "Back")
+                .accessibilityLabel(phase == .refining ? "Back to points" : "Back")
 
                 if phase == .tapping {
                     Button {
@@ -193,7 +193,7 @@ struct CalibrationView: View {
                     }
                     .buttonStyle(.iconAction)
                     .disabled(taps.isEmpty)
-                    .accessibilityLabel("Undo last tap")
+                    .accessibilityLabel("Undo last point")
                 } else {
                     Button {
                         if let proposal {
@@ -265,7 +265,7 @@ struct CalibrationView: View {
         switch phase {
         case .tapping:
             if fitFailed {
-                return "Those taps don't line up with a lane. Undo and adjust them."
+                return "Those points don't line up with a lane. Undo and adjust them."
             }
             if taps.count < LandmarkFit.targets.count {
                 return LandmarkFit.targets[taps.count].hint

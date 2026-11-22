@@ -26,17 +26,17 @@ enum LandmarkFit {
     /// (big, forgiving), then the arrow row, then the head pin.
     static let targets: [Target] = [
         Target(lane: CGPoint(x: 0, y: 0),
-               hint: "Tap where the foul line meets the right gutter."),
+               hint: "Place a point where the foul line meets the right gutter."),
         Target(lane: CGPoint(x: 1, y: 0),
-               hint: "Tap where the foul line meets the left gutter."),
+               hint: "Place a point where the foul line meets the left gutter."),
         Target(lane: CGPoint(x: boardX(35), y: LaneModel.arrowFeet(atBoard: 35)),
-               hint: "Tap the leftmost arrow."),
+               hint: "Place a point on the leftmost arrow."),
         Target(lane: CGPoint(x: boardX(20), y: LaneModel.arrowFeet(atBoard: 20)),
-               hint: "Tap the middle arrow."),
+               hint: "Place a point on the middle arrow."),
         Target(lane: CGPoint(x: boardX(5), y: LaneModel.arrowFeet(atBoard: 5)),
-               hint: "Tap the rightmost arrow."),
+               hint: "Place a point on the rightmost arrow."),
         Target(lane: CGPoint(x: boardX(LaneModel.centerBoard), y: LaneModel.lengthFeet),
-               hint: "Tap the base of the head pin. That's the front pin, nearest to you."),
+               hint: "Place a point at the base of the head pin. That's the front pin, nearest to you."),
     ]
 
     /// Fits taps (normalized image coords, same space as LaneCorners) to the
