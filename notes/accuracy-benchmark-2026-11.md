@@ -261,6 +261,26 @@ shallow tracks refused, the polynomial fit).
   to the ball). Merged the ball with pins and the pin deck at the far end.
   The radial edge fit replaced it.
 
+## Memory: an autorelease pool per frame
+
+Pre-release review item. The decode loop had no autorelease pool, and 1.1
+can run two Vision passes per frame (the focus crop). Measured on the Mac
+harness with `/usr/bin/time -l`:
+
+| Clip | Frames decoded | Peak footprint before | After |
+|---|---|---|---|
+| IMG_5107 (25 s, 1080p 30 fps) | 287 | 740 MB | 285 MB |
+| IMG_5114 (22 s, 1080p 30 fps) | 548 | not measured | 284 MB |
+| portfolio_60 (60 fps, 938x2050, 4 s) | 211 | 85 MB | 85 MB |
+
+Before, the footprint grew about 2 MB per decoded frame; after, it is flat
+with clip length (5114 decodes twice the frames of 5107 at the same peak).
+The pool wraps each detector call (Vision autoreleases its handler, request
+and observations) and each `copyNextSampleBuffer`. Metrics unchanged on all
+10 runs. The Mac is only a proxy for the phone (the ANE and the decoder
+behave differently on device), but the per-frame growth was ours, not the
+platform's.
+
 ## Recommendations, in order
 
 1. **Size the calibration's depth error at the alley** (the batch-1 ball

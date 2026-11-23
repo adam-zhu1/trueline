@@ -156,7 +156,7 @@ struct ShotAnalyzer {
         // Contiguous runs of real measurements (frame + feet), for the debug log.
         var measSegments: [(f0: Int, f1: Int, ft0: Double, ft1: Double)] = []
 
-        while let sampleBuffer = output.copyNextSampleBuffer() {
+        while let sampleBuffer = autoreleasepool(invoking: { output.copyNextSampleBuffer() }) {
             // A cancelled analysis (user backed out) must stop decoding, not
             // grind through the rest of the clip.
             try Task.checkCancellation()

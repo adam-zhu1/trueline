@@ -39,6 +39,21 @@ final class BallDetector {
         focus: CGPoint? = nil,
         diag: DetectorDiagnostics? = nil
     ) -> [Candidate] {
+        // Vision autoreleases its handler, request and observations; without
+        // a pool per call they pile up until the whole analysis returns
+        // (740 MB peak footprint on a 25 s 1080p clip, measured on the Mac).
+        autoreleasepool {
+            detect(in: pixelBuffer, orientation: orientation, geometry: geometry, focus: focus, diag: diag)
+        }
+    }
+
+    private func detect(
+        in pixelBuffer: CVPixelBuffer,
+        orientation: CGImagePropertyOrientation,
+        geometry: LaneGeometry,
+        focus: CGPoint?,
+        diag: DetectorDiagnostics?
+    ) -> [Candidate] {
         let request = VNCoreMLRequest(model: vnModel)
         let rawW = Double(CVPixelBufferGetWidth(pixelBuffer))
         let rawH = Double(CVPixelBufferGetHeight(pixelBuffer))
