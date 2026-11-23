@@ -128,3 +128,104 @@ Everything else about the app can be tested from the couch.
 - [ ] Rev-rate harness experiment on the taped-ball clips; hand-count revs
       in the slow-mo for truth.
 - [ ] File anything broken as its own task.
+
+## Addendum, Nov 15: record ground truth the benchmark can score
+
+`experiments/accuracy_bench` (notes/accuracy-benchmark-2026-11.md) now
+scores the app against hand labels, but those labels share the app's
+calibration. This visit has to supply truth from outside the pipeline.
+Everything below is in addition to the shot list above; it adds about 20
+minutes.
+
+### Bring
+
+- [ ] Second phone (the 14 Pro) with Slo-mo at 240 fps, and a small tripod
+      or clamp for it. A clap or a phone flashlight flash at the start of
+      each recording syncs the two phones.
+- [ ] Tape measure, painter's tape, the per-throw log sheet below.
+
+### Per placement (every time phone A moves)
+
+- [ ] Measure and write down: phone A lens height above the approach,
+      distance behind the foul line, and which board it sits behind.
+      Photograph the setup from the side.
+- [ ] Record 3 seconds of empty lane before the first throw (nobody on the
+      approach, pins set). This clean frame gets a reference calibration
+      from build_reference.py, independent of the in-app taps, so each
+      throw can be scored with both.
+- [ ] Ask the desk whether the lane has downlane range finders (marks
+      around 34 to 40 ft) and make sure they are visible in the clean
+      frame. A landmark in mid-lane is the only direct check on the depth
+      error the benchmark found (the batch-1 ball "speeds up" from 15 to
+      18 mph down the lane under its reference).
+- [ ] Do not tape the lane surface itself unless the desk says yes. The
+      arrows are already known boards (5, 10, 15, 20).
+
+### Truth sources, one per number
+
+| Number | Truth | How |
+|---|---|---|
+| Shot time, average speed | foul line to first pin contact, 60 ft | Phone B at 240 fps, 1x, behind and beside the approach, both the foul line and the pin deck in frame. Count frames from the ball crossing the foul line to the headpin first moving. 1 frame is 4 ms on a 2.5 s shot, 0.2%. |
+| Arrow board | board under the ball at the arrows | Phone B at 240 fps on the telephoto (3x), framed on the arrows. About 3x phone A's pixels per board, scored with the same label tools (circle fit on the ball, arrow tips as the board grid). |
+| Entry board | board of the ball centre at the head pin row | Phone B at 240 fps on the telephoto, framed on the pin deck. Pin spots are known positions (12 in apart), so the frame gets its own homography from the pin bases; read the ball centre on the frame before it touches a pin. |
+| Launch speed | center's speed display | Photograph the display after every throw and write down where the house says its sensor measures (some time the first part of the lane, some the whole lane). |
+| Pocket or not | pin action | Write it down per throw: flush, light, high, Brooklyn, miss. |
+
+Phone B can't do all three framings at once, so split the 10-throw accuracy
+set: throws 1-4 framed wide (shot time), 5-7 on the arrows, 8-10 on the pin
+deck. Repeat the same split for the 5 throws at 2x.
+
+### Per-throw log
+
+One line per throw, written before the next one:
+
+`throw # | phone A clip | phone B clip | phone B framing | target arrow | board you think you crossed | pin action | pinfall | display speed | notes`
+
+### How the benchmark takes it in
+
+1. Copy the FieldFootage clips and phone B clips into
+   `data/alley-<date>/` (git-ignored).
+2. For each placement, mark landmarks on the clean frame and run
+   `experiments/calibration_v11/build_reference.py` for a reference.
+   Read each throw's in-app corners from its saved shot as well.
+3. Extract the truth numbers from the phone B clips (frame counts, telephoto
+   circle fits) into `experiments/accuracy_bench/sessions/<date>.json`:
+
+```json
+{
+  "date": "2026-12-xx",
+  "video_root": "~/Projects/trueline/data/alley-2026-12-xx",
+  "hand": "R",
+  "throws": [
+    {
+      "id": "A01",
+      "video": "IMG_6001.MOV",
+      "reference": "experiments/calibration_v11/references/IMG_6001_ref.json",
+      "truth": {
+        "arrow_board": 10.0,
+        "entry_board": 17.2,
+        "entry_angle": 5.1,
+        "launch_speed_mph": 17.4,
+        "foul_line_board": 22.0,
+        "shot_time_s": 2.48
+      }
+    }
+  ]
+}
+```
+
+   Use `"corners": {"farLeft": [x, y], "farRight": ..., "nearRight": ...,
+   "nearLeft": ...}` (display pixels) in place of `"reference"` for the
+   in-app calibration, with a different `id` (for example `A01-app`), so
+   one run scores both. Truth fields that a throw doesn't have are left
+   out and not scored. `shot_time_s` is release to pins; the app's
+   shotTimeSeconds runs to 59.5 ft, so expect it about 0.02 s short of a
+   first-pin-contact count.
+4. `bench.py run --tag alley-<date>` prints an "App vs measured truth" table
+   (signed mean, mean absolute and p90 error per metric) next to the usual
+   label tables. Hand-label a few of the new clips too
+   (`label_sheets.py --overlay`, review, `make_labels.py`) so the label set
+   covers the new placements.
+5. Acceptance stays as above: entry within about 1 board on clean pocket
+   hits, arrows within about 1 board, speeds consistent with the display
+   and with the 240 fps shot time.

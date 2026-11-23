@@ -243,6 +243,39 @@ def label_metrics(tag):
     return out
 
 
+# Session truth field -> app result field (see clips.session_clips).
+TRUTH_FIELDS = [("arrow_board", "arrowBoard", "boards"), ("entry_board", "entryBoard", "boards"),
+                ("entry_angle", "entryAngleDegrees", "deg"), ("launch_speed_mph", "speedMph", "mph"),
+                ("foul_line_board", "foulLineBoard", "boards"), ("shot_time_s", "shotTimeSeconds", "s")]
+
+
+def truth_table(tag, runs):
+    """App vs measured truth for session clips (taped boards, 240 fps
+    timing, telephoto pin-deck reads). Empty until a session file exists."""
+    man = manifest_by_id(tag)
+    rows = [(cid, man[cid]["truth"]) for cid in runs if man.get(cid, {}).get("truth")]
+    if not rows:
+        return []
+    lines = ["", "App vs measured truth (alley session):", "",
+             "| Clip | " + " | ".join(f"{t} app / truth" for t, _, _ in TRUTH_FIELDS) + " |",
+             "|---|" + "---|" * len(TRUTH_FIELDS)]
+    errs = {t: [] for t, _, _ in TRUTH_FIELDS}
+    for cid, truth in rows:
+        cells = []
+        for t, k, _ in TRUTH_FIELDS:
+            a, b = runs[cid].get(k), truth.get(t)
+            cells.append(f"{fmt(a)} / {fmt(b)}")
+            if a is not None and b is not None:
+                errs[t].append(a - b)
+        lines.append(f"| {cid} | " + " | ".join(cells) + " |")
+    for t, _, unit in TRUTH_FIELDS:
+        if errs[t]:
+            e = np.array(errs[t])
+            lines.append(f"\n{t}: n {len(e)}, mean signed {e.mean():+.2f} {unit}, mean |err| {np.abs(e).mean():.2f}, "
+                         f"p90 |err| {np.percentile(np.abs(e), 90):.2f}")
+    return lines
+
+
 def zone(feet):
     if feet < 10:
         return "0-10 ft"
@@ -346,6 +379,7 @@ def score(tag, quiet=False):
             if errs:
                 lines.append(f"\n{key}: mean |app - labels| {np.mean(np.abs(errs)):.2f} {unit}, "
                              f"max {np.max(np.abs(errs)):.2f} over {len(errs)} clips")
+    lines += truth_table(tag, runs)
     text = "\n".join(lines)
     if not quiet:
         print(text)

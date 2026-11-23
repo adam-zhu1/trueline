@@ -31,6 +31,7 @@ struct ClipOutput: Encodable {
     let displayHeight: Double
     let speedMph: Double?
     let averageSpeedMph: Double?
+    var shotTimeSeconds: Double? = nil
     let arrowBoard: Double?
     let breakpointBoard: Double?
     let breakpointFeet: Double?
@@ -86,7 +87,7 @@ for clip in clips {
         let secs = Date().timeIntervalSince(start)
         outputs.append(ClipOutput(
             id: clip.id, video: clip.video, error: nil, displayWidth: w, displayHeight: h,
-            speedMph: r.speedMph, averageSpeedMph: r.averageSpeedMph,
+            speedMph: r.speedMph, averageSpeedMph: r.averageSpeedMph, shotTimeSeconds: r.shotTimeSeconds,
             arrowBoard: r.arrowBoard, breakpointBoard: r.breakpointBoard,
             breakpointFeet: r.breakpointFeet, entryAngleDegrees: r.entryAngleDegrees,
             entryBoard: r.entryBoard, launchAngleDegrees: r.launchAngleDegrees,

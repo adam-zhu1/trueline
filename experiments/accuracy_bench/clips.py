@@ -53,6 +53,35 @@ OUTCOMES = {
 }
 
 
+SESSIONS = HERE / "sessions"
+
+
+def session_clips() -> list[dict]:
+    """Clips from alley sessions with measured truth: sessions/<date>.json,
+    schema in notes/alley-visit-checklist.md (addendum). Each throw names its
+    video (relative to the session's `video_root`), its calibration (either
+    display-pixel corners or a calibration_v11 reference file) and a `truth`
+    block; missing truth fields are simply not scored."""
+    out = []
+    for path in sorted(SESSIONS.glob("*.json")) if SESSIONS.exists() else []:
+        s = json.loads(path.read_text())
+        root = Path(os.path.expanduser(s.get("video_root", ".")))
+        for t in s["throws"]:
+            video = root / t["video"]
+            if not video.exists():
+                continue
+            if "reference" in t:
+                ref = json.loads((REPO / t["reference"]).read_text())
+                c = ref["corners"]
+                corners = {"farLeft": c["pin_line_left"], "farRight": c["pin_line_right"],
+                           "nearRight": c["foul_line_right"], "nearLeft": c["foul_line_left"]}
+            else:
+                corners = t["corners"]
+            out.append({"id": t["id"], "video": str(video), "hand": t.get("hand", s.get("hand", "R")),
+                        **corners, "truth": t.get("truth", {})})
+    return out
+
+
 def manifest() -> list[dict]:
     data = _data_root() / "test_videos" / "alley-2026-08-17"
     clips = []
@@ -81,4 +110,4 @@ def manifest() -> list[dict]:
                     "farLeft": c["farLeft"], "farRight": c["farRight"],
                     "nearRight": c["nearRight"], "nearLeft": c["nearLeft"],
                 })
-    return clips
+    return clips + session_clips()
