@@ -187,3 +187,43 @@ struct LaneGeometryTests {
         }
     }
 }
+
+@Suite("Lane model: drawing across the lane by hand")
+struct LaneDrawingHandTests {
+    @Test("a right-hander's board 17.5 draws right of center")
+    func rightHandRightOfCenter() {
+        #expect(LaneModel.drawnFraction(boardPosition: 17.5, hand: .right) > 0.5)
+        #expect(LaneModel.drawnFraction(boardCenter: 10, hand: .right) > 0.5)
+    }
+
+    @Test("a left-hander's board 17.5 draws left of center")
+    func leftHandLeftOfCenter() {
+        #expect(LaneModel.drawnFraction(boardPosition: 17.5, hand: .left) < 0.5)
+        #expect(LaneModel.drawnFraction(boardCenter: 10, hand: .left) < 0.5)
+    }
+
+    @Test("the two hands mirror about the center line", arguments: [0.0, 5, 17.5, 19.5, 30, 39])
+    func handsMirror(position: Double) {
+        let right = LaneModel.drawnFraction(boardPosition: position, hand: .right)
+        let left = LaneModel.drawnFraction(boardPosition: position, hand: .left)
+        #expect(isClose(right + left, 1))
+    }
+
+    @Test("gutter edges and the center board land where they should")
+    func anchors() {
+        #expect(LaneModel.drawnFraction(boardPosition: 0, hand: .right) == 1)
+        #expect(LaneModel.drawnFraction(boardPosition: 0, hand: .left) == 0)
+        #expect(isClose(LaneModel.drawnFraction(boardCenter: 20, hand: .right), 0.5))
+        #expect(isClose(LaneModel.drawnFraction(boardCenter: 20, hand: .left), 0.5))
+    }
+
+    @Test("a saved shot draws with the hand it was measured with")
+    func savedShotKeepsItsHand() {
+        var result = AnalyzerVersionTests.result
+        result.hand = .left
+        let shot = SavedShot(result: result)
+        #expect(shot.bowlingHand == "left")
+        #expect(shot.hand == .left)
+        #expect(shot.laneViewResult.hand == .left)
+    }
+}

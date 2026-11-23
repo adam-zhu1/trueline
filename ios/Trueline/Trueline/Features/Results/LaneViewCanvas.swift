@@ -70,13 +70,21 @@ struct LaneViewCanvas: View, Animatable {
             let laneH = ppf * LaneModel.lengthFeet
             let laneRect = CGRect(x: laneX, y: laneY, width: laneW, height: laneH)
 
+            // Boards count from the shot's own gutter: a right-hander's from
+            // the right edge, a left-hander's from the left.
+            let hand = result.hand
             /// x of a continuous board position (path samples, readings).
             func boardX(_ position: Double) -> CGFloat {
-                laneX + laneW * (1.0 - LaneModel.tAcross(boardPosition: position))
+                laneX + laneW * LaneModel.drawnFraction(boardPosition: position, hand: hand)
             }
-            /// x of a numbered board's center (arrows, pin spots).
+            /// x of a numbered board's center (arrows).
             func boardCenterX(_ board: Double) -> CGFloat {
-                laneX + laneW * (1.0 - LaneModel.tAcross(boardCenter: board))
+                laneX + laneW * LaneModel.drawnFraction(boardCenter: board, hand: hand)
+            }
+            /// x of a pin spot. Pin boards are physical (right-hand count),
+            /// so pin 2 stays left of the head pin for both hands.
+            func pinX(_ board: Double) -> CGFloat {
+                laneX + laneW * LaneModel.drawnFraction(boardCenter: board, hand: .right)
             }
             func feetY(_ feet: Double) -> CGFloat {
                 laneY + laneH * (1.0 - LaneModel.alongFraction(feet: feet))
@@ -141,11 +149,11 @@ struct LaneViewCanvas: View, Animatable {
                 )),
                 with: .color(.black.opacity(0.35))
             )
-            let pocketPins = LaneModel.pocketPins(hand: .right)
+            let pocketPins = LaneModel.pocketPins(hand: hand)
             for pin in LaneModel.pins {
                 let py = pinDeckY - CGFloat(pin.row) * rowDY
                 let isPocket = pocketPins.contains(pin.number)
-                let px = boardCenterX(pin.board)
+                let px = pinX(pin.board)
                 if isPocket {
                     context.fill(
                         Path(ellipseIn: CGRect(
@@ -206,7 +214,14 @@ struct LaneViewCanvas: View, Animatable {
             var annotations = context
             annotations.opacity = min(1, max(0, (pathTrim - 0.85) / 0.15))
 
-            // Breakpoint: marker on the path, number out in the right margin
+            // The breakpoint sits on the bowler's outside, so its number goes
+            // in that margin (right for a right-hander) and entry takes the
+            // other one. Leader lines then never cross the path.
+            let outsideRight = hand == .right
+            let rightMarginX = laneX + laneW + gw + 10
+            let leftMarginX = laneX - gw - 10
+
+            // Breakpoint: marker on the path, number out in the outside margin
             if annotations.opacity > 0, let bb = result.breakpointBoard, let bf = result.breakpointFeet {
                 let pt = CGPoint(x: boardX(bb), y: feetY(min(bf, LaneModel.lengthFeet)))
                 let r: CGFloat = compact ? 2.6 : 3.4
@@ -222,20 +237,20 @@ struct LaneViewCanvas: View, Animatable {
                     marginLabel(
                         &annotations,
                         value: String(format: "%.1f", bb), caption: "BREAK",
-                        from: CGPoint(x: pt.x + r + 2, y: pt.y),
-                        to: laneX + laneW + gw + 10, trailing: false
+                        from: CGPoint(x: pt.x + (outsideRight ? r + 2 : -(r + 2)), y: pt.y),
+                        to: outsideRight ? rightMarginX : leftMarginX, trailing: !outsideRight
                     )
                 }
             }
 
-            // Entry angle at the pocket, labeled in the left margin
+            // Entry angle at the pocket, labeled in the inside margin
             if annotations.opacity > 0, !compact, let ea = result.entryAngleDegrees, let eb = result.entryBoard {
                 let pt = CGPoint(x: boardX(eb), y: feetY(58))
                 marginLabel(
                     &annotations,
                     value: String(format: "%.1f°", ea), caption: "ENTRY",
-                    from: CGPoint(x: pt.x - 4, y: pt.y),
-                    to: laneX - gw - 10, trailing: true
+                    from: CGPoint(x: pt.x + (outsideRight ? -4 : 4), y: pt.y),
+                    to: outsideRight ? leftMarginX : rightMarginX, trailing: outsideRight
                 )
             }
         }
@@ -295,6 +310,16 @@ struct LaneViewCanvas: View, Animatable {
     LaneViewCanvas(result: .textbookSample)
         .padding()
         .background(Color.black)
+}
+
+#Preview("Left hand") {
+    LaneViewCanvas(result: {
+        var shot = ShotResult.textbookSample
+        shot.hand = .left
+        return shot
+    }())
+    .padding()
+    .background(Color.black)
 }
 
 #Preview("Compact") {

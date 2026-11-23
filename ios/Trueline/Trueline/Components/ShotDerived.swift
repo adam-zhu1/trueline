@@ -17,6 +17,13 @@ extension ShotResult {
     }
 }
 
+extension LaneModel.Hand {
+    /// The Settings hand (the "bowlingHand" preference), right by default.
+    static var setting: Self {
+        Self(rawValue: UserDefaults.standard.string(forKey: "bowlingHand") ?? "") ?? .right
+    }
+}
+
 extension SavedShot {
     var hookBoards: Double? {
         guard let entryBoard, let breakpointBoard else { return nil }

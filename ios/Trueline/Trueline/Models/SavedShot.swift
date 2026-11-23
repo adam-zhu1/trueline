@@ -37,6 +37,9 @@ final class SavedShot {
     /// ShotAnalyzer.version that measured this shot. Shots saved before the
     /// field existed migrate to 1, which is exactly what they are.
     var analyzerVersion: Int = 1
+    /// The hand the boards were counted from ("right" or "left"). Empty on
+    /// shots saved before the field existed; those follow the Settings hand.
+    var bowlingHand: String = ""
 
     init(date: Date = .now, result: ShotResult) {
         self.date = date
@@ -58,6 +61,12 @@ final class SavedShot {
         videoWidth = Double(result.videoDisplaySize.width)
         videoHeight = Double(result.videoDisplaySize.height)
         analyzerVersion = ShotAnalyzer.version
+        bowlingHand = result.hand.rawValue
+    }
+
+    /// The hand this shot's boards count from, for drawing it.
+    var hand: LaneModel.Hand {
+        LaneModel.Hand(rawValue: bowlingHand) ?? .setting
     }
 
     /// Measured before the current analyzer; its boards can be several off.
@@ -84,6 +93,7 @@ final class SavedShot {
             averageSpeedMph: averageSpeedMph,
             shotTimeSeconds: shotTimeSeconds,
             hookFactor: hookFactor,
+            hand: hand,
             path: zip(pathBoards, pathFeet).map { (board: $0, feet: $1) },
             videoPath: zip(videoPathX, videoPathY).map { CGPoint(x: $0, y: $1) },
             videoDisplaySize: CGSize(width: videoWidth, height: videoHeight),

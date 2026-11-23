@@ -24,6 +24,7 @@ struct BowlHomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
     @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
+    @AppStorage("bowlingHand") private var bowlingHand: LaneModel.Hand = .right
     @State private var pickerItem: PhotosPickerItem?
     @State private var showPicker = false
     /// Picked once per launch; nil until shots exist (poster) or after pick.
@@ -54,6 +55,7 @@ struct BowlHomeView: View {
 
                 LaneHeroView(
                     sessionPaths: heroPaths,
+                    hand: heroHand,
                     drawLines: entrance ?? true
                 )
                 .frame(height: 132)
@@ -61,7 +63,9 @@ struct BowlHomeView: View {
                 .accessibilityAddTraits(.isImage)
                 .accessibilityLabel(
                     heroPaths.isEmpty
-                        ? "Lane drawing of a hook from the right side into the pocket."
+                        ? (heroHand == .right
+                            ? "Lane drawing of a hook from the right side into the pocket."
+                            : "Lane drawing of a hook from the left side into the pocket.")
                         : "Lane drawing of your last \(heroPaths.count == 1 ? "throw" : "\(heroPaths.count) throws")."
                 )
                 .modifier(landing(3))
@@ -239,15 +243,23 @@ struct BowlHomeView: View {
     /// the newest draws last and brightest); sessionless imports fall back to
     /// the latest few shots. Empty for first-run — the hero shows the
     /// textbook shot instead.
-    private var heroPaths: [[(board: Double, feet: Double)]] {
+    private var heroPaths: [HeroLine] {
         let recent: [SavedShot]
         if let session = shots.first?.session, !session.shots.isEmpty {
             recent = session.shots.sorted { $0.date < $1.date }.suffix(4)
         } else {
             recent = shots.prefix(4).reversed()
         }
-        return recent.map { zip($0.pathBoards, $0.pathFeet).map { (board: $0, feet: $1) } }
-            .filter { $0.count >= 2 }
+        return recent.map { shot in
+            HeroLine(points: zip(shot.pathBoards, shot.pathFeet).map { (board: $0, feet: $1) }, hand: shot.hand)
+        }
+        .filter { $0.points.count >= 2 }
+    }
+
+    /// The hand the hero's lane is set up for: the latest shot's, or the
+    /// Settings hand before there are shots.
+    private var heroHand: LaneModel.Hand {
+        shots.first?.hand ?? bowlingHand
     }
 
     /// Last session's numbers (or the recent shots that stand in for one).
@@ -408,9 +420,18 @@ struct BowlHomeView: View {
 /// no data it shows the textbook shot; given `sessionPaths` it becomes the
 /// mirror — your session's lines, earlier throws dim, the latest bright,
 /// each drawing in once (trim-animated, staggered) when `drawLines` flips.
+/// One session line for the hero, with the hand its boards count from.
+private struct HeroLine {
+    var points: [(board: Double, feet: Double)]
+    var hand: LaneModel.Hand
+}
+
 private struct LaneHeroView: View {
     /// Session lines, chronological — the last is the latest and drawn hero.
-    var sessionPaths: [[(board: Double, feet: Double)]] = []
+    var sessionPaths: [HeroLine] = []
+    /// Whose lane this is: mirrors the textbook shot and moves the pocket
+    /// glow to 1-2 for a left-hander.
+    var hand: LaneModel.Hand = .right
     /// Entrance signal (mirrors the page's landing choreography): false holds
     /// the lines undrawn, flipping true draws them in staggered.
     var drawLines = true
@@ -445,13 +466,19 @@ private struct LaneHeroView: View {
                 width: ppf * LaneModel.lengthFeet, height: thick
             )
             func fx(_ feet: Double) -> CGFloat { laneRect.minX + ppf * feet }
+            // Sideways lane: the bowler's left is the top edge, right the
+            // bottom. Boards count from the hand's own gutter.
             /// y of a continuous board position (path samples, readings).
             func by(_ position: Double) -> CGFloat {
-                laneRect.maxY - thick * LaneModel.tAcross(boardPosition: position)
+                laneRect.minY + thick * LaneModel.drawnFraction(boardPosition: position, hand: hand)
             }
-            /// y of a numbered board's center (arrows, pin spots).
+            /// y of a numbered board's center (arrows).
             func boardCenterY(_ board: Double) -> CGFloat {
-                laneRect.maxY - thick * LaneModel.tAcross(boardCenter: board)
+                laneRect.minY + thick * LaneModel.drawnFraction(boardCenter: board, hand: hand)
+            }
+            /// y of a pin spot; pin boards are physical (right-hand count).
+            func pinY(_ board: Double) -> CGFloat {
+                laneRect.minY + thick * LaneModel.drawnFraction(boardCenter: board, hand: .right)
             }
 
             // Gutters above and below the strip
@@ -511,11 +538,11 @@ private struct LaneHeroView: View {
                 )),
                 with: .color(.black.opacity(0.35))
             )
-            let pocketPins = LaneModel.pocketPins(hand: .right)
+            let pocketPins = LaneModel.pocketPins(hand: hand)
             for pin in LaneModel.pins {
                 let px = fx(LaneModel.lengthFeet) + CGFloat(pin.row) * rowDX
                 let isPocket = pocketPins.contains(pin.number)
-                let py = boardCenterY(pin.board)
+                let py = pinY(pin.board)
                 let pt = CGPoint(x: px, y: py)
                 if isPocket {
                     context.fill(
@@ -570,7 +597,9 @@ private struct LaneHeroView: View {
             ForEach(sessionPaths.indices, id: \.self) { i in
                 let isLatest = i == sessionPaths.count - 1
                 let dimAlpha = 0.14 + 0.07 * Double(i)
-                let shape = HeroSessionLineShape(points: sessionPaths[i], ex: ex, depthEx: depthEx)
+                let shape = HeroSessionLineShape(
+                    points: sessionPaths[i].points, hand: sessionPaths[i].hand, ex: ex, depthEx: depthEx
+                )
                     .trim(from: 0, to: drawLines ? 1 : 0)
                 ZStack {
                     if isLatest {
@@ -602,6 +631,7 @@ private struct LaneHeroView: View {
 /// so the shapes land exactly on the drawn lane.
 private struct HeroSessionLineShape: Shape {
     var points: [(board: Double, feet: Double)]
+    var hand: LaneModel.Hand
     var ex: Double
     var depthEx: Double
 
@@ -616,7 +646,7 @@ private struct HeroSessionLineShape: Shape {
         for (i, p) in points.enumerated() {
             let pt = CGPoint(
                 x: inset + ppf * min(p.feet, LaneModel.lengthFeet),
-                y: laneY + thick * (1.0 - LaneModel.tAcross(boardPosition: p.board))
+                y: laneY + thick * LaneModel.drawnFraction(boardPosition: p.board, hand: hand)
             )
             if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
         }

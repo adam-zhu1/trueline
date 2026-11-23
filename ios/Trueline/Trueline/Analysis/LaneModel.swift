@@ -21,7 +21,7 @@ import Foundation
 ///
 /// Down-lane: feet 0 = foul line, 60 = head pin spot.
 enum LaneModel {
-    enum Hand: Sendable { case right, left }
+    enum Hand: String, Sendable { case right, left }
 
     // MARK: - Lane constants (USBC)
 
@@ -64,6 +64,22 @@ enum LaneModel {
     /// right-hander. Use this for anything painted on the lane.
     static func tAcross(boardCenter board: Double, hand: Hand = .right) -> Double {
         tAcross(boardPosition: boardPosition(ofBoardCenter: board), hand: hand)
+    }
+
+    // MARK: - Drawing across the lane
+
+    /// Fraction across the lane from the LEFT gutter edge as the bowler looks
+    /// down it (0 = left edge, 1 = right edge): the x a top-down drawing
+    /// uses. A right-hander's board 10 sits right of center and a
+    /// left-hander's board 10 sits left of center, because each counts from
+    /// their own gutter.
+    static func drawnFraction(boardPosition position: Double, hand: Hand) -> Double {
+        1.0 - tAcross(boardPosition: position, hand: hand)
+    }
+
+    /// `drawnFraction` for a numbered board's center.
+    static func drawnFraction(boardCenter board: Double, hand: Hand) -> Double {
+        1.0 - tAcross(boardCenter: board, hand: hand)
     }
 
     /// Lateral distance in boards for a distance in inches.

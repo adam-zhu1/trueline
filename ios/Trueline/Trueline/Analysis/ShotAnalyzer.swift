@@ -26,6 +26,9 @@ struct ShotResult {
     var shotTimeSeconds: Double? = nil
     /// Lateral acceleration through the hook phase, boards per second squared.
     var hookFactor: Double? = nil
+    /// The hand the boards count from. Drawings mirror on it: a left-hander's
+    /// boards run from the left gutter.
+    var hand: LaneModel.Hand = .right
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
     /// Smoothed ball-contact points in display-oriented normalized coordinates,
@@ -359,6 +362,7 @@ struct ShotAnalyzer {
                 rawBoxes: diag.rawBoxes, outsideLane: diag.outsideLane, accepted: diag.accepted
             )
         }
+        result.hand = hand
         result.trace = AnalysisTrace(
             fps: fpsSafe,
             orientation: orientation.rawValue,
