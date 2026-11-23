@@ -41,6 +41,9 @@ struct ShotResult {
     /// Set when the track isn't reliable: what went wrong, for the failure
     /// screen.
     var failure: TrackingFailure? = nil
+    /// Per-sample track and gate counts, for the accuracy benchmark
+    /// (experiments/accuracy_bench). Not shown in the app.
+    var trace: AnalysisTrace? = nil
 
     /// A usable track: enough samples to draw a path and trust the metrics.
     var isReliable: Bool {
@@ -71,6 +74,10 @@ struct ShotAnalyzer {
         var y: Double
         var frame: Int
         var radius: Double
+        /// The detector box behind a measured sample (nil while coasting).
+        var detection: BallDetector.Candidate? = nil
+        /// That detection after refineCenter, before any smoothing.
+        var refined: CGPoint? = nil
     }
 
     /// `livePath` receives the tracked path so far (display-normalized, like
@@ -232,6 +239,7 @@ struct ShotAnalyzer {
                 var (rx, ry, rr) = Self.refineCenter(
                     pixelBuffer: pixelBuffer, x: m.x, y: m.y, r: m.radius
                 )
+                let refined = CGPoint(x: rx, y: ry)
                 if let last = lastMeasSmooth, gapFrames == 0, framesSinceTrack > Int((7 * fpsScale).rounded()) {
                     let a = 1 - pow(1 - 0.42, 1 / fpsScale)
                     rx = a * rx + (1 - a) * last.0
@@ -253,7 +261,7 @@ struct ShotAnalyzer {
                     sx = kf.state[0]
                     sy = kf.state[1]
                 }
-                positions.append(Sample(x: sx!, y: sy!, frame: frameNumber, radius: lastR))
+                positions.append(Sample(x: sx!, y: sy!, frame: frameNumber, radius: lastR, detection: m, refined: refined))
                 lastMeasuredFeet = geometry.feet(
                     atImage: Self.contactRaw(x: sx!, y: sy!, radius: lastR, orientation: orientation)
                 )
@@ -349,6 +357,25 @@ struct ShotAnalyzer {
                 rawBoxes: diag.rawBoxes, outsideLane: diag.outsideLane, accepted: diag.accepted
             )
         }
+        result.trace = AnalysisTrace(
+            fps: fpsSafe,
+            orientation: orientation.rawValue,
+            samples: positions.map { s in
+                let contact = Self.contactRaw(x: s.x, y: s.y, radius: s.radius, orientation: orientation)
+                let (b, f) = geometry.boardFeet(atImage: contact)
+                return AnalysisTrace.Sample(
+                    frame: s.frame, x: s.x, y: s.y, radius: s.radius, board: b, feet: f,
+                    detectionX: s.detection?.x, detectionY: s.detection?.y,
+                    detectionRadius: s.detection?.radius, confidence: s.detection?.confidence,
+                    refinedX: s.refined.map { Double($0.x) }, refinedY: s.refined.map { Double($0.y) }
+                )
+            },
+            framesDecoded: diag?.frames ?? 0, rawBoxes: diag?.rawBoxes ?? 0,
+            belowFloor: diag?.belowFloor ?? 0, outsideLane: diag?.outsideLane ?? 0,
+            lowConfNear: diag?.lowConfNear ?? 0, accepted: diag?.accepted ?? 0,
+            measured: measuredFrames, coasted: coastedFrames,
+            associationRejects: assocRejects, trackResets: kalmanResets, focusHits: focusHits
+        )
         return result
     }
 
