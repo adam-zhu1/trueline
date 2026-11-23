@@ -326,7 +326,7 @@ center's scoreboard shows it and it is what new tracking-app users want first.
    name into "bowling ball speed", the most likely search in this niche. "Shot"
    is the word bowlers use for a delivery and its data ("shot data", "good
    shot"). Top pick.
-2. **Entry angle on every throw** (26). The current pick. Distinct and readable,
+2. **Entry angle on every throw** (26). The earlier pick. Distinct and readable,
    but it drops speed from the strongest field, and "throw" and "every" add
    little search value. Fine if Adam prefers to lead with the one number nobody
    else shows.

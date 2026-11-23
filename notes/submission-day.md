@@ -34,7 +34,7 @@ Store Connect help on Nov 15, 2026 (links at the bottom).
 1. Apps > TrueLine > the + next to iOS App in the sidebar > enter `1.1` >
    Create. 1.0's metadata copies over.
 2. **What's New in This Version:** paste from the listing file.
-3. **Description** and **Keywords:** paste. Keywords are 100 characters,
+3. **Description** and **Keywords:** paste. Keywords are 97 characters,
    commas and no spaces.
 4. **Promotional text:** leave the 1.0 text for now. The new text says 25
    free throws, which is false until 1.1 is live. Change it on release day
@@ -50,7 +50,7 @@ Store Connect help on Nov 15, 2026 (links at the bottom).
 
 ## 3. App-level fields (sidebar, outside the version page)
 
-1. **App Information:** subtitle "Entry angle on every throw". Name
+1. **App Information:** subtitle "Speed and entry angle per shot". Name
    unchanged. It goes live with the version. Check that the Age Rating shows
    no unanswered questions. Apple added new age rating questions in 2025 and
    unanswered ones block update submissions.

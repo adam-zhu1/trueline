@@ -26,12 +26,13 @@ TrueLine: Bowling Ball Tracker
 ### Subtitle (30 max)
 
 ```
-Entry angle on every throw
+Speed and entry angle per shot
 ```
 
-26 characters. Not a list; keeps "entry angle" in the indexed subtitle. Speed and breakpoint moved into the keywords. From the launch plan: the subtitle carries more search weight
-than the keyword field, and "breakpoint" moves here from the keywords. When rev
-rate ships, change it to "Speed, rev rate & entry angle" (29).
+30 characters. The two numbers a bowler names first about a shot, and both are
+search terms. "Launch speed" stays in the app and the keywords; the subtitle
+says "Speed" because that is what people type. When rev rate ships, change it
+to "Speed, rev rate & entry angle" (29).
 
 ### What's New in This Version (4,000 max)
 
@@ -114,16 +115,16 @@ are listed; the recording-rules line is there without naming any organization.
 ### Keywords (100 max)
 
 ```
-trainer,coach,stats,speed,hook,arrows,league,practice,tenpin,lane,video,pocket,boards,pin,breakpoint
+hook,arrows,breakpoint,pocket,board,launch,league,practice,coach,stats,video,lane,tenpin,analysis
 ```
 
-100 characters, 15 terms, commas and no spaces. None of them repeat a word from
-the name (TrueLine, Bowling, Ball, Tracker) or the new subtitle (Speed, Entry,
-Angle, Breakpoint). No trademarks. Dropped from 1.0: bowling and tracker (in
+97 characters, 14 terms, commas and no spaces. None of them repeat a word from
+the name (TrueLine, Bowling, Ball, Tracker) or the subtitle (Speed, Entry,
+Angle, Shot); Apple already indexes those. No trademarks. Dropped from 1.0: bowling and tracker (in
 the name), pba and usbc (other parties' marks), rev (not shipped), strike and
 spare (pull in games and score keepers), oil and pattern (the app doesn't read
-oil). "pin" is the weakest term; swap it for "arsenal" if per-ball compare ever
-leads the screenshots. Check App Analytics search terms 30 days after release.
+oil). "analysis" is the weakest term; swap it for "arsenal" if per-ball compare
+ever leads the screenshots. Check App Analytics search terms 30 days after release.
 
 ### URLs
 
