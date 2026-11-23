@@ -162,3 +162,118 @@ relative to near-lane feet by something like 15 to 20 percent. Batch 2 and
 the portfolio clip are flatter. This moves speeds and breakpoint distance
 more than boards, but only the alley session can size it (see the addendum
 in alley-visit-checklist.md).
+
+## Change: metrics from the detector boxes (Nov 15)
+
+The tracker keeps doing what it does well (holding the lock, coasting
+through gaps, the focus crop). The metrics stop reading its lagging state.
+
+- **Metric series** = measured frames only, each at its raw detector box
+  (centre and box radius). Coasted frames are predictions and no longer
+  count. The video trail still draws the Kalman path.
+- **Launch speed** = least-squares slope of feet against time over the first
+  16 ft of that series (start within 15 ft, 5+ samples, 6+ ft span), in
+  place of two crossings 6 ft apart on the Kalman series.
+- **Entry board and angle** = one fit through the series from 40 ft to
+  59.5 ft, read at 59.5 ft: a quadratic when there are 8+ samples over
+  10+ ft (kept only while it stays within 3 boards of the line and under
+  3 boards/ft), a line otherwise. The window is cut where the ball deflects
+  off the pins: two samples in a row more than 0.6 board back from the
+  furthest point toward the pocket.
+- Arrows, breakpoint, hook factor, launch angle and the lane-view path run
+  on the same series with their old rules.
+
+Tracking is untouched: tracked frames, depth and gate counts are identical
+on all 10 runs.
+
+### Before and after
+
+| Clip | Speed (labels) | Arrows (labels) | Breakpt | Entry bd (labels) | Entry ° (labels) |
+|---|---|---|---|---|---|
+| IMG_5105 | 14.6 → 15.7 (15.4) | 8.7 → 8.4 (8.5) | 4.3 → 4.4 | 11.6 → 10.9 (10.4) | 2.8 → 3.5 (3.5) |
+| IMG_5106 | 14.6 → 16.2 | 6.5 → 6.1 | 0.0 → -0.1 | 0.0 → 0.0 | 0.0 → 0.0 |
+| IMG_5107 | 15.4 → 16.4 (16.7) | 10.1 → 9.6 (9.8) | 7.3 → 7.1 | 11.9 → 11.4 (10.9) | 2.0 → 2.3 (2.4) |
+| IMG_5108 | 12.8 → 15.3 (15.1) | 11.4 → 11.0 (11.1) | 11.4 → 11.1 | 17.9 → 17.4 (17.1) | 1.8 → 2.2 (2.0) |
+| IMG_5112 | 20.6 → 15.8 (15.9) | 10.7 → 10.4 (10.3) | 4.3 → 5.1 | 12.3 → 9.8 (9.1) | 4.9 → 3.0 (3.3) |
+| IMG_5113 | 18.8 → 15.1 (15.2) | 8.1 → 7.9 (8.1) | 6.5 → 6.6 | 11.2 → 19.7 (19.3) | -5.3 → 5.1 (4.5) |
+| IMG_5114 | -- → -- | 11.1 → 10.4 | 14.0 → 11.4 | 16.0 → 17.4 | 1.0 → 4.0 |
+| IMG_5115 | 16.2 → 15.6 (15.4) | 10.0 → 9.9 (9.8) | 8.4 → 8.8 | 19.0 → 18.2 (18.6) | 4.8 → 4.1 (4.1) |
+| portfolio_30 | 16.0 → 17.6 (17.5) | 13.4 → 13.3 (13.5) | 5.5 → 5.7 | 16.4 → 16.7 (16.6) | 4.4 → 5.9 (5.7) |
+| portfolio_60 | 13.6 → 17.7 | 13.3 → 13.3 | 5.7 → 5.6 | 16.4 → 16.5 | 4.5 → 5.7 |
+
+| Metric vs labels (7 clips) | Before mean / max | After mean / max |
+|---|---|---|
+| Arrows (boards) | 0.21 / 0.40 | 0.15 / 0.23 |
+| Entry board (boards) | 2.13 / 8.11 | 0.43 / 0.71 |
+| Entry angle (degrees) | 2.09 / 9.76 | 0.21 / 0.64 |
+| Launch speed (mph) | 2.16 / 4.65 | 0.18 / 0.31 |
+
+Consistency check with no labels involved: the 30 and 60 fps copies of the
+portfolio throw now read 17.6 / 17.7 mph (was 16.0 / 13.6) and entry
+16.7 / 16.5 at 5.9 / 5.7 degrees. Batch-1 and batch-2 launch speeds, the
+same bowler on the same lane, now sit in one band (15.1 to 16.4) where they
+were 12.8 to 20.6.
+
+Unit tests: `ShotMetricFitTests` (12 tests, 13 cases: exact speed at 30 and 60 fps,
+jitter averaging, the 16 ft window, mid-lane and short tracks refused, a
+curving back end read exactly at 59.5 ft, short-track projection, the 5113
+deflection pattern, noise not mistaken for deflection, falling boards,
+shallow tracks refused, the polynomial fit).
+
+### Read these numbers with care
+
+- **The label metrics are not independent of every choice.** The entry and
+  speed estimators were picked on these same 7 clips (no held-out set), and
+  the label-side entry uses the same quadratic family as the app, which
+  flatters the angle agreement. Other reasonable variants land close by
+  (entry error: line from 45 ft 0.54, line from 50 ft 0.38, quadratic from
+  40 ft 0.44 boards; all far below the old 2.13), so the gain does not hang
+  on the exact choice.
+- **Breakpoint has no truth** and moved by up to 2.6 boards on 5114 (18
+  tracked frames, all past 49 ft, so it never had a real breakpoint).
+- **Entry still reads 0.3 to 0.7 board high on 5 of 7 clips.** The detector
+  box sits about 1 px behind the ball's direction of travel at the far end
+  (batch 1: 1.0 to 1.3 px left of the label while the ball moves right;
+  batch 2: 0.4 to 0.8 px right while it moves left). That is 0.3 to 0.6
+  board at the pins. It could be motion blur or the label method; I didn't
+  correct it without truth that doesn't come from this pipeline.
+- **Calibration is outside this benchmark** (see "What the labels can't
+  see"). These errors are what the app adds on top of a reference-quality
+  calibration. A user's 6-tap calibration adds its own (the Aug 25 Monte
+  Carlo: about 0.5 to 0.7 board median at the deck after the refine step).
+
+## What didn't work
+
+- **Feeding the raw box to the Kalman filter** (skipping refineCenter, which
+  the labels say makes positions worse). 5112 lost its lock at 41.6 ft
+  (75 to 46 tracked frames): with the box radius, the focus-crop trigger and
+  gate sizing changed and the far-lane rescue stopped firing. Reverted;
+  refineCenter stays as tracker input only, where its bias doesn't reach
+  the numbers.
+- **A camera model from the homography** (focal length from the plane's
+  orthogonality and equal-scale constraints, to lift the ball centre to its
+  true height instead of adding the box radius). The two constraints
+  disagree by 20% on batch 1 (f 1400 vs 1690 px) and go wild on 5115 and
+  the portfolio clip, so the four corners can't support it. The contact
+  rule's own error is small anyway (under 2 px near the foul line, nothing
+  at the pins), so I dropped it.
+- **Silhouette segmentation for labels** (colour distance to the lane, then
+  to the ball). Merged the ball with pins and the pin deck at the far end.
+  The radial edge fit replaced it.
+
+## Recommendations, in order
+
+1. **Size the calibration's depth error at the alley** (the batch-1 ball
+   "speeding up"). It is now the largest error left in speed and probably in
+   breakpoint distance. Addendum in alley-visit-checklist.md.
+2. **Retrain or fine-tune with the 2x footage before chasing sub-board
+   detector bias.** At 1x the ball is 9 px in radius at the pins and 2.3 px
+   per board; 2x doubles both, and every remaining pixel-level error halves
+   in boards.
+3. **Make the tracker's own position honest** if the trail or live path
+   ever feeds a number: initialise the Kalman velocity from the first two
+   measurements and drop the extra exponential smoothing. Do it with the
+   benchmark open: the first attempt at touching tracker input broke 5112.
+4. **Grow the labelled set** with the alley-session clips (same scripts:
+   `label_sheets.py --overlay`, review, `make_labels.py`), keeping the
+   session's taped-board and speed-display truth alongside.

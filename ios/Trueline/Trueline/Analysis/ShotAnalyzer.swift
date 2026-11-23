@@ -58,7 +58,9 @@ struct ShotResult {
 struct ShotAnalyzer {
     /// Stamped on every saved shot. 1 = TrueLine 1.0, whose contact point was
     /// computed in raw buffer axes and skewed boards sideways on portrait
-    /// clips. 2 = 1.1: contact point fix, wall-clock tracking, one lane model.
+    /// clips. 2 = 1.1: contact point fix, wall-clock tracking, one lane model,
+    /// metrics from the detector boxes (launch speed and entry fits). 2 has
+    /// not shipped yet, so these all share it.
     /// Bump when a change moves the numbers a saved shot would show.
     static let version = 2
 
@@ -499,10 +501,20 @@ struct ShotAnalyzer {
         default:
             displaySize = rawSize
         }
+        // Metrics come from the detector's own boxes on measured frames, not
+        // from the tracker state. The Kalman filter (fed through refineCenter
+        // and an exponential smoother) is what keeps the lock, but its state
+        // lags the ball: 10+ px at release, 2-3 px at the pins. Against
+        // hand-labelled frames (experiments/accuracy_bench) the raw box
+        // centre is the most accurate position the pipeline has (median
+        // 1.2 px at the pins vs 2.6 refined and 2.9 Kalman), and coasted
+        // frames are predictions, not data: a track that coasts into the
+        // pin deck painted a straight line exactly where entry is read.
+        let measured = metricSamples(positions)
         var boards: [Double] = []
         var feet: [Double] = []
         var frames: [Double] = []
-        for s in positions {
+        for s in measured {
             let contact = contactRaw(x: s.x, y: s.y, radius: s.radius, orientation: orientation)
             let (b, f) = geometry.boardFeet(atImage: contact)
             boards.append(b)
@@ -520,7 +532,7 @@ struct ShotAnalyzer {
             result.throwStartSeconds = Double(first.frame - 1) / fps
             result.throwEndSeconds = Double(last.frame) / fps
         }
-        guard boards.count >= 3 else { return result }
+        guard positions.count >= 3 else { return result }
         // Smoothing windows are counted in samples and were tuned at 30 fps;
         // keep the same time span at other rates (odd, as Savitzky–Golay needs).
         func win(_ samplesAt30: Int) -> Int {
@@ -541,6 +553,7 @@ struct ShotAnalyzer {
             let (u, v) = BallDetector.rawToOriented(rx: rx, ry: ry, orientation: orientation)
             return CGPoint(x: u, y: v)
         }
+        guard boards.count >= 3 else { return result }
 
         // Lane-view path: smooth hard (window 41) and trim the last 2% (pin scatter).
         var pb = boards
@@ -554,29 +567,13 @@ struct ShotAnalyzer {
         let sfPath = savgolSmooth(pf, window: win(41))
         result.path = zip(sbPath, sfPath).map { (board: $0, feet: $1) }
 
-        // Launch speed: the earliest 6 ft the track covers, timed from
-        // interpolated crossings of the feet series. The prototype required
-        // foul-line → dot-row specifically, but a lofted release or a late
-        // track lock never crosses the first mark and speed came out empty —
-        // the homography times any span equally well, so anchor the window
-        // where tracking actually starts. It must still begin in the front
-        // part of the lane (≤ 15 ft): the ball sheds 2–3 mph down-lane, and a
-        // mid-lane reading isn't a launch speed. A track starting at the foul
-        // line reduces to the prototype's foul → dot measurement.
-        // Crossings run on the RAW feet series — the prototype's line tests
-        // use raw positions, and smoothing first shifts the timing measurably.
+        // Launch speed: least-squares slope of feet against time over the
+        // first 16 ft of measured track (see launchSpeedMph).
         let settleSkip = min(Int((3 * fps / 30).rounded()), feet.count - 1)
         let f0 = max(feet[settleSkip], 0.05)
-        let f1 = f0 + LaneGeometry.dotDistanceFeet
-        if f0 <= 15.0,
-           let t0 = crossingFrame(feet: feet, frames: frames, target: f0, requireStartBelow: f0 + 0.5),
-           let t1 = crossingFrame(feet: feet, frames: frames, target: f1, requireStartBelow: f0 + 0.5),
-           t1 > t0 {
-            let seconds = (t1 - t0) / fps
-            if seconds > 0 {
-                result.speedMph = (LaneGeometry.dotDistanceFeet / seconds) * 0.681818
-            }
-        }
+        result.speedMph = Self.launchSpeedMph(
+            feet: Array(feet[settleSkip...]), frames: Array(frames[settleSkip...]), fps: fps
+        )
 
         // Average speed and shot time over release-to-pins, the measurement
         // capped at 59.5 ft (tracks run past the deck into pin scatter) and a
@@ -651,7 +648,7 @@ struct ShotAnalyzer {
 
         // Breakpoint: min board over the trimmed window (skip first third —
         // approach noise — and last 2%), on a smoothed series.
-        if positions.count >= 10 {
+        if boards.count >= 10 {
             let n = boards.count
             let startIdx = n / 3
             let endIdx = max(startIdx + 1, n - max(1, n / 50))
@@ -681,36 +678,139 @@ struct ShotAnalyzer {
                         result.hookFactor = (((post - pre) / dt) * 10).rounded() / 10
                     }
                 }
-                // Entry angle from the tail slope of the smoothed series.
-                if smooth.count >= 5 {
-                    let sfWin = savgolSmooth(wf, window: win(11))
-                    let tail = min(max(5, smooth.count / 6), smooth.count - 1)
-                    let db = smooth[smooth.count - 1] - smooth[smooth.count - tail]
-                    let df = sfWin[sfWin.count - 1] - sfWin[sfWin.count - tail]
-                    if df > 0.5 {
-                        let dbIn = db * LaneModel.inchesPerBoard
-                        let dfIn = df * 12.0
-                        let angle = atan2(dbIn, dfIn) * 180 / .pi
-                        result.entryAngleDegrees = (angle * 10).rounded() / 10
-                        // Entry board: the track stops ~2% short of the pins,
-                        // so project the same tail slope out to 59.5 ft. Deep
-                        // tracks only — a short one would extrapolate half the
-                        // lane.
-                        let lastB = smooth[smooth.count - 1]
-                        let lastF = sfWin[sfWin.count - 1]
-                        if lastF >= 50 {
-                            let projected = lastB + (db / df) * (LaneGeometry.entryBoardFeet - lastF)
-                            result.entryBoard = (min(max(projected, 0), 39) * 10).rounded() / 10
-                        }
-                    }
-                }
             } else if let minIdx = wb.indices.min(by: { wb[$0] < wb[$1] }) {
                 result.breakpointBoard = (wb[minIdx] * 10).rounded() / 10
                 result.breakpointFeet = wf[minIdx]
             }
         }
 
+        // Entry board and angle: one fit through the measured back end,
+        // read at 59.5 ft (see entryFit).
+        if boards.count >= 10, let entry = Self.entryFit(boards: boards, feet: feet) {
+            result.entryBoard = (min(max(entry.board, 0), 39) * 10).rounded() / 10
+            result.entryAngleDegrees = (entry.angleDegrees * 10).rounded() / 10
+        }
+
         return result
+    }
+
+    /// The samples metrics are computed from: measured frames only, each at
+    /// its detector box (centre and radius), in track order. Falls back to
+    /// the tracked positions when fewer than three frames were measured.
+    private static func metricSamples(_ positions: [Sample]) -> [Sample] {
+        let measured = positions.compactMap { s in
+            s.detection.map { Sample(x: $0.x, y: $0.y, frame: s.frame, radius: $0.radius) }
+        }
+        return measured.count >= 3 ? measured : positions
+    }
+
+    /// Launch speed, mph: least-squares slope of feet against time over the
+    /// first 16 ft of track. It must start in the front of the lane
+    /// (<= 15 ft): the ball sheds 2-3 mph down-lane, so a mid-lane reading
+    /// isn't a launch speed. The old two-crossing 6 ft window on the Kalman
+    /// state read 12.8 to 20.6 mph on throws whose hand labels say 15.1 to
+    /// 15.9: a filter that starts at zero velocity lags hardest exactly
+    /// where launch speed is timed, and two crossings of a noisy series
+    /// carry each one's timing error straight into the speed. A fit over
+    /// every sample in 16 ft averages it down (0.2 mph mean error against
+    /// labels, and the 30 and 60 fps copies of one throw agree to 0.2 mph).
+    /// `feet`/`frames`: the measured series with the release frames already
+    /// skipped.
+    static func launchSpeedMph(feet: [Double], frames: [Double], fps: Double) -> Double? {
+        guard feet.count == frames.count, let start = feet.first, start <= 15.0, fps > 0 else { return nil }
+        var t: [Double] = []
+        var f: [Double] = []
+        for i in feet.indices where feet[i] <= start + launchSpanFeet {
+            t.append(frames[i] / fps)
+            f.append(feet[i])
+        }
+        guard t.count >= 5, let lo = f.min(), let hi = f.max(), hi - lo >= 6.0,
+              let slope = linearSlope(f, t), slope > 0 else { return nil }
+        return slope * 0.681818
+    }
+
+    static let launchSpanFeet = 16.0
+
+    /// Entry board (at 59.5 ft) and entry angle (degrees, positive = moving
+    /// toward higher boards) from the measured back end.
+    ///
+    /// Window: samples from 40 ft to 59.5 ft, cut where the ball deflects
+    /// (pin contact turns it back across boards; IMG_5113's tracker followed
+    /// it 4 boards back toward the gutter and read entry 11.2 on a throw the
+    /// labels put at 19.3). Fit: quadratic in feet when the window has 8+
+    /// samples over 10+ ft, else a line; board and slope are read at
+    /// 59.5 ft. The ball is still hooking at 40-55 ft, so the old tail
+    /// slope over the last sixth of a lagged, smoothed track read the angle
+    /// low and, projected from the track's last point, the board high
+    /// (+0.8 to +1.2 boards on every batch-1 clip).
+    static func entryFit(boards: [Double], feet: [Double]) -> (board: Double, angleDegrees: Double)? {
+        var b: [Double] = []
+        var f: [Double] = []
+        for i in boards.indices where feet[i] >= 40.0 && feet[i] <= LaneGeometry.entryBoardFeet {
+            b.append(boards[i])
+            f.append(feet[i])
+        }
+        guard b.count >= 5 else { return nil }
+        let cut = deflectionCut(b)
+        b = Array(b[..<cut])
+        f = Array(f[..<cut])
+        guard b.count >= 5, let last = f.last, let first = f.first,
+              last >= 50, last - first >= 5 else { return nil }
+        let x = f.map { $0 - LaneGeometry.entryBoardFeet }
+        let line = polyfit(x: x, y: b, degree: 1)
+        var coeffs = line
+        if b.count >= 8, last - first >= 10, let quad = polyfit(x: x, y: b, degree: 2) {
+            // A quadratic extrapolated past a short or noisy tail can bend
+            // away; keep it only while it stays near the line.
+            if let line, abs(quad[0] - line[0]) <= 3, abs(quad[1]) <= 3 {
+                coeffs = quad
+            }
+        }
+        guard let c = coeffs else { return nil }
+        let angle = atan(c[1] * LaneModel.inchesPerBoard / 12.0) * 180 / .pi
+        return (c[0], angle)
+    }
+
+    /// Index one past the last sample to keep: the ball's sideways run
+    /// toward the pocket ends at the deflection. Hook direction is the
+    /// window's first-to-last trend; the cut lands on the extreme sample
+    /// once two samples in a row fall more than 0.6 board back from it
+    /// (single-frame detector noise is under half a board at the pins).
+    static func deflectionCut(_ b: [Double]) -> Int {
+        guard let first = b.first, let last = b.last else { return 0 }
+        let sign: Double = last >= first ? 1 : -1
+        var best = -Double.infinity
+        var bestIdx = 0
+        var below = 0
+        for (i, v) in b.enumerated() {
+            let s = v * sign
+            if s > best {
+                best = s
+                bestIdx = i
+                below = 0
+            } else if best - s > 0.6 {
+                below += 1
+                if below >= 2 { return bestIdx + 1 }
+            }
+        }
+        return b.count
+    }
+
+    /// Least-squares polynomial (degree 1 or 2) of y on x; coefficients
+    /// lowest order first: c[0] + c[1] x + c[2] x². nil when singular.
+    static func polyfit(x: [Double], y: [Double], degree: Int) -> [Double]? {
+        let terms = degree + 1
+        guard x.count == y.count, x.count >= terms else { return nil }
+        var a = [[Double]](repeating: [Double](repeating: 0, count: terms + 1), count: terms)
+        for i in x.indices {
+            var powers = [Double](repeating: 1, count: 2 * terms - 1)
+            for k in 1..<powers.count { powers[k] = powers[k - 1] * x[i] }
+            for r in 0..<terms {
+                for c in 0..<terms { a[r][c] += powers[r + c] }
+                a[r][terms] += powers[r] * y[i]
+            }
+        }
+        return Homography.gaussianSolve(&a, n: terms)
     }
 
     /// Interpolated frame index where the series first reaches `target` feet.
