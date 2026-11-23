@@ -172,6 +172,15 @@ private var debugAppearance: ColorScheme? {
     }
 }
 
+/// `-previewScrollY <0-1>` opens the session and shot detail routes scrolled
+/// to that fraction of their content (0 top, 1 bottom), since the CLI can't
+/// swipe. Absent, they open at the top.
+private var debugScrollAnchor: UnitPoint {
+    let y = UserDefaults.standard.object(forKey: "previewScrollY") != nil
+        ? UserDefaults.standard.double(forKey: "previewScrollY") : 0
+    return UnitPoint(x: 0.5, y: y)
+}
+
 /// Stats over the seeded demo history — the same data every run. Add
 /// `-trendsPreviewBottom` to open scrolled to the end (the CLI can't swipe).
 private struct TrendsPreview: View {
@@ -196,6 +205,7 @@ private struct SessionDetailPreview: View {
         NavigationStack {
             if let session = sessions.first(where: { !$0.shots.isEmpty }) {
                 SessionDetailView(session: session)
+                    .defaultScrollAnchor(debugScrollAnchor)
             } else {
                 ProgressView()
             }
@@ -214,6 +224,7 @@ private struct ShotDetailPreview: View {
         NavigationStack {
             if let shot = shots.first {
                 ShotDetailView(shot: shot)
+                    .defaultScrollAnchor(debugScrollAnchor)
             } else {
                 ProgressView()
             }

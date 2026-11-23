@@ -14,10 +14,18 @@ enum DemoSeed {
         guard existing == 0 else { return }
 
         var rng = SeededRNG(state: 0x5EED)
+        // `-seedDemoEvening` dates the sessions on league nights (7:30 PM,
+        // newest yesterday) so screenshots don't read as morning practice.
+        var anchor = Date.now
+        if UserDefaults.standard.bool(forKey: "seedDemoEvening"),
+           let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: .now),
+           let evening = Calendar.current.date(bySettingHour: 19, minute: 30, second: 0, of: yesterday) {
+            anchor = evening
+        }
         let balls = ["Phaze II", "Phaze II", "Hustle", "Phaze II", "Hustle"]
         for index in 0..<5 {
             let session = BowlingSession(
-                date: Calendar.current.date(byAdding: .day, value: -7 * (4 - index), to: .now) ?? .now
+                date: Calendar.current.date(byAdding: .day, value: -7 * (4 - index), to: anchor) ?? anchor
             )
             session.ball = balls[index]
             session.center = "Kingpin Lanes"
@@ -41,7 +49,7 @@ enum DemoSeed {
         // existing-footage path that per-ball stats must include.
         for daysAgo in [3, 10] {
             let shot = SavedShot(
-                date: Calendar.current.date(byAdding: .day, value: -daysAgo, to: .now) ?? .now,
+                date: Calendar.current.date(byAdding: .day, value: -daysAgo, to: anchor) ?? anchor,
                 result: makeResult(skill: 0.5, rng: &rng)
             )
             shot.ball = "Spare Ball"
@@ -67,14 +75,28 @@ enum DemoSeed {
             return (board: HookCurve.board(at: u) + lateral, feet: u * 60)
         }
 
+        // Same draw order as before, so the seed's numbers don't shift.
+        let arrowBoard = 11.5 + jitter(1.5 - 0.7 * skill)
+        let breakpointFeet = 40.0 + jitter(2.0)
+        // Outward launch of a few degrees, like the seeded path's skid leg.
+        let launchAngle = 1.9 + jitter(0.7 - 0.3 * skill)
+        // Derived, not drawn: the launch line walked back 15 ft to the foul
+        // line, and a whole-lane average a bit under launch speed.
+        let foulLineBoard = arrowBoard + tan(launchAngle * .pi / 180) * 180 / LaneModel.inchesPerBoard
+        let averageSpeed = speed - 1.6
+        let shotTime = 59.5 / (averageSpeed * 5280 / 3600)
+
         return ShotResult(
             speedMph: speed,
-            arrowBoard: 10.0 + jitter(1.5 - 0.7 * skill),
+            arrowBoard: arrowBoard,
             breakpointBoard: breakpointBoard,
-            breakpointFeet: 40.0 + jitter(2.0),
+            breakpointFeet: breakpointFeet,
             entryAngleDegrees: entryAngle,
             entryBoard: entryBoard,
-            launchAngleDegrees: 15.0 + jitter(1.2),
+            launchAngleDegrees: launchAngle,
+            foulLineBoard: foulLineBoard,
+            averageSpeedMph: averageSpeed,
+            shotTimeSeconds: shotTime,
             path: path,
             videoPath: [],
             videoDisplaySize: .zero,
