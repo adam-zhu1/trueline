@@ -61,7 +61,7 @@ struct LaneGeometry {
 
     /// (board 0–39, feet 0–60) of an image pixel; both clamped like the
     /// prototype. Board is continuous boards from the outside gutter edge
-    /// (0 = edge, 17.5 = flush pocket, 19.5 = lane center) — the harness's
+    /// (0 = edge, about 17 = flush pocket, 19.5 = lane center) — the harness's
     /// x * 39 convention, mirrored for left-handers. The old 1 + 38t mapping
     /// skewed everything up to half a board (18.1 for a flush pocket).
     func boardFeet(atImage p: CGPoint) -> (board: Double, feet: Double) {

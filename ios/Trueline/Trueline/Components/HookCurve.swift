@@ -4,7 +4,7 @@ import Foundation
 /// The stylized right-hand hook shared by the brand animations (launch, analysis
 /// progress): board position (LaneModel's continuous 0–39) as a function of
 /// travel down the lane, 0 = foul line, 1 = pins. Drifts out to a board-7 breakpoint at 74% of the lane, then turns
-/// hard into the 17.5 pocket. Decoration, not data — real paths come from the
+/// hard into the pocket at board 17 (the middle of LaneModel.pocketBoards). Decoration, not data — real paths come from the
 /// analyzer.
 enum HookCurve {
     static let breakpoint = 0.72
@@ -22,7 +22,7 @@ enum HookCurve {
             // Hook phase: one decisive turn, steepest at the pins (that's
             // the entry angle).
             let s = (u - breakpoint) / (1 - breakpoint)
-            return 7.0 + 10.5 * pow(s, 2.0)
+            return 7.0 + 10.0 * pow(s, 2.0)
         }
     }
 

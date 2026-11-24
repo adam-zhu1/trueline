@@ -75,18 +75,19 @@ enum DemoSeed {
     /// throws: 60, 50, 57, 60 and 67%.
     private static let pocketHits = [3, 3, 4, 3, 4]
 
-    /// `pocket` deals the throw into the 17–18 pocket or a board or two
-    /// either side of it.
+    /// `pocket` deals the throw into the pocket (LaneModel.pocketBoards) or a
+    /// board or two either side of it.
     private static func makeResult(skill: Double, pocket: Bool, rng: inout SeededRNG) -> ShotResult {
         func jitter(_ spread: Double) -> Double {
             Double.random(in: -spread...spread, using: &rng)
         }
+        let pocketMid = (LaneModel.pocketBoards.lowerBound + LaneModel.pocketBoards.upperBound) / 2
         let entryBoard: Double
         if pocket {
-            entryBoard = 17.5 + jitter(0.45)
+            entryBoard = pocketMid + jitter(0.45)
         } else {
             let side: Double = Bool.random(using: &rng) ? 1 : -1
-            entryBoard = 17.5 + side * Double.random(in: 0.8...1.9, using: &rng)
+            entryBoard = pocketMid + side * Double.random(in: 0.8...1.9, using: &rng)
         }
         let breakpointBoard = 7.0 + jitter(1.0)
         let speed = 17.0 + 0.4 * skill + jitter(0.9 - 0.4 * skill)
@@ -94,7 +95,7 @@ enum DemoSeed {
 
         // Overlay path: the brand hook nudged laterally per shot, so the
         // session "Lines" view fans realistically.
-        let lateral = entryBoard - 17.5
+        let lateral = entryBoard - HookCurve.board(at: 1)
         let path: [(board: Double, feet: Double)] = (0...30).map { step in
             let u = Double(step) / 30
             return (board: HookCurve.board(at: u) + lateral, feet: u * 60)

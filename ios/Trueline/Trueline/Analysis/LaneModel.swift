@@ -185,7 +185,9 @@ enum LaneModel {
         hand == .right ? [1, 3] : [1, 2]
     }
 
-    /// The strike pocket as an entry-board range from the bowler's side
-    /// (hand-normalized, so the same range for both hands).
-    static let pocketBoards: ClosedRange<Double> = 17...18
+    /// The strike pocket as an entry-board range at 59.5 ft from the
+    /// bowler's side (hand-normalized, so the same range for both hands).
+    /// Specto's window: "The strike percentage is highest when hitting the
+    /// pocket between 16.5 and 17.5" (spectobowling.com/tutorialperformance).
+    static let pocketBoards: ClosedRange<Double> = 16.5...17.5
 }

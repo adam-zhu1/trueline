@@ -11,7 +11,7 @@ struct ShotResult {
     var breakpointBoard: Double?
     var breakpointFeet: Double?
     var entryAngleDegrees: Double?
-    /// Board at 59.5 ft (Specto's entry board; 17.5 is flush pocket).
+    /// Board at 59.5 ft (Specto's entry board; the pocket is 16.5 to 17.5).
     var entryBoard: Double?
     /// Direction the ball leaves the hand, from the first tracked stretch.
     /// Positive = launched toward the gutter (a righty playing outside

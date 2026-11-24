@@ -145,7 +145,7 @@ struct StatsView: View {
         let counts = Dictionary(grouping: boards, by: { $0 }).mapValues(\.count)
         let lo = max(1, (boards.min() ?? 10) - 2)
         let hi = min(39, (boards.max() ?? 25) + 2)
-        return card("Where Shots Enter", footer: "Boards \(Int(ShotResult.pocketBoards.lowerBound))–\(Int(ShotResult.pocketBoards.upperBound)) are the pocket.") {
+        return card("Where Shots Enter", footer: "Entries from board \(ShotResult.pocketBoards.lowerBound.formatted()) to \(ShotResult.pocketBoards.upperBound.formatted()) are pocket hits.") {
             if counts.isEmpty {
                 Text("No entry boards tracked yet.")
                     .font(.footnote)
@@ -153,8 +153,8 @@ struct StatsView: View {
             } else {
                 Chart {
                     RectangleMark(
-                        xStart: .value("Pocket", ShotResult.pocketBoards.lowerBound - 0.5),
-                        xEnd: .value("Pocket", ShotResult.pocketBoards.upperBound + 0.5)
+                        xStart: .value("Pocket", ShotResult.pocketBoards.lowerBound),
+                        xEnd: .value("Pocket", ShotResult.pocketBoards.upperBound)
                     )
                     .foregroundStyle(Color.accentMint.opacity(0.12))
                     .accessibilityHidden(true)
