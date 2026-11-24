@@ -25,6 +25,7 @@ struct BowlHomeView: View {
     @Query(sort: \SavedShot.date, order: .reverse) private var shots: [SavedShot]
     @Query(sort: \BowlingSession.date, order: .reverse) private var sessions: [BowlingSession]
     @AppStorage("bowlingHand") private var bowlingHand: LaneModel.Hand = .right
+    @AppStorage("speedUnit") private var speedUnit = "mph"
     @State private var pickerItem: PhotosPickerItem?
     @State private var showPicker = false
     /// Picked once per launch; nil until shots exist (poster) or after pick.
@@ -161,7 +162,7 @@ struct BowlHomeView: View {
                 // Once per launch, not per tab revisit — the greeting should
                 // change between visits to the app, not between taps.
                 if greeting == nil, !shots.isEmpty {
-                    greeting = HomeGreeting.pick(shots: Array(shots))
+                    greeting = HomeGreeting.pick(shots: Array(shots), speedUnit: speedUnit)
                 }
             }
         }
@@ -277,10 +278,10 @@ struct BowlHomeView: View {
 
         return HStack(spacing: 0) {
             stat(
-                avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph", label: "Launch avg",
+                SpeedUnit.format(avg, unit: speedUnit), unit: SpeedUnit.label(speedUnit), label: "Launch avg",
                 spoken: AccessibilityText.metric(
                     title: "Last session average launch speed",
-                    value: avg.map { String(format: "%.1f", $0) } ?? "--", unit: "mph"
+                    value: SpeedUnit.format(avg, unit: speedUnit), unit: SpeedUnit.label(speedUnit)
                 )
             )
             stat(
@@ -312,10 +313,10 @@ struct BowlHomeView: View {
         .accessibilityLabel(spoken)
     }
 
-    /// Ball speed across the last throws, oldest → newest. The one dimension
-    /// the hero can't show: change over time.
+    /// Ball speed across the last throws, oldest → newest, in the Settings
+    /// unit. The one dimension the hero can't show: change over time.
     private var speedTrendValues: [Double] {
-        Array(shots.prefix(12)).reversed().compactMap(\.speedMph)
+        Array(shots.prefix(12)).reversed().compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } }
     }
 
     /// A quiet sparkline of recent speeds — teases the Stats tab without
@@ -332,7 +333,7 @@ struct BowlHomeView: View {
                 if let latest = values.last {
                     (Text(String(format: "%.1f", latest))
                         .font(.footnote.weight(.semibold)).foregroundStyle(Color.ink(0.9))
-                        + Text(" mph").font(.caption2).foregroundStyle(Color.ink(0.6)))
+                        + Text(" \(SpeedUnit.label(speedUnit))").font(.caption2).foregroundStyle(Color.ink(0.6)))
                         .monospacedDigit()
                 }
             }
@@ -364,9 +365,11 @@ struct BowlHomeView: View {
 
     private func speedTrendSpoken(_ values: [Double]) -> String {
         guard let latest = values.last, let first = values.first else { return "Launch speed trend" }
-        let trend = latest > first + 0.3 ? "up" : (latest < first - 0.3 ? "down" : "steady")
+        let step = SpeedUnit.value(0.3, unit: speedUnit)
+        let trend = latest > first + step ? "up" : (latest < first - step ? "down" : "steady")
         return "Launch speed over the last \(values.count) throws, \(trend), latest "
-            + String(format: "%.1f", latest) + " miles per hour"
+            + String(format: "%.1f", latest) + " "
+            + AccessibilityText.spokenUnit(SpeedUnit.label(speedUnit), value: latest)
     }
 
     private var importLabel: some View {

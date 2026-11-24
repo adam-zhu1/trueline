@@ -17,9 +17,9 @@ struct HomeGreeting: Equatable {
     /// The line for this launch: best-ranked candidate, skipping the category
     /// shown last launch when there's an alternative.
     static func pick(
-        shots: [SavedShot], now: Date = .now, defaults: UserDefaults = .standard
+        shots: [SavedShot], speedUnit: String = "mph", now: Date = .now, defaults: UserDefaults = .standard
     ) -> HomeGreeting? {
-        let ranked = candidates(shots: shots, now: now)
+        let ranked = candidates(shots: shots, speedUnit: speedUnit, now: now)
         guard !ranked.isEmpty else { return nil }
         let lastShown = defaults.string(forKey: "lastHomeGreeting")
         let choice = ranked.first { $0.category.rawValue != lastShown } ?? ranked[0]
@@ -28,8 +28,8 @@ struct HomeGreeting: Equatable {
     }
 
     /// Ranked candidates, best first. `shots` newest first (the home query's
-    /// order).
-    static func candidates(shots: [SavedShot], now: Date = .now) -> [HomeGreeting] {
+    /// order). Speeds read in `speedUnit`, the Settings value ("mph" or "kmh").
+    static func candidates(shots: [SavedShot], speedUnit: String = "mph", now: Date = .now) -> [HomeGreeting] {
         guard let latest = shots.first else { return [] }
         var result: [HomeGreeting] = []
         let calendar = Calendar.current
@@ -65,7 +65,7 @@ struct HomeGreeting: Equatable {
             result.append(HomeGreeting(
                 category: .record,
                 headline: "New fastest ball.",
-                subline: String(format: "%.1f mph last session.", sessionTop)
+                subline: "\(SpeedUnit.format(sessionTop, unit: speedUnit)) \(SpeedUnit.label(speedUnit)) last session."
             ))
         }
 
@@ -109,7 +109,7 @@ struct HomeGreeting: Equatable {
                 result.append(HomeGreeting(
                     category: .delta,
                     headline: "Launch speed is up.",
-                    subline: String(format: "Averaging %.1f mph faster lately.", diff)
+                    subline: "Averaging \(SpeedUnit.format(diff, unit: speedUnit)) \(SpeedUnit.label(speedUnit)) faster lately."
                 ))
             }
         }
