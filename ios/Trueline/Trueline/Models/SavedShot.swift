@@ -70,6 +70,8 @@ final class SavedShot {
     }
 
     /// Measured before the current analyzer; its boards can be several off.
+    /// Versions 1 (TrueLine 1.0) and 2 (interim builds) both show as the
+    /// "1.0 tracker" (see OlderTracker).
     var isFromOlderAnalyzer: Bool { analyzerVersion < ShotAnalyzer.version }
 
     /// The replay video, when it was saved and still exists on disk.

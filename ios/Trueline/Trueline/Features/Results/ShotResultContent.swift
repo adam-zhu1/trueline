@@ -108,12 +108,15 @@ struct ShotResultContent: View {
             }
 
             if fromOlderAnalyzer {
-                Label(
-                    "Measured with an older version of TrueLine. Board numbers on this throw may be off by several boards.",
-                    systemImage: "clock.arrow.circlepath"
-                )
-                .font(.footnote)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(OlderTracker.label)
+                        .font(.caption.weight(.medium))
+                    Text(OlderTracker.note)
+                        .font(.footnote)
+                }
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
 
             if looksMiscalibrated {

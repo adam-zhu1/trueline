@@ -17,6 +17,14 @@ extension ShotResult {
     }
 }
 
+/// The quiet tag on shots an older analyzer measured. Real users' older shots
+/// are all TrueLine 1.0 (version 1); version 2 only ever ran on the
+/// developer's phone, so it shares the label rather than getting its own.
+enum OlderTracker {
+    static let label = "1.0 tracker"
+    static let note = "These numbers came from the 1.0 tracker and can be a few boards off."
+}
+
 extension LaneModel.Hand {
     /// The Settings hand (the "bowlingHand" preference), right by default.
     static var setting: Self {

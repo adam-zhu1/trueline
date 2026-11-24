@@ -61,11 +61,12 @@ struct ShotResult {
 struct ShotAnalyzer {
     /// Stamped on every saved shot. 1 = TrueLine 1.0, whose contact point was
     /// computed in raw buffer axes and skewed boards sideways on portrait
-    /// clips. 2 = 1.1: contact point fix, wall-clock tracking, one lane model,
-    /// metrics from the detector boxes (launch speed and entry fits). 2 has
-    /// not shipped yet, so these all share it.
+    /// clips. 2 = interim 1.1 builds (developer phone only): contact point
+    /// fix, wall-clock tracking, one lane model, but metrics still read off
+    /// the Kalman state. 3 = metrics from the detector boxes, least-squares
+    /// launch speed and the entry fit (6c22df7).
     /// Bump when a change moves the numbers a saved shot would show.
-    static let version = 2
+    static let version = 3
 
     var detector: BallDetector
     var corners: LaneCorners

@@ -141,14 +141,14 @@ struct HistoryView: View {
                         .foregroundStyle(.secondary)
                 }
                 if shot.isFromOlderAnalyzer {
-                    Text("older version")
+                    Text(OlderTracker.label)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
         }
         // One VoiceOver stop per row, read in order: time, date, speed,
-        // arrows, and the older-version tag.
+        // arrows, and the 1.0 tracker tag.
         .accessibilityElement(children: .combine)
     }
 }
