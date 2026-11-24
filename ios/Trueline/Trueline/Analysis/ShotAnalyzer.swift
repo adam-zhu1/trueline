@@ -29,6 +29,13 @@ struct ShotResult {
     /// The hand the boards count from. Drawings mirror on it: a left-hander's
     /// boards run from the left gutter.
     var hand: LaneModel.Hand = .right
+    /// The calibration this result was measured with (display-normalized,
+    /// as the analyzer received it). Saved on the shot so a later analyzer
+    /// can re-run the stored replay.
+    var corners: LaneCorners? = nil
+    /// Camera zoom the corners were confirmed at; nil for imported clips,
+    /// whose zoom is unknown. Set by the capture flow, not the analyzer.
+    var captureZoom: Double? = nil
     /// Smoothed (board, feet) samples for drawing the lane-view path.
     var path: [(board: Double, feet: Double)]
     /// Smoothed ball-contact points in display-oriented normalized coordinates,
@@ -364,6 +371,7 @@ struct ShotAnalyzer {
             )
         }
         result.hand = hand
+        result.corners = corners
         result.trace = AnalysisTrace(
             fps: fpsSafe,
             orientation: orientation.rawValue,

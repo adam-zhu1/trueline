@@ -60,6 +60,63 @@ struct AnalyzerVersionTests {
         #expect(fetched.first?.bowlingHand == "right")
     }
 
+    // MARK: - Calibration kept for re-analysis
+
+    static let corners = LaneCorners(
+        farLeft: CGPoint(x: 0.41, y: 0.22),
+        farRight: CGPoint(x: 0.57, y: 0.22),
+        nearRight: CGPoint(x: 0.93, y: 0.88),
+        nearLeft: CGPoint(x: 0.08, y: 0.88)
+    )
+
+    static var calibratedResult: ShotResult {
+        var result = Self.result
+        result.corners = Self.corners
+        result.captureZoom = 2
+        return result
+    }
+
+    @Test func cornersFlattenAndRebuild() {
+        let flat = Self.corners.flattened
+        #expect(flat == [0.41, 0.22, 0.57, 0.22, 0.93, 0.88, 0.08, 0.88])
+        #expect(LaneCorners(flattened: flat) == Self.corners)
+        #expect(LaneCorners(flattened: []) == nil)
+        #expect(LaneCorners(flattened: Array(flat.dropLast())) == nil)
+    }
+
+    @Test func newShotsKeepTheirCalibration() {
+        let shot = SavedShot(result: Self.calibratedResult)
+        #expect(shot.calibration == Self.corners)
+        #expect(shot.calibrationZoom == 2)
+        // Set by the save flow once a replay is stored.
+        #expect(shot.videoTrimStartSeconds == nil)
+    }
+
+    /// An imported clip: corners, but no capture zoom.
+    @Test func importedShotsKeepCornersWithoutZoom() {
+        var result = Self.result
+        result.corners = Self.corners
+        let shot = SavedShot(result: result)
+        #expect(shot.calibration == Self.corners)
+        #expect(shot.calibrationZoom == nil)
+    }
+
+    @Test func calibrationSurvivesARoundTripThroughTheStore() throws {
+        let container = try ModelContainer(
+            for: SavedShot.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+        let shot = SavedShot(result: Self.calibratedResult)
+        shot.videoTrimStartSeconds = 3.25
+        context.insert(shot)
+        try context.save()
+        let fetched = try #require(try context.fetch(FetchDescriptor<SavedShot>()).first)
+        #expect(fetched.calibration == Self.corners)
+        #expect(fetched.calibrationZoom == 2)
+        #expect(fetched.videoTrimStartSeconds == 3.25)
+    }
+
     // MARK: - Opening stores written by older builds
 
     private static func storeURL() throws -> URL {
@@ -99,6 +156,15 @@ struct AnalyzerVersionTests {
         #expect(shot.analyzerVersion == 1)
         #expect(shot.isFromOlderAnalyzer)
         #expect(shot.bowlingHand == "")
+        Self.expectNoCalibration(shot)
+    }
+
+    /// Older shots open with no calibration: nothing to re-run from.
+    private static func expectNoCalibration(_ shot: SavedShot) {
+        #expect(shot.calibrationCorners.isEmpty)
+        #expect(shot.calibration == nil)
+        #expect(shot.calibrationZoom == nil)
+        #expect(shot.videoTrimStartSeconds == nil)
     }
 
     /// An interim 1.1 store: analyzerVersion 2, no hand column yet.
@@ -119,6 +185,30 @@ struct AnalyzerVersionTests {
         #expect(shot.analyzerVersion == 2)
         #expect(shot.isFromOlderAnalyzer)
         #expect(shot.bowlingHand == "")
+        Self.expectNoCalibration(shot)
+    }
+
+    /// A 1.1 store from before calibration was kept: version 3, a stored
+    /// hand and a replay, no corners.
+    @Test func versionThreeStoreWithoutCalibrationMigrates() throws {
+        let url = try Self.storeURL()
+        do {
+            let container = try ModelContainer(
+                for: Schema([StoreV3.SavedShot.self]),
+                configurations: ModelConfiguration(url: url)
+            )
+            let context = ModelContext(container)
+            context.insert(StoreV3.SavedShot(speedMph: 17.9, entryBoard: 17.4))
+            try context.save()
+        }
+        let shots = try Self.openWithCurrentSchema(url)
+        let shot = try #require(shots.first)
+        #expect(shot.speedMph == 17.9)
+        #expect(shot.analyzerVersion == 3)
+        #expect(!shot.isFromOlderAnalyzer)
+        #expect(shot.bowlingHand == "left")
+        #expect(shot.videoFileName == "shot-legacy.mp4")
+        Self.expectNoCalibration(shot)
     }
 }
 
@@ -161,6 +251,32 @@ enum StoreV2 {
             pathBoards = [15, 17]
             pathFeet = [0, 60]
             self.analyzerVersion = analyzerVersion
+        }
+    }
+}
+
+/// The 1.1 shape before calibration was kept: version 3 and a stored hand.
+enum StoreV3 {
+    @Model
+    final class SavedShot {
+        var date: Date
+        var speedMph: Double?
+        var entryBoard: Double?
+        var pathBoards: [Double]
+        var pathFeet: [Double]
+        var videoFileName: String?
+        var analyzerVersion: Int = 1
+        var bowlingHand: String = ""
+
+        init(speedMph: Double?, entryBoard: Double?) {
+            date = .now
+            self.speedMph = speedMph
+            self.entryBoard = entryBoard
+            pathBoards = [15, 17]
+            pathFeet = [0, 60]
+            videoFileName = "shot-legacy.mp4"
+            analyzerVersion = 3
+            bowlingHand = "left"
         }
     }
 }

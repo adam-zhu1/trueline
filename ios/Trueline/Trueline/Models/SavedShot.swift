@@ -40,6 +40,20 @@ final class SavedShot {
     /// The hand the boards were counted from ("right" or "left"). Empty on
     /// shots saved before the field existed; those follow the Settings hand.
     var bowlingHand: String = ""
+    /// The lane calibration the shot was measured with, so a later analyzer
+    /// can re-run the replay: LaneCorners.flattened, normalized to the
+    /// display-oriented frame. The 720p re-encode keeps the frame's aspect
+    /// and orientation, so the same values fit the stored video. Empty on
+    /// shots saved before the field existed.
+    var calibrationCorners: [Double] = []
+    /// Camera zoom the corners were confirmed at; nil for imported clips and
+    /// older shots.
+    var calibrationZoom: Double?
+    /// Where the stored replay starts in the clip that was analyzed, in
+    /// seconds: the trim that cut the walk-up (0 while the untrimmed raw is
+    /// stored). Subtract it from the analyzed clip's times to find a moment
+    /// in the replay. Nil when no replay was stored.
+    var videoTrimStartSeconds: Double?
 
     init(date: Date = .now, result: ShotResult) {
         self.date = date
@@ -62,6 +76,13 @@ final class SavedShot {
         videoHeight = Double(result.videoDisplaySize.height)
         analyzerVersion = ShotAnalyzer.version
         bowlingHand = result.hand.rawValue
+        calibrationCorners = result.corners?.flattened ?? []
+        calibrationZoom = result.captureZoom
+    }
+
+    /// The stored calibration, when the shot has one.
+    var calibration: LaneCorners? {
+        LaneCorners(flattened: calibrationCorners)
     }
 
     /// The hand this shot's boards count from, for drawing it.

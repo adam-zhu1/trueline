@@ -206,6 +206,10 @@ struct CaptureFlowView: View {
                     clipURL: clipURL,
                     corners: corners,
                     onComplete: { result in
+                        var result = result
+                        // Saved with the shot's calibration. An imported
+                        // clip's zoom is unknown, not the camera's.
+                        if !isImported { result.captureZoom = camera.zoomFactor }
                         if result.isReliable {
                             // The only place quota is spent: a reliable
                             // result. Failed tracking falls through free.

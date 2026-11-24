@@ -32,9 +32,14 @@ enum ShotVideoStore {
 
     /// Re-encode a stored raw clip down to just the throw (±1 s padding) at
     /// 720p — the raw recording is mostly the walk back to the phone, so this
-    /// is a 10–20× size cut. Returns the compact file's name and deletes the
-    /// raw on success; nil means the export failed and the raw stays.
-    static func compress(rawName: String, throwStart: Double?, throwEnd: Double?) async -> String? {
+    /// is a 10–20× size cut. Returns the compact file's name and where it
+    /// starts in the raw clip (seconds), and deletes the raw on success; nil
+    /// means the export failed and the raw stays. The preset scales to fit
+    /// 1280×720 without cropping and keeps the orientation, so normalized
+    /// display coordinates (calibration corners) carry over unchanged.
+    static func compress(
+        rawName: String, throwStart: Double?, throwEnd: Double?
+    ) async -> (name: String, trimStart: Double)? {
         let rawURL = url(forName: rawName)
         let asset = AVURLAsset(url: rawURL)
         guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1280x720) else {
@@ -44,6 +49,7 @@ enum ShotVideoStore {
         let outURL = url(forName: outName)
         export.outputURL = outURL
         export.outputFileType = .mp4
+        var trimStart = 0.0
         if let throwStart, let throwEnd,
            let duration = try? await asset.load(.duration) {
             let pad = 1.0
@@ -54,6 +60,7 @@ enum ShotVideoStore {
                     start: CMTime(seconds: start, preferredTimescale: 600),
                     end: CMTime(seconds: end, preferredTimescale: 600)
                 )
+                trimStart = start
             }
         }
         await export.export()
@@ -62,7 +69,7 @@ enum ShotVideoStore {
             return nil
         }
         try? FileManager.default.removeItem(at: rawURL)
-        return outName
+        return (outName, trimStart)
     }
 
     static func delete(name: String?) {

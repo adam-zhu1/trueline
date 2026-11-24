@@ -169,13 +169,15 @@ struct ResultsView: View {
                     // it in the background: trimmed to the throw and
                     // re-encoded at 720p. Failure keeps the raw.
                     shot.videoFileName = rawName
+                    shot.videoTrimStartSeconds = 0
                     Task {
                         if let compact = await ShotVideoStore.compress(
                             rawName: rawName,
                             throwStart: result.throwStartSeconds,
                             throwEnd: result.throwEndSeconds
                         ) {
-                            shot.videoFileName = compact
+                            shot.videoFileName = compact.name
+                            shot.videoTrimStartSeconds = compact.trimStart
                         }
                     }
                 }
