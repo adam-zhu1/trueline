@@ -315,7 +315,11 @@ struct StatsView: View {
         }
         .chartXAxis {
             AxisMarks(values: labelIndices) { mark in
-                AxisValueLabel {
+                // Centered under each point. The default hangs a date off
+                // its point's trailing side, so the newest one ran into the
+                // y-axis labels and truncated to "No…"; the half-slot margin
+                // in the x scale leaves room for half a date at either end.
+                AxisValueLabel(anchor: .top) {
                     if let index = mark.as(Int.self), ordered.indices.contains(index) {
                         Text(ordered[index].date, format: .dateTime.month(.abbreviated).day())
                             .font(.caption2)
