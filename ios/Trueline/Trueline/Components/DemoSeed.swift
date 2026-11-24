@@ -32,13 +32,25 @@ enum DemoSeed {
             session.oilPattern = "House"
             context.insert(session)
 
-            // Later sessions tighten: spreads shrink, entry angle drifts into
-            // the 4–6° band, more throws find the pocket.
+            // Later sessions tighten: spreads shrink and entry angle drifts
+            // up through the 4–6° band. Pocket hits are dealt, not drawn, so
+            // every night lands at a league bowler's 50 to 67% instead of a
+            // small-sample 0; the last throw of a night is always a strike
+            // line, which keeps the newest shot a clean screenshot.
             let skill = Double(index) / 4.0
-            for _ in 0..<(5 + index % 3) {
+            let count = 5 + index % 3
+            let hits = pocketHits[index]
+            var misses = Set<Int>()
+            while misses.count < count - hits {
+                misses.insert(Int.random(in: 0..<(count - 1), using: &rng))
+            }
+            for throwIndex in 0..<count {
                 let shot = SavedShot(
-                    date: session.date.addingTimeInterval(Double.random(in: 0...3600, using: &rng)),
-                    result: makeResult(skill: skill, rng: &rng)
+                    // A throw every seven minutes or so, in order.
+                    date: session.date.addingTimeInterval(
+                        Double(throwIndex) * 420 + Double.random(in: 0...120, using: &rng)
+                    ),
+                    result: makeResult(skill: skill, pocket: !misses.contains(throwIndex), rng: &rng)
                 )
                 shot.session = session
                 context.insert(shot)
@@ -47,25 +59,38 @@ enum DemoSeed {
 
         // Sessionless imports with a shot-level ball tag — the analyze-
         // existing-footage path that per-ball stats must include.
-        for daysAgo in [3, 10] {
+        // One in the pocket and one out, so the spare ball doesn't top the
+        // per-ball pocket bars at 100%.
+        for (daysAgo, pocket) in [(3, true), (10, false)] {
             let shot = SavedShot(
                 date: Calendar.current.date(byAdding: .day, value: -daysAgo, to: anchor) ?? anchor,
-                result: makeResult(skill: 0.5, rng: &rng)
+                result: makeResult(skill: 0.5, pocket: pocket, rng: &rng)
             )
             shot.ball = "Spare Ball"
             context.insert(shot)
         }
     }
 
-    private static func makeResult(skill: Double, rng: inout SeededRNG) -> ShotResult {
+    /// Pocket hits per session, oldest first, against 5, 6, 7, 5 and 6
+    /// throws: 60, 50, 57, 60 and 67%.
+    private static let pocketHits = [3, 3, 4, 3, 4]
+
+    /// `pocket` deals the throw into the 17–18 pocket or a board or two
+    /// either side of it.
+    private static func makeResult(skill: Double, pocket: Bool, rng: inout SeededRNG) -> ShotResult {
         func jitter(_ spread: Double) -> Double {
             Double.random(in: -spread...spread, using: &rng)
         }
-        let entrySpread = 1.8 - 1.2 * skill
-        let entryBoard = 17.5 + jitter(entrySpread)
+        let entryBoard: Double
+        if pocket {
+            entryBoard = 17.5 + jitter(0.45)
+        } else {
+            let side: Double = Bool.random(using: &rng) ? 1 : -1
+            entryBoard = 17.5 + side * Double.random(in: 0.8...1.9, using: &rng)
+        }
         let breakpointBoard = 7.0 + jitter(1.0)
-        let speed = 16.2 + 0.4 * skill + jitter(1.0 - 0.5 * skill)
-        let entryAngle = 3.6 + 1.2 * skill + jitter(0.8)
+        let speed = 17.0 + 0.4 * skill + jitter(0.9 - 0.4 * skill)
+        let entryAngle = 4.0 + 1.0 * skill + jitter(0.6)
 
         // Overlay path: the brand hook nudged laterally per shot, so the
         // session "Lines" view fans realistically.
@@ -97,6 +122,8 @@ enum DemoSeed {
             foulLineBoard: foulLineBoard,
             averageSpeedMph: averageSpeed,
             shotTimeSeconds: shotTime,
+            // The Settings hand, so `-bowlingHand left` seeds a lefty history.
+            hand: .setting,
             path: path,
             videoPath: [],
             videoDisplaySize: .zero,

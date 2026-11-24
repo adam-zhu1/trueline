@@ -14,6 +14,8 @@ struct StatsView: View {
     @AppStorage("speedUnit") private var speedUnit = "mph"
     @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 54
 
+    private static let trendsID = "trends"
+
     private struct Point: Identifiable {
         var id: Int { index }
         let index: Int
@@ -35,29 +37,41 @@ struct StatsView: View {
                         description: Text("Record or import a throw from the Bowl tab. Every saved shot builds your stats.")
                     )
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            hero
-                            averageTiles
-                            entryBoardCard
-                            ballCard
-                            Text("Trends")
-                                .font(.title3.bold())
-                                .padding(.top, 6)
-                            trendCard("Launch Speed", unit: SpeedUnit.label(speedUnit)) { shots in
-                                average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 14) {
+                                hero
+                                averageTiles
+                                entryBoardCard
+                                ballCard
+                                Text("Trends")
+                                    .font(.title3.bold())
+                                    .padding(.top, 6)
+                                    .id(Self.trendsID)
+                                trendCard("Launch Speed", unit: SpeedUnit.label(speedUnit)) { shots in
+                                    average(shots.compactMap { $0.speedMph.map { SpeedUnit.value($0, unit: speedUnit) } })
+                                }
+                                trendCard("Pocket Hits", unit: "%", domain: 0...100) { shots in
+                                    pocketPercent(of: shots)
+                                }
+                                trendCard("Hook", unit: "boards") { average($0.compactMap(\.hookBoards)) }
+                                trendCard("Entry Angle", unit: "°", idealBand: 4...6) {
+                                    average($0.compactMap(\.entryAngleDegrees))
+                                }
                             }
-                            trendCard("Pocket Hits", unit: "%", domain: 0...100) { shots in
-                                pocketPercent(of: shots)
-                            }
-                            trendCard("Hook", unit: "boards") { average($0.compactMap(\.hookBoards)) }
-                            trendCard("Entry Angle", unit: "°", idealBand: 4...6) {
-                                average($0.compactMap(\.entryAngleDegrees))
+                            .padding()
+                        }
+                        .background(Color.pageBackground)
+                        #if DEBUG
+                        // `-trendsPreviewTrends` opens on the Trends header, for
+                        // screenshots (the CLI can't swipe).
+                        .onAppear {
+                            if UserDefaults.standard.bool(forKey: "trendsPreviewTrends") {
+                                proxy.scrollTo(Self.trendsID, anchor: .top)
                             }
                         }
-                        .padding()
+                        #endif
                     }
-                    .background(Color.pageBackground)
                 }
             }
             .navigationTitle("Stats")
