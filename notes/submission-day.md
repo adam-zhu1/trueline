@@ -6,7 +6,9 @@ Store Connect help on Nov 15, 2026 (links at the bottom).
 
 ## Before you start
 
-- [ ] Alley session done, and the clips you'll link are your own footage.
+- [ ] Clips you link are your own footage. (Nov 22: 1.1 goes in without an alley
+      session; the screen recording is made at home on the sample video. See
+      `app-review-notes.md`, "The two links".)
 - [ ] `[SAMPLE VIDEO LINK]` and `[SCREEN RECORDING LINK]` filled in
       `app-review-notes.md`. Both open in a private browser window with no
       login. Notes field recounted (4,000 max).
@@ -106,7 +108,8 @@ Aug 19.
 4. **Website.** In `~/Projects/truelinebowling-site`: as of Nov 15 there is
    `main` is the live 1.0 site and the 1.1 version sits on the `release-1.1`
    branch (25 free throws, launch speed label, new FAQ), committed but not
-   deployed. Merge it: `git checkout main && git merge --ff-only release-1.1`. Then run
+   deployed. Rebased onto main Nov 22 (main had gained the link-preview and
+   scroll fixes plus the /review/ files), so the fast-forward works. Merge it: `git checkout main && git merge --ff-only release-1.1`. Then run
    `tools/deploy.sh`, which builds from the checked-out HEAD. Check
    https://truelinebowling.com shows 25 free throws and that
    https://truelinebowling.com/support/ and /privacy/ load. Until 1.1 is

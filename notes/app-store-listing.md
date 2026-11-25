@@ -39,7 +39,7 @@ to "Speed, rev rate & entry angle" (29).
 ```
 This update fixes how the ball's position is measured. Version 1.0 read every throw several boards to one side. Throws saved before this update are marked in History so you know which numbers to trust.
 
-Calibration is now six taps on the lane markings. You can also record at 2x, which makes the far end of the lane easier to see.
+Calibration is now six points on the lane markings. Pinch to zoom in on the frame while you place them, and a magnifier shows exactly where each point lands. You can also record at 2x, which makes the far end of the lane easier to see.
 
 Each throw is checked against your calibration. If the phone gets bumped a little, TrueLine corrects for it. If it moved a lot, you'll be asked to recalibrate.
 
@@ -49,10 +49,12 @@ When a throw can't be tracked, TrueLine tells you why and what to try. Those thr
 
 You can export your throws as a CSV file from History or from any session. Settings has new links to rate the app and to send feedback.
 
+Speed now reads as launch speed, the speed off your hand. Left-handed throws are drawn on the left side of the lane. Home follows your km/h setting. There is a Light appearance in Settings.
+
 The app also works better with VoiceOver and with larger text sizes.
 ```
 
-924 characters.
+1,223 characters (updated Nov 22 for calibration zoom, launch speed, left-handed lanes, km/h on Home and the Light appearance).
 
 ### Promotional text (170 max, editable any time without review)
 
@@ -70,13 +72,13 @@ if you want it out sooner.
 TrueLine measures your bowling throws with one iPhone. Set it on a tripod behind the approach and bowl. A few seconds after each throw you see the same kinds of numbers that in-center tracking systems show, worked out on your phone.
 
 WHAT IT MEASURES
-• Ball speed and average speed
+• Launch speed and average speed
 • Shot time
 • Board at the foul line and at the arrows
 • Launch angle
 • Breakpoint board and distance
 • Entry board and entry angle
-• Total hook in boards, and hook factor
+• Total hook in boards
 • Pocket hits
 
 SEE YOUR GAME
@@ -104,7 +106,7 @@ PRICE
 Your first 25 throws are free. Only throws that analyze successfully count. After that, a one-time purchase unlocks unlimited throws. There is no subscription.
 ```
 
-1,591 characters. What changed from 1.0: "the numbers serious bowlers pay
+1,576 characters (Nov 22: "Launch speed", hook factor dropped since its tile is gone). What changed from 1.0: "the numbers serious bowlers pay
 thousands to get" became "the same kinds of numbers that in-center tracking
 systems show"; "Works at any center on any lane" became "Works in most centers
 with the phone steady behind the approach"; 10 free throws became 25; the

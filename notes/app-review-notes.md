@@ -9,56 +9,55 @@ described with specificity in the review notes, and 1.0 was held once under
 Build: version 1.1 (build 3), iPhone only. Listing text is in
 `app-store-listing.md`, section "1.1 submission".
 
-## Before pasting: fill the two placeholders
+## The two links (filled Nov 22)
 
-- `[SAMPLE VIDEO LINK]`: a download link to one of Adam's own behind-approach
-  clips that tracks cleanly (IMG_5108, the strike clip, is the reference). Never
-  the Instagram test clips, which we don't hold rights to. Check that the link
-  works in a private browser window without a login.
-- `[SCREEN RECORDING LINK]`: an on-device recording of 1.1 at a lane. It should
-  show launch, Start Session, the camera prompt, the six-tap calibration, a
-  throw analyzed to the result screen, a second throw where the drift check
-  runs, the 1x/2x chips, and Settings > Unlock TrueLine Unlimited through to the
-  App Store payment sheet (cancel there). If the drift check can't be shown
-  with a real bump, at least show a second throw reusing the calibration.
+- Sample video: https://truelinebowling.com/review/trueline-sample-throw.mov,
+  Adam's own IMG_5108 strike clip (data/test_videos/alley-2026-08-17), served
+  from the live site as a download, noindex. Never the Instagram test clips,
+  which we don't hold rights to.
+- Screen recording: https://truelinebowling.com/review/trueline-1.1-recording.mp4.
+  Recorded at home on the iPhone (no alley visit before 1.1), importing the
+  sample video. Publish it with `output/release-1.1/publish-review-recording.sh [file]`,
+  which puts it on the site and checks the link. Shot list in
+  `output/release-1.1/MORNING.md`. The drift check needs a live lane, so the
+  recording shows a second throw reusing the calibration instead, and the
+  Notes say so.
 
 Also upload the screen recording as an attachment in App Review Information if
 the field accepts it, so the reviewer doesn't depend on the link.
 
 ## Paste into App Store Connect > App Review Information > Notes
 
-3,765 characters with the placeholders (limit 4,000). Real links add about
-100, which still fits. Recount after filling them in.
+3,938 characters with both links filled in (limit 4,000). Counted Nov 22.
 
 ```
-TrueLine measures a bowling throw from an iPhone set behind the approach. An on-device model tracks the ball, and the app reports ball speed, board at the arrows, breakpoint, entry board and entry angle. There is no account and no server of ours. Analysis runs on the iPhone and the privacy label is Data Not Collected. No login is needed.
+TrueLine measures a bowling throw from an iPhone set behind the approach. An on-device model tracks the ball, and the app reports launch speed, board at the arrows, breakpoint, entry board and entry angle. There is no account and no server of ours. Analysis runs on the iPhone and the privacy label is Data Not Collected. No login is needed.
 
 ATTACHMENTS
-Sample video (our own footage): [SAMPLE VIDEO LINK]
-Screen recording of 1.1 on an iPhone at a bowling center: [SCREEN RECORDING LINK]
+Sample video (our own footage, a strike from behind the approach): https://truelinebowling.com/review/trueline-sample-throw.mov
+Screen recording of 1.1 on an iPhone, using the sample video: https://truelinebowling.com/review/trueline-1.1-recording.mp4
 
 TESTING WITHOUT A BOWLING LANE
 1. Save the sample video to Photos on the test iPhone.
 2. On the Bowl tab, tap Analyze Existing Video and choose the sample video. Tap Use Throw.
-3. Calibrate with six taps on the frame. The header names each spot in turn: both ends of the foul line, three arrows, then the head pin. A lane outline appears after the sixth tap. Drag its far corners until the drawn rings sit on the pins, then tap Looks Good.
+3. Calibrate by placing six points on the frame (touch, slide, lift; pinch or double-tap to zoom). The header names each spot in turn: both ends of the foul line, three arrows, then the head pin. A lane outline appears after the sixth tap. Drag its far corners until the drawn rings sit on the pins, then tap Looks Good.
 4. After a few seconds the result screen shows the tracked path on the video and the metric tiles.
 A video that is not a bowling throw ends at a screen that explains why the ball could not be tracked. That is expected.
 
 NEW IN 1.1
-- Calibration is six guided taps on lane markings instead of dragging four corners.
-- Drift check: on the second and later throws of a recorded session, the throw's first frame is compared with the calibration frame. A small shift is corrected and the review screen says the lane was re-aligned. A large one (over 8 boards at the pins, or a poor match) asks the bowler to recalibrate. It needs a live session at a lane and does not run on imported videos, so the screen recording shows it.
+- Calibration is six guided points on lane markings instead of dragging four corners. The frame zooms (pinch, two-finger pan, double-tap) and a magnifier shows where each point lands.
+- Drift check: on the second and later throws of a recorded session, the throw's first frame is compared with the calibration frame. A small shift is corrected and the review screen says the lane was re-aligned. A large one (over 8 boards at the pins, or a poor match) asks the bowler to recalibrate. It needs a live session at a lane and does not run on imported videos, so it cannot be shown with the sample video. The screen recording shows a second throw reusing the calibration.
 - Zoom: 1x and 2x buttons on the record screen. Hidden while recording. Changing zoom mid-session asks for a new calibration.
-- Measurement fix: 1.0 placed the ball several boards to one side. Shots saved with 1.0 show an "older version" tag in History and a note on the shot saying the board numbers may be off.
+- Measurement fix: 1.0 placed the ball several boards to one side. Shots saved with 1.0 show a "1.0 tracker" tag in History and a note on the shot saying the numbers can be a few boards off.
 - What's New sheet: shown once to people updating from 1.0 (finished onboarding or saved a throw). Fresh installs never see it, so a clean review install won't show it.
 - 25 free throws, up from 10. Only a successful analysis uses one.
 - Failure reasons: a throw that can't be tracked shows the cause (ball not found, lane outline doesn't match, ball lost too early, or video unreadable), the matching fix as the main button, and a note that no free throw was used.
-- CSV export: Export All as CSV in History, Export CSV in each session, through the share sheet. One row per throw.
+- CSV export: Export All as CSV in History, Export CSV in each session. One row per throw.
 - Settings > Send Feedback opens a Mail draft to support@truelinebowling.com with the app version and iPhone model filled in. Nothing from the user's throws is included.
-- Settings > Rate TrueLine opens the App Store review page. The system rating prompt can appear once per version, after the third successful analysis, on return to Home, never during a throw.
-- Accessibility: VoiceOver labels for metrics, the lane drawing, stats and history. Text scales with Larger Text. Text on the default dark interface has at least 4.5:1 contrast. Touch targets are at least 44 pt.
-- Paywall: the price comes from StoreKit. The button shows a spinner while the product loads. If the App Store doesn't respond, it reads Try Again with a short note and shows no price.
-- Ball tracking reaches farther down the lane, including in 60 fps video.
-- The camera permission text now says what the camera is for and that videos stay on the iPhone.
+- Settings > Rate TrueLine opens the App Store review page. The system rating prompt can appear after the third successful analysis, on Home, never during a throw.
+- Accessibility: VoiceOver labels for metrics, the lane drawing, stats and history. Text scales with Larger Text.
+- Paywall: the price comes from StoreKit, with a spinner while it loads, or Try Again and no price if the App Store doesn't respond.
+- Ball tracking reaches farther down the lane, including in 60 fps video. Speed is labeled launch speed. Left-handed throws draw on the left of the lane. Settings has a Light appearance.
 
 IN-APP PURCHASE
 TrueLine Unlimited (com.adamzhu.Trueline.unlimited) is a non-consumable that unlocks unlimited analyses. There is no subscription. To test it without using the free throws, open Settings and tap Unlock TrueLine Unlimited. Restore Purchases is in Settings and on the paywall.
@@ -165,7 +164,7 @@ Findings, resolved Aug 15:
 
 ## Submission log, 1.1
 
-- (empty) Target: submit by about Dec 10, 2026.
+- Build 3 archived Nov 22 (output/release-1.1/TrueLine-1.1-b3.xcarchive). Upload blocked: "PLA Update available", Adam must accept the updated Program License Agreement at developer.apple.com first. Target: submit week of Nov 22, without an alley visit.
 
 ## Submission log, 1.0
 
