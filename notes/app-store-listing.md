@@ -330,5 +330,5 @@ Two things this constrains:
    user site, `adam-zhu1.github.io/*` keeps redirecting to `adamzhu.dev/*` and
    the user site's own files serve the path.
 
-v1.1 onward points Settings at adamzhu.dev directly (commit f8119de), which skips
+(Superseded Nov 15: 1.1's Settings and Send Feedback use truelinebowling.com, and since Nov 23 adamzhu.dev/trueline/, /support and /privacy redirect there.) Earlier, v1.1 pointed Settings at adamzhu.dev directly (commit f8119de), which skips
 the redirect hop for new installs but changes nothing for existing ones.

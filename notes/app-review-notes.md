@@ -153,8 +153,9 @@ Findings, resolved Aug 15:
 - [ ] Privacy label stays Data Not Collected. `PrivacyInfo.xcprivacy` ships
       (UserDefaults / CA92.1 only); `ITSAppUsesNonExemptEncryption = NO`.
 - [ ] Support and privacy pages live at truelinebowling.com, and the old
-      adamzhu.dev and github.io forms still resolve (1.0 installs and the 1.1
-      Settings links use adamzhu.dev).
+      adamzhu.dev and github.io forms still resolve for 1.0 installs (since
+      Nov 23 adamzhu.dev/trueline/, /support and /privacy redirect to
+      truelinebowling.com). The 1.1 app links truelinebowling.com only.
 - [ ] Listing fields from `app-store-listing.md` "1.1 submission", including the
       new subtitle, keywords and the Accessibility Nutrition Labels.
 - [ ] Screenshots match 1.1 (2.3.3); upload the 1206 x 2622 set too.
