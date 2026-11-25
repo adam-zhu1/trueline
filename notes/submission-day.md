@@ -14,7 +14,7 @@ Store Connect help on Nov 15, 2026 (links at the bottom).
       the Release build, including the device-only rows (13, 14, 16, 17, 23).
 - [ ] Accessibility device check done for Larger Text and the Light
       appearance (`app-store-listing.md`, Accessibility Nutrition Labels).
-- [ ] On branch `v1.1`, working tree clean. Version 1.1, build 3
+- [ ] On `main` with every queued commit published (`~/.cache/trueline-publish/queue.txt` empty, or archive from the local work branch), working tree clean. Version 1.1, build 3
       (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`). If build 3 was ever
       uploaded before, bump the build number. App Store Connect rejects a
       repeated build number for the same version.
@@ -114,11 +114,12 @@ Aug 19.
    throws to 1.0 users.
 5. **Git** (in this repo, after the App Store page shows 1.1):
 
+   `main` already carries the 1.1 work (merged Nov 15, 1.0 is tagged
+   `v1.0`). Tag the commit the build was archived from:
+
    ```
-   git checkout main
-   git merge --no-ff v1.1 -m "Merge v1.1: TrueLine 1.1 as released"
-   git tag -a v1.1.0 -m "TrueLine 1.1 (build 3), released <date>"
-   git push origin main v1.1.0
+   git tag -a v1.1.0 <archived commit> -m "TrueLine 1.1 (build 3), released <date>"
+   git push origin v1.1.0
    ```
 
    Commit as Adam, no AI trailers. Push only when you want it public.
